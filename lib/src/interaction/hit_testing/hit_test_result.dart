@@ -1,0 +1,128 @@
+import '../../core/models/cell_coordinate.dart';
+
+/// The type of element hit during a hit test.
+enum HitTestType {
+  /// No element was hit (outside worksheet bounds).
+  none,
+
+  /// A worksheet cell was hit.
+  cell,
+
+  /// A row header was hit.
+  rowHeader,
+
+  /// A column header was hit.
+  columnHeader,
+
+  /// A row resize handle was hit.
+  rowResizeHandle,
+
+  /// A column resize handle was hit.
+  columnResizeHandle,
+}
+
+/// Result of a hit test on the worksheet.
+///
+/// Contains information about what element was hit at a given position.
+class WorksheetHitTestResult {
+  /// The type of element that was hit.
+  final HitTestType type;
+
+  /// The cell coordinate if a cell was hit, null otherwise.
+  final CellCoordinate? cell;
+
+  /// The header index if a header or resize handle was hit, null otherwise.
+  final int? headerIndex;
+
+  const WorksheetHitTestResult._({
+    required this.type,
+    this.cell,
+    this.headerIndex,
+  });
+
+  /// Creates a result indicating nothing was hit.
+  const WorksheetHitTestResult.none()
+      : type = HitTestType.none,
+        cell = null,
+        headerIndex = null;
+
+  /// Creates a result indicating a cell was hit.
+  WorksheetHitTestResult.cell(CellCoordinate coordinate)
+      : type = HitTestType.cell,
+        cell = coordinate,
+        headerIndex = null;
+
+  /// Creates a result indicating a row header was hit.
+  const WorksheetHitTestResult.rowHeader(int rowIndex)
+      : type = HitTestType.rowHeader,
+        cell = null,
+        headerIndex = rowIndex;
+
+  /// Creates a result indicating a column header was hit.
+  const WorksheetHitTestResult.columnHeader(int columnIndex)
+      : type = HitTestType.columnHeader,
+        cell = null,
+        headerIndex = columnIndex;
+
+  /// Creates a result indicating a row resize handle was hit.
+  const WorksheetHitTestResult.rowResizeHandle(int rowIndex)
+      : type = HitTestType.rowResizeHandle,
+        cell = null,
+        headerIndex = rowIndex;
+
+  /// Creates a result indicating a column resize handle was hit.
+  const WorksheetHitTestResult.columnResizeHandle(int columnIndex)
+      : type = HitTestType.columnResizeHandle,
+        cell = null,
+        headerIndex = columnIndex;
+
+  /// Whether nothing was hit.
+  bool get isNone => type == HitTestType.none;
+
+  /// Whether a cell was hit.
+  bool get isCell => type == HitTestType.cell;
+
+  /// Whether a row header was hit.
+  bool get isRowHeader => type == HitTestType.rowHeader;
+
+  /// Whether a column header was hit.
+  bool get isColumnHeader => type == HitTestType.columnHeader;
+
+  /// Whether any header was hit.
+  bool get isHeader => isRowHeader || isColumnHeader;
+
+  /// Whether a resize handle was hit.
+  bool get isResizeHandle =>
+      type == HitTestType.rowResizeHandle ||
+      type == HitTestType.columnResizeHandle;
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is WorksheetHitTestResult &&
+        other.type == type &&
+        other.cell == cell &&
+        other.headerIndex == headerIndex;
+  }
+
+  @override
+  int get hashCode => Object.hash(type, cell, headerIndex);
+
+  @override
+  String toString() {
+    switch (type) {
+      case HitTestType.none:
+        return 'WorksheetHitTestResult.none';
+      case HitTestType.cell:
+        return 'WorksheetHitTestResult.cell($cell)';
+      case HitTestType.rowHeader:
+        return 'WorksheetHitTestResult.rowHeader($headerIndex)';
+      case HitTestType.columnHeader:
+        return 'WorksheetHitTestResult.columnHeader($headerIndex)';
+      case HitTestType.rowResizeHandle:
+        return 'WorksheetHitTestResult.rowResizeHandle($headerIndex)';
+      case HitTestType.columnResizeHandle:
+        return 'WorksheetHitTestResult.columnResizeHandle($headerIndex)';
+    }
+  }
+}
