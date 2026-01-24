@@ -1,0 +1,1238 @@
+# Worksheet Widget Cookbook
+
+Practical recipes for common worksheet tasks.
+
+## Table of Contents
+
+1. [Read-Only Spreadsheet Viewer](#read-only-spreadsheet-viewer)
+2. [Editable Data Grid with Persistence](#editable-data-grid-with-persistence)
+3. [Custom Cell Styling (Conditional Formatting)](#custom-cell-styling-conditional-formatting)
+4. [Large Dataset Loading](#large-dataset-loading)
+5. [Keyboard Navigation](#keyboard-navigation)
+6. [Programmatic Scrolling to Cells](#programmatic-scrolling-to-cells)
+7. [Export Data to CSV](#export-data-to-csv)
+8. [Custom Column Widths](#custom-column-widths)
+9. [Cell Value Validation](#cell-value-validation)
+10. [Multi-Select Resize](#multi-select-resize)
+
+---
+
+## Read-Only Spreadsheet Viewer
+
+Display data without allowing user interaction:
+
+```dart
+class ReadOnlyViewer extends StatefulWidget {
+  final List<List<String>> data;
+
+  const ReadOnlyViewer({required this.data, super.key});
+
+  @override
+  State<ReadOnlyViewer> createState() => _ReadOnlyViewerState();
+}
+
+class _ReadOnlyViewerState extends State<ReadOnlyViewer> {
+  late final SparseWorksheetData _worksheetData;
+  late final WorksheetController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _worksheetData = SparseWorksheetData(
+      rowCount: widget.data.length,
+      columnCount: widget.data.isEmpty ? 0 : widget.data[0].length,
+    );
+    _controller = WorksheetController();
+
+    // Load data
+    for (var row = 0; row < widget.data.length; row++) {
+      for (var col = 0; col < widget.data[row].length; col++) {
+        final value = widget.data[row][col];
+        if (value.isNotEmpty) {
+          _worksheetData.setCell(
+            CellCoordinate(row, col),
+            CellValue.text(value),
+          );
+        }
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _worksheetData.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WorksheetTheme(
+      data: const WorksheetThemeData(
+        showHeaders: true,
+        showGridlines: true,
+      ),
+      child: Worksheet(
+        data: _worksheetData,
+        controller: _controller,
+        rowCount: widget.data.length,
+        columnCount: widget.data.isEmpty ? 1 : widget.data[0].length,
+        readOnly: true,  // Disables selection and editing
+      ),
+    );
+  }
+}
+```
+
+---
+
+## Editable Data Grid with Persistence
+
+Full editing with save/load functionality:
+
+```dart
+class EditableDataGrid extends StatefulWidget {
+  @override
+  State<EditableDataGrid> createState() => _EditableDataGridState();
+}
+
+class _EditableDataGridState extends State<EditableDataGrid> {
+  late final SparseWorksheetData _data;
+  late final WorksheetController _controller;
+  late final EditController _editController;
+  late final LayoutSolver _layoutSolver;
+
+  Rect? _editingCellBounds;
+  bool _hasUnsavedChanges = false;
+
+  static const int _rowCount = 1000;
+  static const int _columnCount = 26;
+
+  @override
+  void initState() {
+    super.initState();
+    _data = SparseWorksheetData(rowCount: _rowCount, columnCount: _columnCount);
+    _controller = WorksheetController();
+    _editController = EditController();
+    _layoutSolver = LayoutSolver(
+      rows: SpanList(count: _rowCount, defaultSize: 24.0),
+      columns: SpanList(count: _columnCount, defaultSize: 100.0),
+    );
+
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    // Example: Load from SharedPreferences or database
+    // final prefs = await SharedPreferences.getInstance();
+    // final jsonData = prefs.getString('worksheet_data');
+    // if (jsonData != null) {
+    //   final Map<String, dynamic> dataMap = jsonDecode(jsonData);
+    //   for (final entry in dataMap.entries) {
+    //     final coords = entry.key.split(',');
+    //     final cell = CellCoordinate(int.parse(coords[0]), int.parse(coords[1]));
+    //     _data.setCell(cell, CellValue.text(entry.value));
+    //   }
+    // }
+  }
+
+  Future<void> _saveData() async {
+    // Example: Save to SharedPreferences
+    // final Map<String, String> dataMap = {};
+    // for (var row = 0; row < _rowCount; row++) {
+    //   for (var col = 0; col < _columnCount; col++) {
+    //     final value = _data.getCell(CellCoordinate(row, col));
+    //     if (value != null) {
+    //       dataMap['$row,$col'] = value.displayValue;
+    //     }
+    //   }
+    // }
+    // final prefs = await SharedPreferences.getInstance();
+    // await prefs.setString('worksheet_data', jsonEncode(dataMap));
+
+    setState(() {
+      _hasUnsavedChanges = false;
+    });
+  }
+
+  void _onEditCell(CellCoordinate cell) {
+    final cellBounds = _calculateCellBounds(cell);
+    setState(() {
+      _editingCellBounds = cellBounds;
+    });
+
+    _editController.startEdit(
+      cell: cell,
+      currentValue: _data.getCell(cell),
+      trigger: EditTrigger.doubleTap,
+    );
+  }
+
+  Rect _calculateCellBounds(CellCoordinate cell) {
+    const headerWidth = 50.0;
+    const headerHeight = 24.0;
+
+    final cellLeft = _layoutSolver.getColumnLeft(cell.column) * _controller.zoom;
+    final cellTop = _layoutSolver.getRowTop(cell.row) * _controller.zoom;
+    final cellWidth = _layoutSolver.getColumnWidth(cell.column) * _controller.zoom;
+    final cellHeight = _layoutSolver.getRowHeight(cell.row) * _controller.zoom;
+
+    return Rect.fromLTWH(
+      cellLeft - _controller.scrollX + headerWidth,
+      cellTop - _controller.scrollY + headerHeight,
+      cellWidth,
+      cellHeight,
+    );
+  }
+
+  void _onCommit(CellCoordinate cell, CellValue? value) {
+    setState(() {
+      _data.setCell(cell, value);
+      _editingCellBounds = null;
+      _hasUnsavedChanges = true;
+    });
+  }
+
+  void _onCancel() {
+    setState(() {
+      _editingCellBounds = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(_hasUnsavedChanges ? 'Data Grid *' : 'Data Grid'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.save),
+            onPressed: _hasUnsavedChanges ? _saveData : null,
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          WorksheetTheme(
+            data: const WorksheetThemeData(),
+            child: Worksheet(
+              data: _data,
+              controller: _controller,
+              rowCount: _rowCount,
+              columnCount: _columnCount,
+              onEditCell: _onEditCell,
+            ),
+          ),
+          if (_editController.isEditing && _editingCellBounds != null)
+            CellEditorOverlay(
+              editController: _editController,
+              cellBounds: _editingCellBounds!,
+              onCommit: _onCommit,
+              onCancel: _onCancel,
+            ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _editController.dispose();
+    _data.dispose();
+    super.dispose();
+  }
+}
+```
+
+---
+
+## Custom Cell Styling (Conditional Formatting)
+
+Apply styles based on cell values:
+
+```dart
+void applyConditionalFormatting(SparseWorksheetData data) {
+  // Style for header row
+  const headerStyle = CellStyle(
+    backgroundColor: Color(0xFF4472C4),
+    textColor: Color(0xFFFFFFFF),
+    fontWeight: FontWeight.bold,
+    textAlignment: CellTextAlignment.center,
+  );
+
+  // Style for negative numbers (red)
+  const negativeStyle = CellStyle(
+    textColor: Color(0xFFCC0000),
+  );
+
+  // Style for positive numbers (green)
+  const positiveStyle = CellStyle(
+    textColor: Color(0xFF008000),
+  );
+
+  // Alternating row colors
+  const evenRowStyle = CellStyle(
+    backgroundColor: Color(0xFFF2F2F2),
+  );
+
+  // Apply header style to row 0
+  for (var col = 0; col < 10; col++) {
+    data.setStyle(CellCoordinate(0, col), headerStyle);
+  }
+
+  // Apply conditional formatting to data rows
+  for (var row = 1; row < 100; row++) {
+    // Alternating row background
+    if (row.isEven) {
+      for (var col = 0; col < 10; col++) {
+        data.setStyle(CellCoordinate(row, col), evenRowStyle);
+      }
+    }
+
+    // Number formatting for column 5 (amount column)
+    final value = data.getCell(CellCoordinate(row, 5));
+    if (value != null && value.isNumber) {
+      final amount = value.asDouble;
+      if (amount < 0) {
+        data.setStyle(CellCoordinate(row, 5), negativeStyle);
+      } else if (amount > 0) {
+        data.setStyle(CellCoordinate(row, 5), positiveStyle);
+      }
+    }
+  }
+}
+```
+
+### Highlight Cells Above/Below Threshold
+
+```dart
+void highlightThreshold(
+  SparseWorksheetData data,
+  int column,
+  double threshold,
+) {
+  const aboveStyle = CellStyle(
+    backgroundColor: Color(0xFFD4EDDA),  // Light green
+  );
+
+  const belowStyle = CellStyle(
+    backgroundColor: Color(0xFFF8D7DA),  // Light red
+  );
+
+  for (var row = 1; row < 1000; row++) {
+    final value = data.getCell(CellCoordinate(row, column));
+    if (value != null && value.isNumber) {
+      final num = value.asDouble;
+      data.setStyle(
+        CellCoordinate(row, column),
+        num >= threshold ? aboveStyle : belowStyle,
+      );
+    }
+  }
+}
+```
+
+---
+
+## Large Dataset Loading
+
+### Async Data Loading
+
+```dart
+class AsyncDataLoader extends StatefulWidget {
+  @override
+  State<AsyncDataLoader> createState() => _AsyncDataLoaderState();
+}
+
+class _AsyncDataLoaderState extends State<AsyncDataLoader> {
+  SparseWorksheetData? _data;
+  WorksheetController? _controller;
+  bool _isLoading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadData();
+  }
+
+  Future<void> _loadData() async {
+    try {
+      // Simulate fetching data from API
+      await Future.delayed(const Duration(seconds: 1));
+
+      final data = SparseWorksheetData(rowCount: 100000, columnCount: 50);
+
+      // Load data in batches to avoid UI freeze
+      const batchSize = 1000;
+      for (var startRow = 0; startRow < 50000; startRow += batchSize) {
+        await Future.microtask(() {
+          for (var row = startRow; row < startRow + batchSize && row < 50000; row++) {
+            for (var col = 0; col < 10; col++) {
+              data.setCell(
+                CellCoordinate(row, col),
+                CellValue.number((row * 10 + col).toDouble()),
+              );
+            }
+          }
+        });
+
+        // Optional: Update loading progress
+        // setState(() => _progress = (startRow + batchSize) / 50000);
+      }
+
+      if (mounted) {
+        setState(() {
+          _data = data;
+          _controller = WorksheetController();
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = e.toString();
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (_error != null) {
+      return Center(child: Text('Error: $_error'));
+    }
+
+    return WorksheetTheme(
+      data: const WorksheetThemeData(),
+      child: Worksheet(
+        data: _data!,
+        controller: _controller!,
+        rowCount: 100000,
+        columnCount: 50,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    _data?.dispose();
+    super.dispose();
+  }
+}
+```
+
+### Paginated Loading Pattern
+
+```dart
+class PaginatedWorksheet extends StatefulWidget {
+  @override
+  State<PaginatedWorksheet> createState() => _PaginatedWorksheetState();
+}
+
+class _PaginatedWorksheetState extends State<PaginatedWorksheet> {
+  late final SparseWorksheetData _data;
+  late final WorksheetController _controller;
+
+  final Set<int> _loadedPages = {};
+  static const int _pageSize = 100;  // Rows per page
+  static const int _totalRows = 100000;
+
+  @override
+  void initState() {
+    super.initState();
+    _data = SparseWorksheetData(rowCount: _totalRows, columnCount: 26);
+    _controller = WorksheetController();
+
+    // Load initial page
+    _loadPage(0);
+
+    // Listen for scroll to load more pages
+    _controller.verticalScrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    final scrollY = _controller.scrollY;
+    final rowHeight = 24.0;  // Default row height
+
+    // Calculate visible row range
+    final firstVisibleRow = (scrollY / rowHeight).floor();
+    final lastVisibleRow = firstVisibleRow + 50;  // Estimate visible rows
+
+    // Load pages that contain visible rows
+    final firstPage = firstVisibleRow ~/ _pageSize;
+    final lastPage = lastVisibleRow ~/ _pageSize;
+
+    for (var page = firstPage; page <= lastPage; page++) {
+      _loadPage(page);
+    }
+  }
+
+  Future<void> _loadPage(int page) async {
+    if (_loadedPages.contains(page)) return;
+    _loadedPages.add(page);
+
+    final startRow = page * _pageSize;
+    final endRow = (startRow + _pageSize).clamp(0, _totalRows);
+
+    // Simulate API call
+    // final pageData = await api.fetchRows(startRow, endRow);
+
+    // Populate data
+    for (var row = startRow; row < endRow; row++) {
+      _data.setCell(
+        CellCoordinate(row, 0),
+        CellValue.text('Row ${row + 1}'),
+      );
+      _data.setCell(
+        CellCoordinate(row, 1),
+        CellValue.number(row.toDouble()),
+      );
+    }
+
+    // Trigger repaint
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return WorksheetTheme(
+      data: const WorksheetThemeData(),
+      child: Worksheet(
+        data: _data,
+        controller: _controller,
+        rowCount: _totalRows,
+        columnCount: 26,
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.verticalScrollController.removeListener(_onScroll);
+    _controller.dispose();
+    _data.dispose();
+    super.dispose();
+  }
+}
+```
+
+---
+
+## Keyboard Navigation
+
+Implement arrow key and tab navigation:
+
+```dart
+class NavigableWorksheet extends StatefulWidget {
+  @override
+  State<NavigableWorksheet> createState() => _NavigableWorksheetState();
+}
+
+class _NavigableWorksheetState extends State<NavigableWorksheet> {
+  late final SparseWorksheetData _data;
+  late final WorksheetController _controller;
+  late final EditController _editController;
+
+  static const int _rowCount = 1000;
+  static const int _columnCount = 26;
+
+  Rect? _editingCellBounds;
+
+  @override
+  void initState() {
+    super.initState();
+    _data = SparseWorksheetData(rowCount: _rowCount, columnCount: _columnCount);
+    _controller = WorksheetController();
+    _editController = EditController();
+
+    // Select initial cell
+    _controller.selectCell(const CellCoordinate(0, 0));
+  }
+
+  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    // If editing, don't handle navigation keys
+    if (_editController.isEditing) {
+      // Escape cancels edit
+      if (event.logicalKey == LogicalKeyboardKey.escape) {
+        setState(() => _editingCellBounds = null);
+        _editController.cancelEdit();
+        return KeyEventResult.handled;
+      }
+      // Enter commits edit
+      if (event.logicalKey == LogicalKeyboardKey.enter) {
+        _editController.commitEdit(onCommit: _onCommit);
+        // Move to next row after commit
+        _controller.moveFocus(
+          rowDelta: 1,
+          columnDelta: 0,
+          maxRow: _rowCount - 1,
+          maxColumn: _columnCount - 1,
+        );
+        return KeyEventResult.handled;
+      }
+      // Tab commits edit and moves to next cell
+      if (event.logicalKey == LogicalKeyboardKey.tab) {
+        _editController.commitEdit(onCommit: _onCommit);
+        final isShift = HardwareKeyboard.instance.isShiftPressed;
+        _controller.moveFocus(
+          rowDelta: 0,
+          columnDelta: isShift ? -1 : 1,
+          maxRow: _rowCount - 1,
+          maxColumn: _columnCount - 1,
+        );
+        return KeyEventResult.handled;
+      }
+      return KeyEventResult.ignored;
+    }
+
+    final isShift = HardwareKeyboard.instance.isShiftPressed;
+
+    // F2 starts editing
+    if (event.logicalKey == LogicalKeyboardKey.f2) {
+      final cell = _controller.focusCell;
+      if (cell != null) {
+        _onEditCell(cell);
+        return KeyEventResult.handled;
+      }
+    }
+
+    // Delete clears cell
+    if (event.logicalKey == LogicalKeyboardKey.delete ||
+        event.logicalKey == LogicalKeyboardKey.backspace) {
+      final cell = _controller.focusCell;
+      if (cell != null) {
+        setState(() => _data.setCell(cell, null));
+        return KeyEventResult.handled;
+      }
+    }
+
+    // Arrow keys
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      _controller.moveFocus(
+        rowDelta: -1,
+        columnDelta: 0,
+        extend: isShift,
+        maxRow: _rowCount - 1,
+        maxColumn: _columnCount - 1,
+      );
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _controller.moveFocus(
+        rowDelta: 1,
+        columnDelta: 0,
+        extend: isShift,
+        maxRow: _rowCount - 1,
+        maxColumn: _columnCount - 1,
+      );
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _controller.moveFocus(
+        rowDelta: 0,
+        columnDelta: -1,
+        extend: isShift,
+        maxRow: _rowCount - 1,
+        maxColumn: _columnCount - 1,
+      );
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _controller.moveFocus(
+        rowDelta: 0,
+        columnDelta: 1,
+        extend: isShift,
+        maxRow: _rowCount - 1,
+        maxColumn: _columnCount - 1,
+      );
+      return KeyEventResult.handled;
+    }
+
+    // Tab moves horizontally
+    if (event.logicalKey == LogicalKeyboardKey.tab) {
+      _controller.moveFocus(
+        rowDelta: 0,
+        columnDelta: isShift ? -1 : 1,
+        maxRow: _rowCount - 1,
+        maxColumn: _columnCount - 1,
+      );
+      return KeyEventResult.handled;
+    }
+
+    // Enter moves vertically
+    if (event.logicalKey == LogicalKeyboardKey.enter) {
+      _controller.moveFocus(
+        rowDelta: isShift ? -1 : 1,
+        columnDelta: 0,
+        maxRow: _rowCount - 1,
+        maxColumn: _columnCount - 1,
+      );
+      return KeyEventResult.handled;
+    }
+
+    // Home/End
+    if (event.logicalKey == LogicalKeyboardKey.home) {
+      _controller.selectCell(CellCoordinate(
+        _controller.focusCell?.row ?? 0,
+        0,
+      ));
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.end) {
+      _controller.selectCell(CellCoordinate(
+        _controller.focusCell?.row ?? 0,
+        _columnCount - 1,
+      ));
+      return KeyEventResult.handled;
+    }
+
+    // Ctrl+Home goes to A1
+    if (HardwareKeyboard.instance.isControlPressed &&
+        event.logicalKey == LogicalKeyboardKey.home) {
+      _controller.selectCell(const CellCoordinate(0, 0));
+      _controller.scrollTo(x: 0, y: 0);
+      return KeyEventResult.handled;
+    }
+
+    return KeyEventResult.ignored;
+  }
+
+  void _onEditCell(CellCoordinate cell) {
+    // ... editor setup
+  }
+
+  void _onCommit(CellCoordinate cell, CellValue? value) {
+    setState(() {
+      _data.setCell(cell, value);
+      _editingCellBounds = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Focus(
+      autofocus: true,
+      onKeyEvent: _handleKeyEvent,
+      child: WorksheetTheme(
+        data: const WorksheetThemeData(),
+        child: Worksheet(
+          data: _data,
+          controller: _controller,
+          rowCount: _rowCount,
+          columnCount: _columnCount,
+          onEditCell: _onEditCell,
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _editController.dispose();
+    _data.dispose();
+    super.dispose();
+  }
+}
+```
+
+---
+
+## Programmatic Scrolling to Cells
+
+```dart
+class ScrollingExample extends StatefulWidget {
+  @override
+  State<ScrollingExample> createState() => _ScrollingExampleState();
+}
+
+class _ScrollingExampleState extends State<ScrollingExample> {
+  late final SparseWorksheetData _data;
+  late final WorksheetController _controller;
+  late final LayoutSolver _layoutSolver;
+
+  static const int _rowCount = 100000;
+  static const int _columnCount = 100;
+
+  @override
+  void initState() {
+    super.initState();
+    _data = SparseWorksheetData(rowCount: _rowCount, columnCount: _columnCount);
+    _controller = WorksheetController();
+    _layoutSolver = LayoutSolver(
+      rows: SpanList(count: _rowCount, defaultSize: 24.0),
+      columns: SpanList(count: _columnCount, defaultSize: 100.0),
+    );
+  }
+
+  /// Scrolls to make a cell visible.
+  void scrollToCell(CellCoordinate cell, {bool animate = true}) {
+    _controller.scrollToCell(
+      cell,
+      getRowTop: (row) => _layoutSolver.getRowTop(row),
+      getColumnLeft: (col) => _layoutSolver.getColumnLeft(col),
+      getRowHeight: (row) => _layoutSolver.getRowHeight(row),
+      getColumnWidth: (col) => _layoutSolver.getColumnWidth(col),
+      viewportSize: MediaQuery.of(context).size,
+      headerWidth: 50.0,
+      headerHeight: 24.0,
+      animate: animate,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
+  }
+
+  /// Scrolls to a specific row/column offset.
+  void scrollToOffset(double x, double y, {bool animate = true}) {
+    _controller.scrollTo(
+      x: x,
+      y: y,
+      animate: animate,
+    );
+  }
+
+  /// Go to cell dialog
+  void _showGoToDialog() {
+    showDialog(
+      context: context,
+      builder: (context) {
+        final controller = TextEditingController();
+        return AlertDialog(
+          title: const Text('Go To Cell'),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(
+              hintText: 'Enter cell (e.g., A1, B100)',
+            ),
+            autofocus: true,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                final notation = controller.text.toUpperCase();
+                final cell = _parseNotation(notation);
+                if (cell != null) {
+                  Navigator.pop(context);
+                  _controller.selectCell(cell);
+                  scrollToCell(cell);
+                }
+              },
+              child: const Text('Go'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  CellCoordinate? _parseNotation(String notation) {
+    // Parse Excel-style notation (e.g., "A1", "AA100")
+    final match = RegExp(r'^([A-Z]+)(\d+)$').firstMatch(notation);
+    if (match == null) return null;
+
+    final letters = match.group(1)!;
+    final number = int.tryParse(match.group(2)!);
+    if (number == null || number < 1) return null;
+
+    // Convert letters to column index
+    var column = 0;
+    for (var i = 0; i < letters.length; i++) {
+      column = column * 26 + (letters.codeUnitAt(i) - 64);
+    }
+    column--;  // Convert to 0-based
+
+    final row = number - 1;  // Convert to 0-based
+
+    if (row >= _rowCount || column >= _columnCount) return null;
+
+    return CellCoordinate(row, column);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Scrolling Example'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search),
+            onPressed: _showGoToDialog,
+            tooltip: 'Go to cell (Ctrl+G)',
+          ),
+          IconButton(
+            icon: const Icon(Icons.first_page),
+            onPressed: () => scrollToCell(const CellCoordinate(0, 0)),
+            tooltip: 'Go to start',
+          ),
+          IconButton(
+            icon: const Icon(Icons.last_page),
+            onPressed: () => scrollToCell(
+              CellCoordinate(_rowCount - 1, _columnCount - 1),
+            ),
+            tooltip: 'Go to end',
+          ),
+        ],
+      ),
+      body: WorksheetTheme(
+        data: const WorksheetThemeData(),
+        child: Worksheet(
+          data: _data,
+          controller: _controller,
+          rowCount: _rowCount,
+          columnCount: _columnCount,
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _data.dispose();
+    super.dispose();
+  }
+}
+```
+
+---
+
+## Export Data to CSV
+
+```dart
+import 'dart:io';
+
+class CsvExporter {
+  /// Exports worksheet data to CSV format.
+  static String exportToCsv(
+    SparseWorksheetData data, {
+    required int rowCount,
+    required int columnCount,
+    String delimiter = ',',
+    String lineEnding = '\n',
+  }) {
+    final buffer = StringBuffer();
+
+    for (var row = 0; row < rowCount; row++) {
+      final rowValues = <String>[];
+
+      for (var col = 0; col < columnCount; col++) {
+        final value = data.getCell(CellCoordinate(row, col));
+        final text = value?.displayValue ?? '';
+
+        // Escape quotes and wrap in quotes if needed
+        if (text.contains(delimiter) ||
+            text.contains('"') ||
+            text.contains('\n')) {
+          rowValues.add('"${text.replaceAll('"', '""')}"');
+        } else {
+          rowValues.add(text);
+        }
+      }
+
+      buffer.write(rowValues.join(delimiter));
+      buffer.write(lineEnding);
+    }
+
+    return buffer.toString();
+  }
+
+  /// Saves worksheet data to a CSV file.
+  static Future<void> saveToFile(
+    SparseWorksheetData data, {
+    required String filePath,
+    required int rowCount,
+    required int columnCount,
+  }) async {
+    final csv = exportToCsv(
+      data,
+      rowCount: rowCount,
+      columnCount: columnCount,
+    );
+    await File(filePath).writeAsString(csv);
+  }
+}
+
+// Usage in widget:
+void _exportData() async {
+  final csv = CsvExporter.exportToCsv(
+    _data,
+    rowCount: 1000,
+    columnCount: 26,
+  );
+
+  // Copy to clipboard
+  await Clipboard.setData(ClipboardData(text: csv));
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('Data copied to clipboard')),
+  );
+}
+```
+
+### Export Selected Range Only
+
+```dart
+String exportSelection(
+  SparseWorksheetData data,
+  CellRange selection,
+) {
+  final buffer = StringBuffer();
+
+  for (var row = selection.startRow; row <= selection.endRow; row++) {
+    final rowValues = <String>[];
+
+    for (var col = selection.startColumn; col <= selection.endColumn; col++) {
+      final value = data.getCell(CellCoordinate(row, col));
+      final text = value?.displayValue ?? '';
+
+      if (text.contains(',') || text.contains('"') || text.contains('\n')) {
+        rowValues.add('"${text.replaceAll('"', '""')}"');
+      } else {
+        rowValues.add(text);
+      }
+    }
+
+    buffer.writeln(rowValues.join(','));
+  }
+
+  return buffer.toString();
+}
+```
+
+---
+
+## Custom Column Widths
+
+### Auto-Fit Column Width
+
+```dart
+class ColumnWidthManager {
+  final SparseWorksheetData data;
+  final LayoutSolver layoutSolver;
+  final Map<int, double> columnWidths = {};
+
+  ColumnWidthManager({
+    required this.data,
+    required this.layoutSolver,
+  });
+
+  /// Calculates optimal width for a column based on content.
+  double calculateOptimalWidth(
+    int column, {
+    required int rowCount,
+    double minWidth = 50.0,
+    double maxWidth = 500.0,
+    double padding = 16.0,
+    double fontSize = 14.0,
+  }) {
+    double maxContentWidth = minWidth;
+
+    final textPainter = TextPainter(
+      textDirection: TextDirection.ltr,
+    );
+
+    for (var row = 0; row < rowCount; row++) {
+      final value = data.getCell(CellCoordinate(row, column));
+      if (value == null) continue;
+
+      final text = value.displayValue;
+      final style = data.getStyle(CellCoordinate(row, column));
+
+      textPainter.text = TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: style?.fontSize ?? fontSize,
+          fontWeight: style?.fontWeight ?? FontWeight.normal,
+        ),
+      );
+      textPainter.layout();
+
+      final contentWidth = textPainter.width + padding;
+      if (contentWidth > maxContentWidth) {
+        maxContentWidth = contentWidth;
+      }
+    }
+
+    textPainter.dispose();
+
+    return maxContentWidth.clamp(minWidth, maxWidth);
+  }
+
+  /// Auto-fits all columns.
+  Map<int, double> autoFitAllColumns({
+    required int columnCount,
+    required int rowCount,
+  }) {
+    final widths = <int, double>{};
+
+    for (var col = 0; col < columnCount; col++) {
+      final width = calculateOptimalWidth(col, rowCount: rowCount);
+      if (width != layoutSolver.getColumnWidth(col)) {
+        widths[col] = width;
+      }
+    }
+
+    return widths;
+  }
+}
+
+// Usage:
+void _autoFitColumn(int column) {
+  final manager = ColumnWidthManager(
+    data: _data,
+    layoutSolver: _layoutSolver,
+  );
+
+  final optimalWidth = manager.calculateOptimalWidth(
+    column,
+    rowCount: _rowCount,
+  );
+
+  setState(() {
+    _customColumnWidths[column] = optimalWidth;
+  });
+}
+```
+
+---
+
+## Cell Value Validation
+
+```dart
+typedef CellValidator = String? Function(CellCoordinate cell, CellValue? value);
+
+class ValidatingWorksheetData {
+  final SparseWorksheetData _data;
+  final Map<int, CellValidator> _columnValidators = {};
+  final Map<CellCoordinate, String> _validationErrors = {};
+
+  ValidatingWorksheetData(this._data);
+
+  /// Adds a validator for a column.
+  void addColumnValidator(int column, CellValidator validator) {
+    _columnValidators[column] = validator;
+  }
+
+  /// Sets a cell value with validation.
+  bool setCell(CellCoordinate cell, CellValue? value) {
+    // Check column validator
+    final validator = _columnValidators[cell.column];
+    if (validator != null) {
+      final error = validator(cell, value);
+      if (error != null) {
+        _validationErrors[cell] = error;
+        return false;
+      }
+    }
+
+    _validationErrors.remove(cell);
+    _data.setCell(cell, value);
+    return true;
+  }
+
+  /// Gets validation error for a cell.
+  String? getError(CellCoordinate cell) => _validationErrors[cell];
+
+  /// Returns all cells with validation errors.
+  Iterable<CellCoordinate> get cellsWithErrors => _validationErrors.keys;
+}
+
+// Example validators:
+String? requiredValidator(CellCoordinate cell, CellValue? value) {
+  if (value == null || value.displayValue.isEmpty) {
+    return 'This field is required';
+  }
+  return null;
+}
+
+String? numberValidator(CellCoordinate cell, CellValue? value) {
+  if (value == null) return null;
+  if (!value.isNumber) {
+    return 'Must be a number';
+  }
+  return null;
+}
+
+String? rangeValidator(double min, double max) {
+  return (CellCoordinate cell, CellValue? value) {
+    if (value == null) return null;
+    if (!value.isNumber) return 'Must be a number';
+    final num = value.asDouble;
+    if (num < min || num > max) {
+      return 'Must be between $min and $max';
+    }
+    return null;
+  };
+}
+
+// Usage:
+final validatingData = ValidatingWorksheetData(_data);
+validatingData.addColumnValidator(0, requiredValidator);
+validatingData.addColumnValidator(1, numberValidator);
+validatingData.addColumnValidator(2, rangeValidator(0, 100));
+```
+
+---
+
+## Multi-Select Resize
+
+When multiple rows or columns are selected, resizing one applies to all:
+
+```dart
+// This is built into the Worksheet widget!
+// When you drag-resize a row/column header border,
+// and multiple rows/columns are selected,
+// the new size is applied to all selected rows/columns.
+
+// The behavior is automatic when using:
+Worksheet(
+  data: _data,
+  controller: _controller,
+  onResizeRow: (row, newHeight) {
+    // Called during resize with current height
+    print('Resizing row $row to $newHeight');
+  },
+  onResizeColumn: (column, newWidth) {
+    // Called during resize with current width
+    print('Resizing column $column to $newWidth');
+  },
+)
+
+// To resize multiple rows/columns programmatically:
+void resizeSelectedRows(double newHeight) {
+  final selection = _controller.selectedRange;
+  if (selection == null) return;
+
+  for (var row = selection.startRow; row <= selection.endRow; row++) {
+    _layoutSolver.setRowHeight(row, newHeight);
+  }
+
+  // Rebuild widget to apply changes
+  setState(() {});
+}
+
+void resizeSelectedColumns(double newWidth) {
+  final selection = _controller.selectedRange;
+  if (selection == null) return;
+
+  for (var col = selection.startColumn; col <= selection.endColumn; col++) {
+    _layoutSolver.setColumnWidth(col, newWidth);
+  }
+
+  setState(() {});
+}
+```
