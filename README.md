@@ -1,5 +1,10 @@
 # Worksheet Widget
 
+[![pub package](https://img.shields.io/pub/v/worksheet.svg)](https://pub.dev/packages/worksheet)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Tests](https://github.com/sjhorn/worksheet/actions/workflows/tests.yml/badge.svg)](https://github.com/sjhorn/worksheet/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/sjhorn/worksheet/branch/main/graph/badge.svg)](https://codecov.io/gh/sjhorn/worksheet)
+
 A Flutter widget that brings Excel-like spreadsheet functionality to your app. Display and edit tabular data with smooth scrolling, pinch-to-zoom, and cell selection - all running at 60fps even with hundreds of thousands of rows.
 
 ## Try It In 30 Seconds
@@ -183,8 +188,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  worksheet:
-    path: ../worksheet
+  worksheet: ^1.0.0
 ```
 
 Then run:
