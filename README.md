@@ -5,7 +5,9 @@
 [![Tests](https://github.com/sjhorn/worksheet/actions/workflows/tests.yml/badge.svg)](https://github.com/sjhorn/worksheet/actions/workflows/tests.yml)
 [![codecov](https://codecov.io/gh/sjhorn/worksheet/branch/main/graph/badge.svg)](https://codecov.io/gh/sjhorn/worksheet)
 
-A Flutter widget that brings Excel-like spreadsheet functionality to your app. Display and edit tabular data with smooth scrolling, pinch-to-zoom, and cell selection - all running at 60fps even with hundreds of thousands of rows.
+A Flutter widget that brings Excel-like spreadsheet functionality to your app.
+
+![Worksheet Screenshot](doc/images/worksheet_screenshot.png) Display and edit tabular data with smooth scrolling, pinch-to-zoom, and cell selection - all running at 60fps even with hundreds of thousands of rows.
 
 ## Try It In 30 Seconds
 
