@@ -1,9 +1,6 @@
 import 'dart:ui';
 
-import 'package:flutter/foundation.dart';
-
 import '../../core/geometry/span_list.dart';
-import '../../core/models/cell_range.dart';
 import '../../interaction/controllers/selection_controller.dart';
 import '../painters/header_renderer.dart';
 import 'render_layer.dart';

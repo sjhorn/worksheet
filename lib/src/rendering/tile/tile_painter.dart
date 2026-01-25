@@ -46,7 +46,6 @@ class TilePainter implements TileRenderer {
   final double cellPadding;
 
   // Pre-allocated paint objects for performance
-  late final Paint _gridlinePaint;
   late final Paint _backgroundPaint;
   late final Paint _cellBackgroundPaint;
 
@@ -62,12 +61,6 @@ class TilePainter implements TileRenderer {
     this.defaultFontFamily = 'Roboto',
     this.cellPadding = 4.0,
   }) {
-    _gridlinePaint = Paint()
-      ..color = gridlineColor
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke
-      ..isAntiAlias = false; // Crisp 1px lines like Excel
-
     _backgroundPaint = Paint()
       ..color = backgroundColor
       ..style = PaintingStyle.fill;

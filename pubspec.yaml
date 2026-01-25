@@ -1,7 +1,14 @@
 name: worksheet
-description: "High-performance Flutter spreadsheet widget supporting large datasets, fast scrolling and zooming"
-publish_to: 'none'
+description: "High-performance Flutter spreadsheet widget supporting large datasets, 10%-400% zoom, and GPU-optimized tile-based rendering."
 version: 1.0.0
+repository: https://github.com/shorn/worksheet
+issue_tracker: https://github.com/shorn/worksheet/issues
+topics:
+  - spreadsheet
+  - worksheet
+  - excel
+  - table
+  - widget
 
 environment:
   sdk: ^3.10.7

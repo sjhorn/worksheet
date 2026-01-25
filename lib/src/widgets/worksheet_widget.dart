@@ -123,10 +123,6 @@ class _WorksheetState extends State<Worksheet> {
   MouseCursor _currentCursor = SystemMouseCursors.basic;
   int _layoutVersion = 0;
 
-  // Track resize state for multi-header resize
-  int? _resizingRow;
-  int? _resizingColumn;
-
   @override
   void initState() {
     super.initState();
@@ -190,7 +186,6 @@ class _WorksheetState extends State<Worksheet> {
       selectionController: _controller.selectionController,
       onEditCell: widget.onEditCell,
       onResizeRow: (row, delta) {
-        _resizingRow = row;
         final currentHeight = _layoutSolver.getRowHeight(row);
         final newHeight = (currentHeight + delta).clamp(10.0, 500.0);
         _layoutSolver.setRowHeight(row, newHeight);
@@ -200,7 +195,6 @@ class _WorksheetState extends State<Worksheet> {
         setState(() {});
       },
       onResizeColumn: (column, delta) {
-        _resizingColumn = column;
         final currentWidth = _layoutSolver.getColumnWidth(column);
         final newWidth = (currentWidth + delta).clamp(20.0, 1000.0);
         _layoutSolver.setColumnWidth(column, newWidth);
@@ -211,11 +205,9 @@ class _WorksheetState extends State<Worksheet> {
       },
       onResizeRowEnd: (row) {
         _applyResizeToSelectedRows(row);
-        _resizingRow = null;
       },
       onResizeColumnEnd: (column) {
         _applyResizeToSelectedColumns(column);
-        _resizingColumn = null;
       },
     );
   }
@@ -342,7 +334,6 @@ class _WorksheetState extends State<Worksheet> {
           selectionController: _controller.selectionController,
           onEditCell: widget.onEditCell,
           onResizeRow: (row, delta) {
-            _resizingRow = row;
             final currentHeight = _layoutSolver.getRowHeight(row);
             final newHeight = (currentHeight + delta).clamp(10.0, 500.0);
             _layoutSolver.setRowHeight(row, newHeight);
@@ -352,7 +343,6 @@ class _WorksheetState extends State<Worksheet> {
             setState(() {});
           },
           onResizeColumn: (column, delta) {
-            _resizingColumn = column;
             final currentWidth = _layoutSolver.getColumnWidth(column);
             final newWidth = (currentWidth + delta).clamp(20.0, 1000.0);
             _layoutSolver.setColumnWidth(column, newWidth);
@@ -363,11 +353,9 @@ class _WorksheetState extends State<Worksheet> {
           },
           onResizeRowEnd: (row) {
             _applyResizeToSelectedRows(row);
-            _resizingRow = null;
           },
           onResizeColumnEnd: (column) {
             _applyResizeToSelectedColumns(column);
-            _resizingColumn = null;
           },
         );
         final theme = WorksheetTheme.of(context);

@@ -1,7 +1,5 @@
-import 'package:flutter/foundation.dart';
+import 'dart:ui';
 
-import '../../core/models/cell_coordinate.dart';
-import '../../core/models/cell_range.dart';
 import '../../interaction/controllers/selection_controller.dart';
 import '../painters/selection_renderer.dart';
 import 'render_layer.dart';

@@ -34,12 +34,6 @@ class WorksheetHitTestResult {
   /// The header index if a header or resize handle was hit, null otherwise.
   final int? headerIndex;
 
-  const WorksheetHitTestResult._({
-    required this.type,
-    this.cell,
-    this.headerIndex,
-  });
-
   /// Creates a result indicating nothing was hit.
   const WorksheetHitTestResult.none()
       : type = HitTestType.none,

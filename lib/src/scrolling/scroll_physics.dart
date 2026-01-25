@@ -14,6 +14,7 @@ class WorksheetScrollPhysics extends ScrollPhysics {
   /// Minimum velocity required to trigger a fling animation.
   ///
   /// Flings below this threshold will not animate.
+  @override
   final double minFlingVelocity;
 
   /// Creates worksheet scroll physics.

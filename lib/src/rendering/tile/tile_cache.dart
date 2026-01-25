@@ -132,14 +132,6 @@ class TileCache {
     clear();
   }
 
-  void _evictOldest() {
-    if (_tiles.isNotEmpty) {
-      final oldestKey = _tiles.keys.first;
-      final oldestTile = _tiles.remove(oldestKey);
-      oldestTile?.dispose();
-    }
-  }
-
   void _evictOldestWithoutDispose() {
     if (_tiles.isNotEmpty) {
       final oldestKey = _tiles.keys.first;
