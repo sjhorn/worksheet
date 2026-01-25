@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/worksheet.dart';
 
 void main() {
+  const Size surfaceSize = Size(700, 350);
+
   setUpAll(() async {
     // Load Roboto font for consistent rendering
     final fontData = File('assets/fonts/Roboto-Regular.ttf').readAsBytesSync();
@@ -15,6 +17,11 @@ void main() {
   });
 
   testWidgets('worksheet screenshot', (tester) async {
+    // Set surface size for consistent golden rendering
+    await tester.binding.setSurfaceSize(surfaceSize);
+    tester.view.physicalSize = surfaceSize;
+    tester.view.devicePixelRatio = 1.0;
+
     // Create sample data
     final data = SparseWorksheetData(rowCount: 100, columnCount: 26);
 
@@ -40,7 +47,8 @@ void main() {
       // Quarterly values
       for (var q = 0; q < 4; q++) {
         final value = (row + 1) * 1000 + (q + 1) * 100 + row * 50;
-        data.setCell(CellCoordinate(row + 1, q + 1), CellValue.number(value.toDouble()));
+        data.setCell(
+            CellCoordinate(row + 1, q + 1), CellValue.number(value.toDouble()));
       }
 
       // Total formula display
@@ -58,22 +66,18 @@ void main() {
         debugShowCheckedModeBanner: false,
         theme: ThemeData(fontFamily: 'Roboto'),
         home: Scaffold(
-          body: SizedBox(
-            width: 600,
-            height: 300,
-            child: WorksheetTheme(
-              data: const WorksheetThemeData(
-                fontFamily: 'Roboto',
-                defaultColumnWidth: 80,
-                defaultRowHeight: 28,
-                rowHeaderWidth: 40,
-                columnHeaderHeight: 28,
-              ),
-              child: Worksheet(
-                data: data,
-                rowCount: 100,
-                columnCount: 26,
-              ),
+          body: WorksheetTheme(
+            data: const WorksheetThemeData(
+              fontFamily: 'Roboto',
+              defaultColumnWidth: 90,
+              defaultRowHeight: 30,
+              rowHeaderWidth: 45,
+              columnHeaderHeight: 30,
+            ),
+            child: Worksheet(
+              data: data,
+              rowCount: 100,
+              columnCount: 26,
             ),
           ),
         ),
@@ -83,8 +87,13 @@ void main() {
     await tester.pumpAndSettle();
 
     await expectLater(
-      find.byType(Scaffold),
+      find.byType(MaterialApp),
       matchesGoldenFile('worksheet_screenshot.png'),
     );
+
+    // Reset surface size
+    await tester.binding.setSurfaceSize(null);
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
   });
 }
