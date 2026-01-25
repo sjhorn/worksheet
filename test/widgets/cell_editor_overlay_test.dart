@@ -32,7 +32,7 @@ void main() {
             CellEditorOverlay(
               editController: controller,
               cellBounds: cellBounds,
-              onCommit: onCommit ?? (_, __) {},
+              onCommit: onCommit ?? (_, _) {},
               onCancel: onCancel ?? () {},
             ),
           ],
@@ -170,7 +170,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget(controller: editController));
       expect(find.byType(TextField), findsOneWidget);
 
-      editController.commitEdit(onCommit: (_, __) {});
+      editController.commitEdit(onCommit: (_, _) {});
       await tester.pump();
 
       expect(find.byType(TextField), findsNothing);

@@ -36,7 +36,7 @@ void main() {
         const physics = WorksheetScrollPhysics(friction: 0.08);
         const ancestor = ClampingScrollPhysics();
 
-        final applied = physics.applyTo(ancestor) as WorksheetScrollPhysics;
+        final applied = physics.applyTo(ancestor);
 
         expect(applied.friction, 0.08);
       });

@@ -204,7 +204,7 @@ void main() {
       test('returns to idle state', () {
         controller.startEdit(cell: const CellCoordinate(0, 0));
 
-        controller.commitEdit(onCommit: (_, __) {});
+        controller.commitEdit(onCommit: (_, _) {});
 
         expect(controller.state, EditState.idle);
         expect(controller.isEditing, isFalse);
@@ -214,7 +214,7 @@ void main() {
       });
 
       test('returns null if not editing', () {
-        final result = controller.commitEdit(onCommit: (_, __) {});
+        final result = controller.commitEdit(onCommit: (_, _) {});
 
         expect(result, isNull);
       });

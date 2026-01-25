@@ -1,6 +1,5 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/geometry/layout_solver.dart';

@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/rendering/painters/header_renderer.dart';
@@ -118,9 +116,9 @@ void main() {
       final result = WorksheetThemeData.lerp(a, b, 0.5);
 
       // Midpoint should be gray
-      expect(result.gridlineColor.red, closeTo(128, 1));
-      expect(result.gridlineColor.green, closeTo(128, 1));
-      expect(result.gridlineColor.blue, closeTo(128, 1));
+      expect((result.gridlineColor.r * 255).round(), closeTo(128, 1));
+      expect((result.gridlineColor.g * 255).round(), closeTo(128, 1));
+      expect((result.gridlineColor.b * 255).round(), closeTo(128, 1));
     });
   });
 
