@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2024-01-25
+## [1.0.1] - 2025-01-25
+
+### Added
+- Screenshot in README.md via golden test
+- GitHub Actions CI workflow for automated testing
+- Codecov integration for coverage reporting
+- Roboto font bundled for consistent text rendering
+
+### Fixed
+- Resolved all dart analyzer warnings in lib/ and test/
+- Fixed installation instructions to use pub.dev version
+- Golden tests excluded from CI (platform-dependent font rendering)
+
+### Changed
+- README badges: pub.dev version, license, CI status, coverage
+
+## [1.0.0] - 2025-01-25
 
 ### Added
 - Example application with 50,000 rows of sample sales data
