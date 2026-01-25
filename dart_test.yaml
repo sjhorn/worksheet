@@ -1,0 +1,5 @@
+tags:
+  golden:
+    # Golden tests are platform-dependent due to font rendering differences.
+    # Run locally with: flutter test test/golden/
+    # Update goldens with: flutter test test/golden/ --update-goldens
