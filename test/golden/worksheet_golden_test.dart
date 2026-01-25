@@ -1,8 +1,19 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/worksheet.dart';
 
 void main() {
+  setUpAll(() async {
+    // Load Roboto font for consistent rendering
+    final fontData = File('assets/fonts/Roboto-Regular.ttf').readAsBytesSync();
+    final fontLoader = FontLoader('Roboto')
+      ..addFont(Future.value(ByteData.view(fontData.buffer)));
+    await fontLoader.load();
+  });
+
   testWidgets('worksheet screenshot', (tester) async {
     // Create sample data
     final data = SparseWorksheetData(rowCount: 100, columnCount: 26);
@@ -45,12 +56,14 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         debugShowCheckedModeBanner: false,
+        theme: ThemeData(fontFamily: 'Roboto'),
         home: Scaffold(
           body: SizedBox(
             width: 600,
             height: 300,
             child: WorksheetTheme(
               data: const WorksheetThemeData(
+                fontFamily: 'Roboto',
                 defaultColumnWidth: 80,
                 defaultRowHeight: 28,
                 rowHeaderWidth: 40,
