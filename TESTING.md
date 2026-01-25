@@ -21,7 +21,7 @@ Testing patterns and examples for the worksheet widget.
 
 ```dart
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/worksheet.dart';
+import 'package:worksheet/worksheet.dart';
 
 void main() {
   group('SpanList', () {
@@ -310,7 +310,7 @@ void main() {
 ```dart
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/worksheet.dart';
+import 'package:worksheet/worksheet.dart';
 
 void main() {
   group('Worksheet Widget', () {

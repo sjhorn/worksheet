@@ -2,16 +2,16 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/data/sparse_worksheet_data.dart';
-import 'package:worksheet2/src/core/geometry/layout_solver.dart';
-import 'package:worksheet2/src/core/geometry/span_list.dart';
-import 'package:worksheet2/src/core/geometry/zoom_transformer.dart';
-import 'package:worksheet2/src/core/models/cell_coordinate.dart';
-import 'package:worksheet2/src/core/models/cell_range.dart';
-import 'package:worksheet2/src/core/models/cell_style.dart';
-import 'package:worksheet2/src/core/models/cell_value.dart';
-import 'package:worksheet2/src/rendering/tile/tile_coordinate.dart';
-import 'package:worksheet2/src/rendering/tile/tile_painter.dart';
+import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
+import 'package:worksheet/src/core/geometry/layout_solver.dart';
+import 'package:worksheet/src/core/geometry/span_list.dart';
+import 'package:worksheet/src/core/geometry/zoom_transformer.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
+import 'package:worksheet/src/core/models/cell_style.dart';
+import 'package:worksheet/src/core/models/cell_value.dart';
+import 'package:worksheet/src/rendering/tile/tile_coordinate.dart';
+import 'package:worksheet/src/rendering/tile/tile_painter.dart';
 
 void main() {
   group('TilePainter', () {

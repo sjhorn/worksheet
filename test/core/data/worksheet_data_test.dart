@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/data/data_change_event.dart';
-import 'package:worksheet2/src/core/data/worksheet_data.dart';
-import 'package:worksheet2/src/core/models/cell_coordinate.dart';
-import 'package:worksheet2/src/core/models/cell_range.dart';
-import 'package:worksheet2/src/core/models/cell_style.dart';
-import 'package:worksheet2/src/core/models/cell_value.dart';
+import 'package:worksheet/src/core/data/data_change_event.dart';
+import 'package:worksheet/src/core/data/worksheet_data.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
+import 'package:worksheet/src/core/models/cell_style.dart';
+import 'package:worksheet/src/core/models/cell_value.dart';
 
 /// Minimal implementation that uses the default hasValue from WorksheetData.
 class _MinimalWorksheetData extends WorksheetData {

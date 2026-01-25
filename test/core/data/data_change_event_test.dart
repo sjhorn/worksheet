@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/data/data_change_event.dart';
-import 'package:worksheet2/src/core/models/cell_coordinate.dart';
-import 'package:worksheet2/src/core/models/cell_range.dart';
+import 'package:worksheet/src/core/data/data_change_event.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
 
 void main() {
   group('DataChangeEvent', () {

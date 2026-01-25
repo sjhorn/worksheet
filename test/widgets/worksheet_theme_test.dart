@@ -2,9 +2,9 @@ import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/rendering/painters/header_renderer.dart';
-import 'package:worksheet2/src/rendering/painters/selection_renderer.dart';
-import 'package:worksheet2/src/widgets/worksheet_theme.dart';
+import 'package:worksheet/src/rendering/painters/header_renderer.dart';
+import 'package:worksheet/src/rendering/painters/selection_renderer.dart';
+import 'package:worksheet/src/widgets/worksheet_theme.dart';
 
 void main() {
   group('WorksheetThemeData', () {

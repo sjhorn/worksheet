@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/geometry/zoom_transformer.dart';
+import 'package:worksheet/src/core/geometry/zoom_transformer.dart';
 
 void main() {
   group('ZoomTransformer', () {

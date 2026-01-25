@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/models/cell_coordinate.dart';
-import 'package:worksheet2/src/core/models/cell_value.dart';
-import 'package:worksheet2/src/interaction/controllers/edit_controller.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_value.dart';
+import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
 
 void main() {
   late EditController controller;

@@ -1,11 +1,11 @@
 import 'dart:ui' as ui;
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/geometry/zoom_transformer.dart';
-import 'package:worksheet2/src/core/models/cell_range.dart';
-import 'package:worksheet2/src/rendering/tile/tile.dart';
-import 'package:worksheet2/src/rendering/tile/tile_cache.dart';
-import 'package:worksheet2/src/rendering/tile/tile_coordinate.dart';
+import 'package:worksheet/src/core/geometry/zoom_transformer.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
+import 'package:worksheet/src/rendering/tile/tile.dart';
+import 'package:worksheet/src/rendering/tile/tile_cache.dart';
+import 'package:worksheet/src/rendering/tile/tile_coordinate.dart';
 
 ui.Picture _createTestPicture() {
   final recorder = ui.PictureRecorder();

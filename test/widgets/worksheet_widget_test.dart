@@ -1,17 +1,17 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/data/sparse_worksheet_data.dart';
-import 'package:worksheet2/src/core/models/cell_coordinate.dart';
-import 'package:worksheet2/src/core/models/cell_range.dart';
-import 'package:worksheet2/src/core/models/cell_value.dart';
-import 'package:worksheet2/src/interaction/controllers/selection_controller.dart'
+import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
+import 'package:worksheet/src/core/models/cell_value.dart';
+import 'package:worksheet/src/interaction/controllers/selection_controller.dart'
     as selection_module;
-import 'package:worksheet2/src/interaction/controllers/zoom_controller.dart'
+import 'package:worksheet/src/interaction/controllers/zoom_controller.dart'
     as zoom_module;
-import 'package:worksheet2/src/widgets/worksheet_controller.dart';
-import 'package:worksheet2/src/widgets/worksheet_theme.dart';
-import 'package:worksheet2/src/widgets/worksheet_widget.dart';
+import 'package:worksheet/src/widgets/worksheet_controller.dart';
+import 'package:worksheet/src/widgets/worksheet_theme.dart';
+import 'package:worksheet/src/widgets/worksheet_widget.dart';
 
 void main() {
   group('WorksheetController', () {

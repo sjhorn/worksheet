@@ -2,12 +2,12 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/data/sparse_worksheet_data.dart';
-import 'package:worksheet2/src/core/geometry/layout_solver.dart';
-import 'package:worksheet2/src/core/geometry/span_list.dart';
-import 'package:worksheet2/src/core/geometry/visible_range_calculator.dart';
-import 'package:worksheet2/src/core/models/cell_coordinate.dart';
-import 'package:worksheet2/src/core/models/cell_value.dart';
+import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
+import 'package:worksheet/src/core/geometry/layout_solver.dart';
+import 'package:worksheet/src/core/geometry/span_list.dart';
+import 'package:worksheet/src/core/geometry/visible_range_calculator.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_value.dart';
 
 /// Benchmark tests for scroll-related calculations.
 ///

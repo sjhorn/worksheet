@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/rendering/tile/tile_coordinate.dart';
+import 'package:worksheet/src/rendering/tile/tile_coordinate.dart';
 
 void main() {
   group('TileCoordinate', () {

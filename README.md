@@ -6,7 +6,7 @@ A Flutter widget that brings Excel-like spreadsheet functionality to your app. D
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:worksheet2/worksheet.dart';
+import 'package:worksheet/worksheet.dart';
 
 void main() => runApp(MaterialApp(home: MySpreadsheet()));
 
@@ -183,8 +183,8 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  worksheet2:
-    path: ../worksheet2
+  worksheet:
+    path: ../worksheet
 ```
 
 Then run:

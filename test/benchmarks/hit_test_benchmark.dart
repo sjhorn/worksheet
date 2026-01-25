@@ -2,9 +2,9 @@ import 'dart:math';
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/geometry/layout_solver.dart';
-import 'package:worksheet2/src/core/geometry/span_list.dart';
-import 'package:worksheet2/src/interaction/hit_testing/hit_tester.dart';
+import 'package:worksheet/src/core/geometry/layout_solver.dart';
+import 'package:worksheet/src/core/geometry/span_list.dart';
+import 'package:worksheet/src/interaction/hit_testing/hit_tester.dart';
 
 /// Benchmark tests for hit testing performance.
 ///

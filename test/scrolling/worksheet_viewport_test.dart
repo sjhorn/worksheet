@@ -3,14 +3,14 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/geometry/layout_solver.dart';
-import 'package:worksheet2/src/core/geometry/span_list.dart';
-import 'package:worksheet2/src/core/geometry/zoom_transformer.dart';
-import 'package:worksheet2/src/core/models/cell_range.dart';
-import 'package:worksheet2/src/rendering/tile/tile_config.dart';
-import 'package:worksheet2/src/rendering/tile/tile_coordinate.dart';
-import 'package:worksheet2/src/rendering/tile/tile_manager.dart';
-import 'package:worksheet2/src/scrolling/worksheet_viewport.dart';
+import 'package:worksheet/src/core/geometry/layout_solver.dart';
+import 'package:worksheet/src/core/geometry/span_list.dart';
+import 'package:worksheet/src/core/geometry/zoom_transformer.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
+import 'package:worksheet/src/rendering/tile/tile_config.dart';
+import 'package:worksheet/src/rendering/tile/tile_coordinate.dart';
+import 'package:worksheet/src/rendering/tile/tile_manager.dart';
+import 'package:worksheet/src/scrolling/worksheet_viewport.dart';
 
 /// Test tile renderer that creates simple pictures.
 class TestTileRenderer implements TileRenderer {

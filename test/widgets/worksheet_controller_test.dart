@@ -1,10 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/models/cell_coordinate.dart';
-import 'package:worksheet2/src/core/models/cell_range.dart';
-import 'package:worksheet2/src/interaction/controllers/selection_controller.dart';
-import 'package:worksheet2/src/interaction/controllers/zoom_controller.dart';
-import 'package:worksheet2/src/widgets/worksheet_controller.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
+import 'package:worksheet/src/interaction/controllers/selection_controller.dart';
+import 'package:worksheet/src/interaction/controllers/zoom_controller.dart';
+import 'package:worksheet/src/widgets/worksheet_controller.dart';
 
 void main() {
   group('WorksheetController', () {

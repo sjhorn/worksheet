@@ -2,7 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:worksheet2/worksheet.dart';
+import 'package:worksheet/worksheet.dart';
 
 /// Converts a slider value (0.0 to 1.0) to a zoom level (0.1 to 4.0).
 ///

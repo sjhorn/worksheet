@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/models/cell_coordinate.dart';
-import 'package:worksheet2/src/core/models/cell_value.dart';
-import 'package:worksheet2/src/interaction/controllers/edit_controller.dart';
-import 'package:worksheet2/src/widgets/cell_editor_overlay.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_value.dart';
+import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
+import 'package:worksheet/src/widgets/cell_editor_overlay.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

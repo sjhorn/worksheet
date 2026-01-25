@@ -1,8 +1,8 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/interaction/controllers/zoom_controller.dart';
-import 'package:worksheet2/src/interaction/gestures/scale_handler.dart';
+import 'package:worksheet/src/interaction/controllers/zoom_controller.dart';
+import 'package:worksheet/src/interaction/gestures/scale_handler.dart';
 
 void main() {
   late ZoomController zoomController;

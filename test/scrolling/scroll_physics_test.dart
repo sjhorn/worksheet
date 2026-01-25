@@ -1,6 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/scrolling/scroll_physics.dart';
+import 'package:worksheet/src/scrolling/scroll_physics.dart';
 
 void main() {
   group('WorksheetScrollPhysics', () {

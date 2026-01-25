@@ -1,13 +1,13 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/geometry/layout_solver.dart';
-import 'package:worksheet2/src/core/geometry/span_list.dart';
-import 'package:worksheet2/src/core/models/cell_coordinate.dart';
-import 'package:worksheet2/src/interaction/controllers/selection_controller.dart';
-import 'package:worksheet2/src/rendering/layers/header_layer.dart';
-import 'package:worksheet2/src/rendering/layers/render_layer.dart';
-import 'package:worksheet2/src/rendering/painters/header_renderer.dart';
+import 'package:worksheet/src/core/geometry/layout_solver.dart';
+import 'package:worksheet/src/core/geometry/span_list.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/interaction/controllers/selection_controller.dart';
+import 'package:worksheet/src/rendering/layers/header_layer.dart';
+import 'package:worksheet/src/rendering/layers/render_layer.dart';
+import 'package:worksheet/src/rendering/painters/header_renderer.dart';
 
 void main() {
   late LayoutSolver layoutSolver;

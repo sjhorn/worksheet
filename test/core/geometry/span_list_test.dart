@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/core/geometry/span_list.dart';
+import 'package:worksheet/src/core/geometry/span_list.dart';
 
 void main() {
   group('SpanList', () {

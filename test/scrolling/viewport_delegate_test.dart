@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:worksheet2/src/scrolling/viewport_delegate.dart';
+import 'package:worksheet/src/scrolling/viewport_delegate.dart';
 
 void main() {
   group('ViewportDelegate', () {

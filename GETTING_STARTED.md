@@ -8,8 +8,8 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  worksheet2:
-    path: ../worksheet2  # Or your package path
+  worksheet:
+    path: ../worksheet  # Or your package path
 ```
 
 Then run:
@@ -22,7 +22,7 @@ flutter pub get
 
 ```dart
 import 'package:flutter/material.dart';
-import 'package:worksheet2/worksheet.dart';
+import 'package:worksheet/worksheet.dart';
 
 void main() {
   runApp(const MyApp());
