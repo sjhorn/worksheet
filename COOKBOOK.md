@@ -528,222 +528,53 @@ class _PaginatedWorksheetState extends State<PaginatedWorksheet> {
 
 ## Keyboard Navigation
 
-Implement arrow key and tab navigation:
+Keyboard navigation is built into the `Worksheet` widget automatically. No extra setup is needed — arrow keys, Tab, Enter, and other shortcuts work out of the box:
 
 ```dart
-class NavigableWorksheet extends StatefulWidget {
-  @override
-  State<NavigableWorksheet> createState() => _NavigableWorksheetState();
-}
+// Keyboard navigation works with no extra code
+WorksheetTheme(
+  data: const WorksheetThemeData(),
+  child: Worksheet(
+    data: data,
+    rowCount: 1000,
+    columnCount: 26,
+    onEditCell: (cell) {
+      // F2 and double-tap trigger this callback
+      print('Edit ${cell.toNotation()}');
+    },
+  ),
+)
+```
 
-class _NavigableWorksheetState extends State<NavigableWorksheet> {
-  late final SparseWorksheetData _data;
-  late final WorksheetController _controller;
-  late final EditController _editController;
+### Built-in Shortcuts
 
-  static const int _rowCount = 1000;
-  static const int _columnCount = 26;
+| Key | Action |
+|-----|--------|
+| Arrow keys | Move selection |
+| Shift + Arrow | Extend selection |
+| Tab / Shift+Tab | Move right/left |
+| Enter / Shift+Enter | Move down/up |
+| Home / End | Start/end of row |
+| Ctrl+Home / Ctrl+End | Go to A1 / last cell |
+| Page Up / Page Down | Move up/down by 10 rows |
+| F2 | Edit current cell (via `onEditCell`) |
+| Escape | Collapse range to single cell |
+| Ctrl+A | Select all |
 
-  Rect? _editingCellBounds;
+Keyboard navigation is disabled when `readOnly: true`.
 
-  @override
-  void initState() {
-    super.initState();
-    _data = SparseWorksheetData(rowCount: _rowCount, columnCount: _columnCount);
-    _controller = WorksheetController();
-    _editController = EditController();
+### Programmatic Navigation
 
-    // Select initial cell
-    _controller.selectCell(const CellCoordinate(0, 0));
-  }
+You can also move the selection programmatically via the controller:
 
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
-
-    // If editing, don't handle navigation keys
-    if (_editController.isEditing) {
-      // Escape cancels edit
-      if (event.logicalKey == LogicalKeyboardKey.escape) {
-        setState(() => _editingCellBounds = null);
-        _editController.cancelEdit();
-        return KeyEventResult.handled;
-      }
-      // Enter commits edit
-      if (event.logicalKey == LogicalKeyboardKey.enter) {
-        _editController.commitEdit(onCommit: _onCommit);
-        // Move to next row after commit
-        _controller.moveFocus(
-          rowDelta: 1,
-          columnDelta: 0,
-          maxRow: _rowCount - 1,
-          maxColumn: _columnCount - 1,
-        );
-        return KeyEventResult.handled;
-      }
-      // Tab commits edit and moves to next cell
-      if (event.logicalKey == LogicalKeyboardKey.tab) {
-        _editController.commitEdit(onCommit: _onCommit);
-        final isShift = HardwareKeyboard.instance.isShiftPressed;
-        _controller.moveFocus(
-          rowDelta: 0,
-          columnDelta: isShift ? -1 : 1,
-          maxRow: _rowCount - 1,
-          maxColumn: _columnCount - 1,
-        );
-        return KeyEventResult.handled;
-      }
-      return KeyEventResult.ignored;
-    }
-
-    final isShift = HardwareKeyboard.instance.isShiftPressed;
-
-    // F2 starts editing
-    if (event.logicalKey == LogicalKeyboardKey.f2) {
-      final cell = _controller.focusCell;
-      if (cell != null) {
-        _onEditCell(cell);
-        return KeyEventResult.handled;
-      }
-    }
-
-    // Delete clears cell
-    if (event.logicalKey == LogicalKeyboardKey.delete ||
-        event.logicalKey == LogicalKeyboardKey.backspace) {
-      final cell = _controller.focusCell;
-      if (cell != null) {
-        setState(() => _data.setCell(cell, null));
-        return KeyEventResult.handled;
-      }
-    }
-
-    // Arrow keys
-    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-      _controller.moveFocus(
-        rowDelta: -1,
-        columnDelta: 0,
-        extend: isShift,
-        maxRow: _rowCount - 1,
-        maxColumn: _columnCount - 1,
-      );
-      return KeyEventResult.handled;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-      _controller.moveFocus(
-        rowDelta: 1,
-        columnDelta: 0,
-        extend: isShift,
-        maxRow: _rowCount - 1,
-        maxColumn: _columnCount - 1,
-      );
-      return KeyEventResult.handled;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      _controller.moveFocus(
-        rowDelta: 0,
-        columnDelta: -1,
-        extend: isShift,
-        maxRow: _rowCount - 1,
-        maxColumn: _columnCount - 1,
-      );
-      return KeyEventResult.handled;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      _controller.moveFocus(
-        rowDelta: 0,
-        columnDelta: 1,
-        extend: isShift,
-        maxRow: _rowCount - 1,
-        maxColumn: _columnCount - 1,
-      );
-      return KeyEventResult.handled;
-    }
-
-    // Tab moves horizontally
-    if (event.logicalKey == LogicalKeyboardKey.tab) {
-      _controller.moveFocus(
-        rowDelta: 0,
-        columnDelta: isShift ? -1 : 1,
-        maxRow: _rowCount - 1,
-        maxColumn: _columnCount - 1,
-      );
-      return KeyEventResult.handled;
-    }
-
-    // Enter moves vertically
-    if (event.logicalKey == LogicalKeyboardKey.enter) {
-      _controller.moveFocus(
-        rowDelta: isShift ? -1 : 1,
-        columnDelta: 0,
-        maxRow: _rowCount - 1,
-        maxColumn: _columnCount - 1,
-      );
-      return KeyEventResult.handled;
-    }
-
-    // Home/End
-    if (event.logicalKey == LogicalKeyboardKey.home) {
-      _controller.selectCell(CellCoordinate(
-        _controller.focusCell?.row ?? 0,
-        0,
-      ));
-      return KeyEventResult.handled;
-    }
-    if (event.logicalKey == LogicalKeyboardKey.end) {
-      _controller.selectCell(CellCoordinate(
-        _controller.focusCell?.row ?? 0,
-        _columnCount - 1,
-      ));
-      return KeyEventResult.handled;
-    }
-
-    // Ctrl+Home goes to A1
-    if (HardwareKeyboard.instance.isControlPressed &&
-        event.logicalKey == LogicalKeyboardKey.home) {
-      _controller.selectCell(const CellCoordinate(0, 0));
-      _controller.scrollTo(x: 0, y: 0);
-      return KeyEventResult.handled;
-    }
-
-    return KeyEventResult.ignored;
-  }
-
-  void _onEditCell(CellCoordinate cell) {
-    // ... editor setup
-  }
-
-  void _onCommit(CellCoordinate cell, CellValue? value) {
-    setState(() {
-      _data.setCell(cell, value);
-      _editingCellBounds = null;
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Focus(
-      autofocus: true,
-      onKeyEvent: _handleKeyEvent,
-      child: WorksheetTheme(
-        data: const WorksheetThemeData(),
-        child: Worksheet(
-          data: _data,
-          controller: _controller,
-          rowCount: _rowCount,
-          columnCount: _columnCount,
-          onEditCell: _onEditCell,
-        ),
-      ),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    _editController.dispose();
-    _data.dispose();
-    super.dispose();
-  }
-}
+```dart
+controller.moveFocus(
+  rowDelta: 1,
+  columnDelta: 0,
+  extend: false,  // true to extend selection
+  maxRow: 999,
+  maxColumn: 25,
+);
 ```
 
 ---

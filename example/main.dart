@@ -1,7 +1,6 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:worksheet/worksheet.dart';
 
 /// Converts a slider value (0.0 to 1.0) to a zoom level (0.1 to 4.0).
@@ -462,33 +461,29 @@ class _WorksheetExampleState extends State<WorksheetExample> {
             child: Stack(
               children: [
                 // The worksheet widget
-                Focus(
-                  autofocus: true,
-                  onKeyEvent: _handleKeyEvent,
-                  child: WorksheetTheme(
-                    data: WorksheetThemeData(
-                      showHeaders: true,
-                      showGridlines: true,
-                      defaultRowHeight: _defaultRowHeight,
-                      defaultColumnWidth: _defaultColumnWidth,
-                      rowHeaderWidth: 40.0, // Narrower like Excel
-                      columnHeaderHeight: 20.0, // Shorter like Excel
-                      fontSize: 11.0, // Smaller font like Excel
-                    ),
-                    child: Worksheet(
-                      data: _data,
-                      controller: _controller,
-                      rowCount: _rowCount,
-                      columnCount: _columnCount,
-                      onEditCell: _onEditCell,
-                      onCellTap: (cell) {
-                        // Close any open editor when tapping a different cell
-                        if (_editController.isEditing &&
-                            _editController.editingCell != cell) {
-                          _editController.commitEdit(onCommit: _onCommit);
-                        }
-                      },
-                    ),
+                WorksheetTheme(
+                  data: WorksheetThemeData(
+                    showHeaders: true,
+                    showGridlines: true,
+                    defaultRowHeight: _defaultRowHeight,
+                    defaultColumnWidth: _defaultColumnWidth,
+                    rowHeaderWidth: 40.0, // Narrower like Excel
+                    columnHeaderHeight: 20.0, // Shorter like Excel
+                    fontSize: 11.0, // Smaller font like Excel
+                  ),
+                  child: Worksheet(
+                    data: _data,
+                    controller: _controller,
+                    rowCount: _rowCount,
+                    columnCount: _columnCount,
+                    onEditCell: _onEditCell,
+                    onCellTap: (cell) {
+                      // Close any open editor when tapping a different cell
+                      if (_editController.isEditing &&
+                          _editController.editingCell != cell) {
+                        _editController.commitEdit(onCommit: _onCommit);
+                      }
+                    },
                   ),
                 ),
 
@@ -506,53 +501,6 @@ class _WorksheetExampleState extends State<WorksheetExample> {
         ],
       ),
     );
-  }
-
-  KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
-    if (event is! KeyDownEvent) {
-      return KeyEventResult.ignored;
-    }
-
-    // F2 to edit current cell
-    if (event.logicalKey == LogicalKeyboardKey.f2) {
-      final cell = _controller.focusCell;
-      if (cell != null && !_editController.isEditing) {
-        _onEditCell(cell);
-        return KeyEventResult.handled;
-      }
-    }
-
-    // Arrow keys to navigate
-    if (!_editController.isEditing) {
-      final isShift = HardwareKeyboard.instance.isShiftPressed;
-
-      if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
-        _controller.moveFocus(rowDelta: -1, columnDelta: 0, extend: isShift, maxRow: _rowCount - 1, maxColumn: _columnCount - 1);
-        return KeyEventResult.handled;
-      }
-      if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
-        _controller.moveFocus(rowDelta: 1, columnDelta: 0, extend: isShift, maxRow: _rowCount - 1, maxColumn: _columnCount - 1);
-        return KeyEventResult.handled;
-      }
-      if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-        _controller.moveFocus(rowDelta: 0, columnDelta: -1, extend: isShift, maxRow: _rowCount - 1, maxColumn: _columnCount - 1);
-        return KeyEventResult.handled;
-      }
-      if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-        _controller.moveFocus(rowDelta: 0, columnDelta: 1, extend: isShift, maxRow: _rowCount - 1, maxColumn: _columnCount - 1);
-        return KeyEventResult.handled;
-      }
-      if (event.logicalKey == LogicalKeyboardKey.tab) {
-        _controller.moveFocus(rowDelta: 0, columnDelta: isShift ? -1 : 1, maxRow: _rowCount - 1, maxColumn: _columnCount - 1);
-        return KeyEventResult.handled;
-      }
-      if (event.logicalKey == LogicalKeyboardKey.enter) {
-        _controller.moveFocus(rowDelta: isShift ? -1 : 1, columnDelta: 0, maxRow: _rowCount - 1, maxColumn: _columnCount - 1);
-        return KeyEventResult.handled;
-      }
-    }
-
-    return KeyEventResult.ignored;
   }
 
   Widget _buildSelectionInfo() {

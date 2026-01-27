@@ -7,6 +7,7 @@ import '../core/geometry/layout_solver.dart';
 import '../core/geometry/span_list.dart';
 import '../core/models/cell_coordinate.dart';
 import '../interaction/gesture_handler.dart';
+import '../interaction/gestures/keyboard_handler.dart';
 import '../interaction/hit_testing/hit_tester.dart';
 import '../rendering/layers/header_layer.dart';
 import '../rendering/layers/render_layer.dart';
@@ -113,6 +114,7 @@ class _WorksheetState extends State<Worksheet> {
   late TilePainter _tilePainter;
   late WorksheetHitTester _hitTester;
   late WorksheetGestureHandler _gestureHandler;
+  late KeyboardHandler _keyboardHandler;
 
   late SelectionRenderer _selectionRenderer;
   late HeaderRenderer _headerRenderer;
@@ -208,6 +210,18 @@ class _WorksheetState extends State<Worksheet> {
       },
       onResizeColumnEnd: (column) {
         _applyResizeToSelectedColumns(column);
+      },
+    );
+
+    _keyboardHandler = KeyboardHandler(
+      selectionController: _controller.selectionController,
+      maxRow: widget.rowCount,
+      maxColumn: widget.columnCount,
+      onStartEdit: () {
+        final cell = _controller.focusCell;
+        if (cell != null) {
+          widget.onEditCell?.call(cell);
+        }
       },
     );
   }
@@ -358,6 +372,17 @@ class _WorksheetState extends State<Worksheet> {
             _applyResizeToSelectedColumns(column);
           },
         );
+        _keyboardHandler = KeyboardHandler(
+          selectionController: _controller.selectionController,
+          maxRow: widget.rowCount,
+          maxColumn: widget.columnCount,
+          onStartEdit: () {
+            final cell = _controller.focusCell;
+            if (cell != null) {
+              widget.onEditCell?.call(cell);
+            }
+          },
+        );
         final theme = WorksheetTheme.of(context);
         _selectionLayer.dispose();
         _headerLayer.dispose();
@@ -399,7 +424,17 @@ class _WorksheetState extends State<Worksheet> {
     // Use Listener for low-level pointer events to handle:
     // - Left mouse button: tap and drag for selection
     // - Scroll wheel: handled by TwoDimensionalScrollable
-    return MouseRegion(
+    return Focus(
+      autofocus: true,
+      onKeyEvent: widget.readOnly
+          ? null
+          : (node, event) {
+              if (_keyboardHandler.handleKeyEvent(event)) {
+                return KeyEventResult.handled;
+              }
+              return KeyEventResult.ignored;
+            },
+      child: MouseRegion(
       cursor: _currentCursor,
       onHover: widget.readOnly
           ? null
@@ -534,6 +569,7 @@ class _WorksheetState extends State<Worksheet> {
             ),
           ),
         ),
+    ),
     );
   }
 
