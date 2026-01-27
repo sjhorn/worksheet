@@ -161,3 +161,81 @@ flutter run --profile --trace-skia
 - [ ] Immutable models where possible
 - [ ] Memory disposal in `dispose()` methods
 - [ ] Performance-critical code benchmarked
+
+## Release Process
+
+Follow these steps in order. Fix any issues before proceeding to the next step.
+
+### 1. Static Analysis
+```bash
+# Run the analyzer — must have zero issues
+flutter analyze
+
+# Apply automated fixes for any issues
+dart fix --apply
+
+# Re-run analyzer to confirm clean
+flutter analyze
+```
+
+### 2. Tests
+```bash
+# Run all tests — must all pass
+flutter test
+```
+
+### 3. Coverage
+```bash
+# Generate coverage data
+flutter test --coverage
+
+# Generate HTML report and review
+genhtml coverage/lcov.info -o coverage/html
+open coverage/html/index.html
+
+# Verify minimum 80% coverage (critical paths 100%)
+```
+
+### 4. Benchmarks
+```bash
+# Run performance profiling
+flutter run --profile --trace-skia
+```
+Confirm targets: scroll 60fps, zoom 30fps, tile render <8ms, hit test <100us.
+
+### 5. Version & Changelog
+- Bump version in `pubspec.yaml` following [semver](https://semver.org/)
+  - **patch** (1.0.x): bug fixes
+  - **minor** (1.x.0): new features, backwards compatible
+  - **major** (x.0.0): breaking API changes
+- Add entry to `CHANGELOG.md` under new version heading with date
+- Update any version references in `README.md` if needed
+
+### 6. Commit & Tag
+```bash
+git add -A
+git commit -m "chore: release vX.Y.Z"
+git tag vX.Y.Z
+git push && git push --tags
+```
+
+### 7. Publish to pub.dev
+```bash
+# Dry run first — fix any issues it reports
+flutter pub publish --dry-run
+
+# Publish for real
+flutter pub publish
+```
+
+### Quick Reference Checklist
+- [ ] `flutter analyze` — zero issues
+- [ ] `flutter test` — all pass
+- [ ] `flutter test --coverage` — meets 80% minimum
+- [ ] Benchmarks reviewed
+- [ ] `pubspec.yaml` version bumped
+- [ ] `CHANGELOG.md` updated
+- [ ] Committed and tagged `vX.Y.Z`
+- [ ] Pushed with tags
+- [ ] `flutter pub publish --dry-run` — no issues
+- [ ] `flutter pub publish` — published

@@ -7,7 +7,7 @@
 
 A Flutter widget that brings Excel-like spreadsheet functionality to your app.
 
-![Worksheet Screenshot](doc/images/worksheet_screenshot.png) 
+![Worksheet Screenshot](https://raw.githubusercontent.com/sjhorn/worksheet/main/doc/images/worksheet_screenshot.png)
 
 Display and edit tabular data with smooth scrolling, pinch-to-zoom, and cell selection - all running at 60fps even with hundreds of thousands of rows.
 

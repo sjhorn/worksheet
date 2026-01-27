@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-01-27
+
+### Added
+- Built-in keyboard navigation in Worksheet widget (arrow keys, Tab, Enter, Home/End, PageUp/Down, F2, Escape, Ctrl+A)
+- 18 widget-level keyboard navigation tests
+- Release process checklist in CLAUDE.md
+
+### Fixed
+- Selection and header layers now repaint on selection change (CustomPainter repaint listenable)
+
+### Changed
+- Simplified example/main.dart by removing manual keyboard handling code
+- Updated COOKBOOK.md keyboard navigation section to reflect built-in support
+
 ## [1.0.1] - 2025-01-25
 
 ### Added
