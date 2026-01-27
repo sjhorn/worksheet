@@ -1,6 +1,10 @@
 name: worksheet
 description: "High-performance Flutter spreadsheet widget supporting large datasets, 10%-400% zoom, and GPU-optimized tile-based rendering."
 version: 1.0.1
+homepage: https://pub.dev/packages/worksheet
+screenshots:
+  - description: 'Worksheet logo'
+    path: assets/worksheet.png
 repository: https://github.com/sjhorn/worksheet
 issue_tracker: https://github.com/sjhorn/worksheet/issues
 topics:
