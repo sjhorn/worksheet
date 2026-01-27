@@ -575,7 +575,7 @@ class _SelectionPainter extends CustomPainter {
     required this.scrollOffset,
     required this.zoom,
     required this.headerOffset,
-  });
+  }) : super(repaint: layer.selectionController);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -612,7 +612,7 @@ class _HeaderPainter extends CustomPainter {
     required this.layer,
     required this.scrollOffset,
     required this.zoom,
-  });
+  }) : super(repaint: layer.selectionController);
 
   @override
   void paint(Canvas canvas, Size size) {
