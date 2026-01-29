@@ -1,12 +1,15 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import '../models/cell.dart';
 import '../models/cell_coordinate.dart';
 import '../models/cell_range.dart';
 import '../models/cell_style.dart';
 import '../models/cell_value.dart';
 import 'data_change_event.dart';
 import 'worksheet_data.dart';
+
+typedef CellCoordinateRecord = (int row, int col);
 
 /// Memory-efficient sparse storage implementation of [WorksheetData].
 ///
@@ -38,10 +41,37 @@ class SparseWorksheetData implements WorksheetData {
   final int columnCount;
 
   /// Creates a sparse worksheet data store with the given dimensions.
+  ///
+  /// Optionally accepts a [cells] map to populate initial data:
+  ///
+  /// ```dart
+  /// final data = SparseWorksheetData(
+  ///   rowCount: 100,
+  ///   columnCount: 10,
+  ///   cells: {
+  ///     CellCoordinate(0, 0): Cell.text('Name'),
+  ///     CellCoordinate(1, 0): Cell.number(42),
+  ///   },
+  /// );
+  /// ```
   SparseWorksheetData({
     required this.rowCount,
     required this.columnCount,
-  });
+    Map<CellCoordinateRecord, Cell>? cells,
+  }) {
+    if (cells != null) {
+      for (final entry in cells.entries) {
+        final coord = CellCoordinate(entry.key.$1, entry.key.$2);
+        if (entry.value.value != null) {
+          _values[coord] = entry.value.value!;
+          _updateBounds(coord);
+        }
+        if (entry.value.style != null) {
+          _styles[coord] = entry.value.style!;
+        }
+      }
+    }
+  }
 
   /// The number of populated cells.
   int get populatedCellCount => _values.length;
@@ -83,6 +113,58 @@ class SparseWorksheetData implements WorksheetData {
 
   @override
   bool hasValue(CellCoordinate coord) => _values.containsKey(coord);
+
+  /// Gets the [Cell] at [x, y], or null if the cell has no value and no style.
+  Cell? operator [](CellCoordinateRecord record) {
+    final coord = CellCoordinate(record.$1, record.$2);
+    final value = _values[coord];
+    final style = _styles[coord];
+    if (value == null && style == null) return null;
+    return Cell(value: value, style: style);
+  }
+
+  /// Sets the [Cell] at [(x, y)], updating both value and style.
+  ///
+  /// Pass null to clear both value and style.
+  void operator []=(CellCoordinateRecord record, Cell? cell) {
+    final coord = CellCoordinate(record.$1, record.$2);
+    _checkNotDisposed();
+    if (cell == null) {
+      final hadValue = _values.containsKey(coord);
+      final hadStyle = _styles.containsKey(coord);
+      if (hadValue) _values.remove(coord);
+      if (hadStyle) _styles.remove(coord);
+      if (hadValue) _recalculateBounds();
+      if (hadValue || hadStyle) {
+        _changeController.add(DataChangeEvent.cellValue(coord));
+      }
+    } else {
+      if (cell.value != null) {
+        _values[coord] = cell.value!;
+        _updateBounds(coord);
+      } else if (_values.containsKey(coord)) {
+        _values.remove(coord);
+        _recalculateBounds();
+      }
+      if (cell.style != null) {
+        _styles[coord] = cell.style!;
+      } else if (_styles.containsKey(coord)) {
+        _styles.remove(coord);
+      }
+      _changeController.add(DataChangeEvent.cellValue(coord));
+    }
+  }
+
+  /// Returns a snapshot of all populated cells as a map.
+  ///
+  /// A cell is included if it has a value, a style, or both.
+  Map<CellCoordinate, Cell> get cells {
+    final allCoords = {..._values.keys, ..._styles.keys};
+    return {
+      for (final coord in allCoords)
+        coord: Cell(value: _values[coord], style: _styles[coord]),
+    };
+  }
 
   @override
   void setCell(CellCoordinate coord, CellValue? value) {

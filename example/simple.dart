@@ -8,18 +8,27 @@ class MySpreadsheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final data = SparseWorksheetData(rowCount: 100, columnCount: 10);
-
-    // Add some data
-    data.setCell(const CellCoordinate(0, 0), CellValue.text('Name'));
-    data.setCell(const CellCoordinate(0, 1), CellValue.text('Amount'));
-    data.setCell(const CellCoordinate(1, 0), CellValue.text('Apples'));
-    data.setCell(const CellCoordinate(1, 1), CellValue.number(42));
+    final data = SparseWorksheetData(
+      rowCount: 100,
+      columnCount: 10,
+      cells: {
+        (0, 0): 'Name'.text,
+        (0, 1): 'Amount'.text,
+        (1, 0): 'Apples'.text,
+        (1, 1): '42'.number,
+        (2, 1): '=2+42'.formula,
+        (3, 1): Cell.text('test'),
+      },
+    );
 
     return Scaffold(
       body: WorksheetTheme(
         data: const WorksheetThemeData(),
-        child: Worksheet(data: data, rowCount: 100, columnCount: 10),
+        child: Worksheet(
+          data: data,
+          rowCount: data.rowCount,
+          columnCount: data.columnCount,
+        ),
       ),
     );
   }

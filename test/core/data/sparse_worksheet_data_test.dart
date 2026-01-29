@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/data_change_event.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
+import 'package:worksheet/src/core/models/cell.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/core/models/cell_style.dart';
@@ -187,20 +189,23 @@ void main() {
         expect(data.getCell(CellCoordinate(0, 0)), isNull);
       });
 
-      test('batch setCell with null on non-existent cell does nothing', () async {
-        final events = <DataChangeEvent>[];
-        final subscription = data.changes.listen(events.add);
+      test(
+        'batch setCell with null on non-existent cell does nothing',
+        () async {
+          final events = <DataChangeEvent>[];
+          final subscription = data.changes.listen(events.add);
 
-        data.batchUpdate((batch) {
-          batch.setCell(CellCoordinate(0, 0), null); // Cell doesn't exist
-        });
+          data.batchUpdate((batch) {
+            batch.setCell(CellCoordinate(0, 0), null); // Cell doesn't exist
+          });
 
-        await Future.delayed(Duration.zero);
-        await subscription.cancel();
+          await Future.delayed(Duration.zero);
+          await subscription.cancel();
 
-        // No event emitted because no change was made
-        expect(events.length, 0);
-      });
+          // No event emitted because no change was made
+          expect(events.length, 0);
+        },
+      );
 
       test('batch setStyle applies styles', () {
         data.batchUpdate((batch) {
@@ -288,14 +293,8 @@ void main() {
         final cells = data.getCellsInRange(range).toList();
 
         expect(cells.length, 2);
-        expect(
-          cells.any((e) => e.key == CellCoordinate(0, 0)),
-          isTrue,
-        );
-        expect(
-          cells.any((e) => e.key == CellCoordinate(5, 5)),
-          isTrue,
-        );
+        expect(cells.any((e) => e.key == CellCoordinate(0, 0)), isTrue);
+        expect(cells.any((e) => e.key == CellCoordinate(5, 5)), isTrue);
       });
     });
 
@@ -309,7 +308,10 @@ void main() {
 
         expect(data.getCell(CellCoordinate(0, 0)), isNull);
         expect(data.getCell(CellCoordinate(5, 5)), isNull);
-        expect(data.getCell(CellCoordinate(100, 50)), CellValue.text('outside'));
+        expect(
+          data.getCell(CellCoordinate(100, 50)),
+          CellValue.text('outside'),
+        );
       });
 
       test('clears styles in range', () {
@@ -359,13 +361,211 @@ void main() {
       });
     });
 
+    group('cells constructor', () {
+      test('populates values and styles from map', () {
+        final d = SparseWorksheetData(
+          rowCount: 100,
+          columnCount: 10,
+          cells: {
+            (0, 0): Cell.text(
+              'Name',
+              style: const CellStyle(fontWeight: FontWeight.bold),
+            ),
+            (1, 0): Cell.number(42),
+          },
+        );
+
+        expect(d.getCell(const CellCoordinate(0, 0)), CellValue.text('Name'));
+        expect(
+          d.getStyle(const CellCoordinate(0, 0))?.fontWeight,
+          FontWeight.bold,
+        );
+        expect(d.getCell(const CellCoordinate(1, 0)), CellValue.number(42));
+        expect(d.getStyle(const CellCoordinate(1, 0)), isNull);
+        expect(d.populatedCellCount, 2);
+
+        d.dispose();
+      });
+
+      test('handles style-only cells', () {
+        final d = SparseWorksheetData(
+          rowCount: 10,
+          columnCount: 10,
+          cells: {(0, 0): const Cell.withStyle(CellStyle(fontSize: 14.0))},
+        );
+
+        expect(d.getCell(const CellCoordinate(0, 0)), isNull);
+        expect(d.getStyle(const CellCoordinate(0, 0))?.fontSize, 14.0);
+
+        d.dispose();
+      });
+
+      test('updates bounds from initial cells', () {
+        final d = SparseWorksheetData(
+          rowCount: 100,
+          columnCount: 100,
+          cells: {(10, 20): Cell.text('A'), (50, 5): Cell.number(1)},
+        );
+
+        expect(d.maxPopulatedRow, 50);
+        expect(d.maxPopulatedColumn, 20);
+
+        d.dispose();
+      });
+
+      test('null cells parameter works like empty', () {
+        final d = SparseWorksheetData(rowCount: 10, columnCount: 10);
+        expect(d.populatedCellCount, 0);
+        d.dispose();
+      });
+    });
+
+    group('operator[]', () {
+      test('returns Cell with value and style', () {
+        data.setCell(const CellCoordinate(0, 0), CellValue.text('hi'));
+        data.setStyle(
+          const CellCoordinate(0, 0),
+          const CellStyle(fontSize: 12.0),
+        );
+
+        final cell = data[(0, 0)];
+        expect(cell, isNotNull);
+        expect(cell!.value, CellValue.text('hi'));
+        expect(cell.style?.fontSize, 12.0);
+      });
+
+      test('returns Cell with value only', () {
+        data.setCell(const CellCoordinate(1, 1), CellValue.number(99));
+
+        final cell = data[(1, 1)];
+        expect(cell, isNotNull);
+        expect(cell!.value, CellValue.number(99));
+        expect(cell.style, isNull);
+      });
+
+      test('returns Cell with style only', () {
+        data.setStyle(
+          const CellCoordinate(2, 2),
+          const CellStyle(fontWeight: FontWeight.bold),
+        );
+
+        final cell = data[(2, 2)];
+        expect(cell, isNotNull);
+        expect(cell!.value, isNull);
+        expect(cell.style?.fontWeight, FontWeight.bold);
+      });
+
+      test('returns null for empty cell', () {
+        expect(data[(5, 5)], isNull);
+      });
+    });
+
+    group('operator[]=', () {
+      test('sets both value and style', () {
+        data[(0, 0)] = Cell.text(
+          'hello',
+          style: const CellStyle(fontSize: 14.0),
+        );
+
+        expect(
+          data.getCell(const CellCoordinate(0, 0)),
+          CellValue.text('hello'),
+        );
+        expect(data.getStyle(const CellCoordinate(0, 0))?.fontSize, 14.0);
+      });
+
+      test('sets value only when style is null', () {
+        data[(0, 0)] = Cell.number(42);
+
+        expect(data.getCell(const CellCoordinate(0, 0)), CellValue.number(42));
+        expect(data.getStyle(const CellCoordinate(0, 0)), isNull);
+      });
+
+      test('null clears both value and style', () {
+        data.setCell(const CellCoordinate(0, 0), CellValue.text('hi'));
+        data.setStyle(
+          const CellCoordinate(0, 0),
+          const CellStyle(fontSize: 12.0),
+        );
+
+        data[(0, 0)] = null;
+
+        expect(data.getCell(const CellCoordinate(0, 0)), isNull);
+        expect(data.getStyle(const CellCoordinate(0, 0)), isNull);
+      });
+
+      test('overwrites existing value and style', () {
+        data[(0, 0)] = Cell.text('old', style: const CellStyle(fontSize: 10.0));
+        data[(0, 0)] = Cell.number(99, style: const CellStyle(fontSize: 20.0));
+
+        expect(data.getCell(const CellCoordinate(0, 0)), CellValue.number(99));
+        expect(data.getStyle(const CellCoordinate(0, 0))?.fontSize, 20.0);
+      });
+
+      test('Cell with null value clears existing value', () {
+        data.setCell(const CellCoordinate(0, 0), CellValue.text('hi'));
+        data[(0, 0)] = const Cell.withStyle(CellStyle(fontSize: 14.0));
+
+        expect(data.getCell(const CellCoordinate(0, 0)), isNull);
+        expect(data.getStyle(const CellCoordinate(0, 0))?.fontSize, 14.0);
+      });
+
+      test('emits change event', () async {
+        final events = <DataChangeEvent>[];
+        data.changes.listen(events.add);
+
+        data[(3, 3)] = Cell.text('test');
+        await Future<void>.delayed(Duration.zero);
+
+        expect(events, hasLength(1));
+        expect(events.first.cell, const CellCoordinate(3, 3));
+      });
+    });
+
+    group('cells getter', () {
+      test('returns all populated cells', () {
+        data.setCell(const CellCoordinate(0, 0), CellValue.text('A'));
+        data.setCell(const CellCoordinate(1, 1), CellValue.number(42));
+        data.setStyle(
+          const CellCoordinate(1, 1),
+          const CellStyle(fontSize: 12.0),
+        );
+        data.setStyle(
+          const CellCoordinate(2, 2),
+          const CellStyle(fontWeight: FontWeight.bold),
+        );
+
+        final cells = data.cells;
+        expect(cells.length, 3);
+        expect(cells[const CellCoordinate(0, 0)]?.value, CellValue.text('A'));
+        expect(cells[const CellCoordinate(1, 1)]?.value, CellValue.number(42));
+        expect(cells[const CellCoordinate(1, 1)]?.style?.fontSize, 12.0);
+        expect(cells[const CellCoordinate(2, 2)]?.value, isNull);
+        expect(
+          cells[const CellCoordinate(2, 2)]?.style?.fontWeight,
+          FontWeight.bold,
+        );
+      });
+
+      test('returns empty map when no data', () {
+        expect(data.cells, isEmpty);
+      });
+
+      test('returns snapshot not live view', () {
+        data.setCell(const CellCoordinate(0, 0), CellValue.text('A'));
+        final snapshot = data.cells;
+
+        data.setCell(const CellCoordinate(1, 1), CellValue.text('B'));
+
+        expect(snapshot.length, 1);
+        expect(data.cells.length, 2);
+      });
+    });
+
     group('dispose', () {
       test('closes change stream', () async {
         final completer = Completer<void>();
-        data.changes.listen(
-          (_) {},
-          onDone: () => completer.complete(),
-        );
+        data.changes.listen((_) {}, onDone: () => completer.complete());
 
         data.dispose();
 

@@ -17,8 +17,8 @@ class CellCoordinate {
   ///
   /// Both indices must be non-negative.
   const CellCoordinate(this.row, this.column)
-      : assert(row >= 0, 'Row must be non-negative'),
-        assert(column >= 0, 'Column must be non-negative');
+    : assert(row >= 0, 'Row must be non-negative'),
+      assert(column >= 0, 'Column must be non-negative');
 
   /// Creates a cell coordinate from Excel-style notation (e.g., "A1", "AB10").
   ///
@@ -86,16 +86,15 @@ class CellCoordinate {
 
   /// Creates a copy with optionally modified fields.
   CellCoordinate copyWith({int? row, int? column}) {
-    return CellCoordinate(
-      row ?? this.row,
-      column ?? this.column,
-    );
+    return CellCoordinate(row ?? this.row, column ?? this.column);
   }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is CellCoordinate && other.row == row && other.column == column;
+    return other is CellCoordinate &&
+        other.row == row &&
+        other.column == column;
   }
 
   @override
@@ -103,4 +102,13 @@ class CellCoordinate {
 
   @override
   String toString() => 'CellCoordinate(${toNotation()})';
+
+  // Navigate cells naturally
+  CellCoordinate operator +(CellCoordinate other) =>
+      CellCoordinate(row + other.row, column + other.column);
+
+  CellCoordinate get left => CellCoordinate(row, column - 1);
+  CellCoordinate get right => CellCoordinate(row, column + 1);
+  CellCoordinate get up => CellCoordinate(row - 1, column);
+  CellCoordinate get down => CellCoordinate(row + 1, column);
 }
