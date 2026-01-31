@@ -391,7 +391,12 @@ class _WorksheetState extends State<Worksheet> {
     }
 
     if (widget.data != oldWidget.data && _initialized) {
-      _tileManager.invalidateAll();
+      final theme = WorksheetTheme.of(context);
+      _tileManager.dispose();
+      _selectionLayer.dispose();
+      _headerLayer.dispose();
+      _initRendering(theme);
+      _initLayers(theme);
     }
   }
 
@@ -400,6 +405,17 @@ class _WorksheetState extends State<Worksheet> {
     super.didChangeDependencies();
     final theme = WorksheetTheme.of(context);
     _ensureInitialized(theme);
+  }
+
+  @override
+  void reassemble() {
+    super.reassemble();
+    if (_initialized) {
+      _selectionLayer.dispose();
+      _headerLayer.dispose();
+      _tileManager.dispose();
+      _initialized = false;
+    }
   }
 
   @override
