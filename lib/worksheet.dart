@@ -67,6 +67,7 @@ export 'src/rendering/layers/frozen_layer.dart';
 // Widgets
 export 'src/widgets/worksheet_widget.dart';
 export 'src/widgets/worksheet_controller.dart';
+export 'src/widgets/worksheet_scrollbar_config.dart';
 export 'src/widgets/worksheet_theme.dart';
 export 'src/widgets/cell_editor_overlay.dart';
 

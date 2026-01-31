@@ -1,8 +1,8 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 
 import '../core/data/worksheet_data.dart';
-import '../interaction/hit_testing/hit_test_result.dart';
 import '../core/geometry/layout_solver.dart';
 import '../core/geometry/span_list.dart';
 import '../core/models/cell_coordinate.dart';
@@ -10,6 +10,7 @@ import '../interaction/clipboard/clipboard_handler.dart';
 import '../interaction/clipboard/clipboard_serializer.dart';
 import '../interaction/gesture_handler.dart';
 import '../interaction/gestures/keyboard_handler.dart';
+import '../interaction/hit_testing/hit_test_result.dart';
 import '../interaction/hit_testing/hit_tester.dart';
 import '../rendering/layers/header_layer.dart';
 import '../rendering/layers/render_layer.dart';
@@ -21,6 +22,7 @@ import '../rendering/tile/tile_manager.dart';
 import '../rendering/tile/tile_painter.dart';
 import '../scrolling/worksheet_viewport.dart';
 import 'worksheet_controller.dart';
+import 'worksheet_scrollbar_config.dart';
 import 'worksheet_theme.dart';
 
 /// Callback for when a cell should enter edit mode.
@@ -100,6 +102,13 @@ class Worksheet extends StatefulWidget {
   /// horizontal and vertical scrolling.
   final DiagonalDragBehavior diagonalDragBehavior;
 
+  /// Configuration for scrollbar appearance and behavior.
+  ///
+  /// If null, defaults to platform-appropriate behavior:
+  /// - Desktop (macOS, Windows, Linux): scrollbars always visible
+  /// - Mobile (iOS, Android): scrollbars shown on scroll, then fade out
+  final WorksheetScrollbarConfig? scrollbarConfig;
+
   const Worksheet({
     super.key,
     required this.data,
@@ -115,6 +124,7 @@ class Worksheet extends StatefulWidget {
     this.readOnly = false,
     this.clipboardSerializer = const TsvClipboardSerializer(),
     this.diagonalDragBehavior = DiagonalDragBehavior.free,
+    this.scrollbarConfig,
   });
 
   @override
@@ -141,6 +151,7 @@ class _WorksheetState extends State<Worksheet> {
   bool _initialized = false;
   MouseCursor _currentCursor = SystemMouseCursors.basic;
   int _layoutVersion = 0;
+  bool _pointerInScrollbarArea = false;
 
   @override
   void initState() {
@@ -559,6 +570,12 @@ class _WorksheetState extends State<Worksheet> {
               : (event) {
                   // Only handle primary button (left click) for selection
                   if (event.buttons == kPrimaryButton) {
+                    // Skip selection when pointer is on a scrollbar
+                    if (_isInScrollbarArea(event.localPosition, theme)) {
+                      _pointerInScrollbarArea = true;
+                      return;
+                    }
+                    _pointerInScrollbarArea = false;
                     _gestureHandler.onTapDown(
                       position: event.localPosition,
                       scrollOffset: Offset(
@@ -584,7 +601,8 @@ class _WorksheetState extends State<Worksheet> {
               ? null
               : (event) {
                   // Only handle drag when primary button is held
-                  if (event.buttons == kPrimaryButton) {
+                  if (event.buttons == kPrimaryButton &&
+                      !_pointerInScrollbarArea) {
                     _gestureHandler.onDragUpdate(
                       position: event.localPosition,
                       scrollOffset: Offset(
@@ -598,6 +616,7 @@ class _WorksheetState extends State<Worksheet> {
           onPointerUp: widget.readOnly
               ? null
               : (event) {
+                  _pointerInScrollbarArea = false;
                   _gestureHandler.onDragEnd();
                 },
           child: GestureDetector(
@@ -671,10 +690,56 @@ class _WorksheetState extends State<Worksheet> {
     );
   }
 
+  /// Checks if a pointer position is within the scrollbar track area.
+  bool _isInScrollbarArea(Offset position, WorksheetThemeData theme) {
+    final config = _resolveScrollbarConfig();
+    final size = context.size;
+    if (size == null) return false;
+
+    final scrollbarThickness = config.thickness ?? 8.0;
+    final headerLeft =
+        theme.showHeaders ? theme.rowHeaderWidth * _controller.zoom : 0.0;
+    final headerTop =
+        theme.showHeaders ? theme.columnHeaderHeight * _controller.zoom : 0.0;
+
+    // Vertical scrollbar area (right edge of content area)
+    if (config.verticalVisibility != ScrollbarVisibility.never &&
+        position.dx > headerLeft &&
+        position.dx > size.width - scrollbarThickness) {
+      return true;
+    }
+
+    // Horizontal scrollbar area (bottom edge of content area)
+    if (config.horizontalVisibility != ScrollbarVisibility.never &&
+        position.dy > headerTop &&
+        position.dy > size.height - scrollbarThickness) {
+      return true;
+    }
+
+    return false;
+  }
+
+  WorksheetScrollbarConfig _resolveScrollbarConfig() {
+    if (widget.scrollbarConfig != null) return widget.scrollbarConfig!;
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+        return WorksheetScrollbarConfig.desktop;
+      case TargetPlatform.macOS:
+      case TargetPlatform.iOS:
+      case TargetPlatform.android:
+      case TargetPlatform.fuchsia:
+        return WorksheetScrollbarConfig.mobile;
+    }
+  }
+
   Widget _buildScrollableContent(WorksheetThemeData theme) {
-    // Use TwoDimensionalScrollable for proper 2D scrolling
-    // Note: viewportBuilder receives (context, verticalOffset, horizontalOffset)
-    return TwoDimensionalScrollable(
+    final config = _resolveScrollbarConfig();
+
+    // Use TwoDimensionalScrollable for proper 2D scrolling.
+    // TwoDimensionalScrollable does not build scrollbars (Flutter #122348),
+    // so we wrap with explicit RawScrollbar widgets below.
+    Widget content = TwoDimensionalScrollable(
       diagonalDragBehavior: widget.diagonalDragBehavior,
       horizontalDetails: ScrollableDetails.horizontal(
         controller: _controller.horizontalScrollController,
@@ -695,6 +760,41 @@ class _WorksheetState extends State<Worksheet> {
         );
       },
     );
+
+    // Wrap with scrollbar widgets.
+    // TwoDimensionalScrollable does not build scrollbars (Flutter #122348),
+    // so we add them explicitly. Uses Material Scrollbar for platform-native
+    // appearance (macOS fade, Windows always-visible, etc.) and to avoid
+    // Flutter #57920 (horizontal scrollbar skipped by MaterialScrollBehavior).
+    if (config.horizontalVisibility != ScrollbarVisibility.never) {
+      content = Scrollbar(
+        controller: _controller.horizontalScrollController,
+        scrollbarOrientation: ScrollbarOrientation.bottom,
+        thumbVisibility:
+            config.horizontalVisibility == ScrollbarVisibility.always,
+        interactive: config.interactive,
+        thickness: config.thickness,
+        radius: config.radius,
+        notificationPredicate: (n) => n.metrics.axis == Axis.horizontal,
+        child: content,
+      );
+    }
+
+    if (config.verticalVisibility != ScrollbarVisibility.never) {
+      content = Scrollbar(
+        controller: _controller.verticalScrollController,
+        scrollbarOrientation: ScrollbarOrientation.right,
+        thumbVisibility:
+            config.verticalVisibility == ScrollbarVisibility.always,
+        interactive: config.interactive,
+        thickness: config.thickness,
+        radius: config.radius,
+        notificationPredicate: (n) => n.metrics.axis == Axis.vertical,
+        child: content,
+      );
+    }
+
+    return content;
   }
 }
 
