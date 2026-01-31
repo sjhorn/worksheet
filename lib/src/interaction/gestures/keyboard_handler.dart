@@ -37,6 +37,15 @@ class KeyboardHandler {
   /// Called when the view should scroll to ensure the selection is visible.
   final OnEnsureVisibleCallback? onEnsureVisible;
 
+  /// Called when Ctrl+C (copy) is pressed.
+  final VoidCallback? onCopy;
+
+  /// Called when Ctrl+X (cut) is pressed.
+  final VoidCallback? onCut;
+
+  /// Called when Ctrl+V (paste) is pressed.
+  final VoidCallback? onPaste;
+
   /// Creates a keyboard handler.
   KeyboardHandler({
     required this.selectionController,
@@ -44,6 +53,9 @@ class KeyboardHandler {
     required this.maxColumn,
     this.onStartEdit,
     this.onEnsureVisible,
+    this.onCopy,
+    this.onCut,
+    this.onPaste,
   });
 
   /// Handles a key event.
@@ -182,6 +194,24 @@ class KeyboardHandler {
       selectionController.selectRange(
         CellRange(0, 0, maxRow - 1, maxColumn - 1),
       );
+      return true;
+    }
+
+    // Clipboard: Ctrl+C (copy)
+    if (isControlPressed && logicalKey == LogicalKeyboardKey.keyC) {
+      onCopy?.call();
+      return true;
+    }
+
+    // Clipboard: Ctrl+X (cut)
+    if (isControlPressed && logicalKey == LogicalKeyboardKey.keyX) {
+      onCut?.call();
+      return true;
+    }
+
+    // Clipboard: Ctrl+V (paste)
+    if (isControlPressed && logicalKey == LogicalKeyboardKey.keyV) {
+      onPaste?.call();
       return true;
     }
 

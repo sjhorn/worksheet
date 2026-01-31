@@ -339,6 +339,83 @@ void main() {
       });
     });
 
+    group('clipboard shortcuts', () {
+      testWidgets('ctrl+c calls onCopy', (tester) async {
+        var copyCalled = false;
+        final handler = KeyboardHandler(
+          selectionController: selectionController,
+          maxRow: 100,
+          maxColumn: 26,
+          onCopy: () => copyCalled = true,
+        );
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+
+        final handled = handler.handleKeyEvent(
+          createKeyEvent(LogicalKeyboardKey.keyC),
+        );
+
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+
+        expect(handled, isTrue);
+        expect(copyCalled, isTrue);
+      });
+
+      testWidgets('ctrl+x calls onCut', (tester) async {
+        var cutCalled = false;
+        final handler = KeyboardHandler(
+          selectionController: selectionController,
+          maxRow: 100,
+          maxColumn: 26,
+          onCut: () => cutCalled = true,
+        );
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+
+        final handled = handler.handleKeyEvent(
+          createKeyEvent(LogicalKeyboardKey.keyX),
+        );
+
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+
+        expect(handled, isTrue);
+        expect(cutCalled, isTrue);
+      });
+
+      testWidgets('ctrl+v calls onPaste', (tester) async {
+        var pasteCalled = false;
+        final handler = KeyboardHandler(
+          selectionController: selectionController,
+          maxRow: 100,
+          maxColumn: 26,
+          onPaste: () => pasteCalled = true,
+        );
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+
+        final handled = handler.handleKeyEvent(
+          createKeyEvent(LogicalKeyboardKey.keyV),
+        );
+
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+
+        expect(handled, isTrue);
+        expect(pasteCalled, isTrue);
+      });
+
+      testWidgets('ctrl+c without onCopy still returns true', (tester) async {
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.control);
+
+        final handled = keyboardHandler.handleKeyEvent(
+          createKeyEvent(LogicalKeyboardKey.keyC),
+        );
+
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.control);
+
+        expect(handled, isTrue);
+      });
+    });
+
     group('unhandled keys', () {
       test('returns false for unhandled keys', () {
         final handled = keyboardHandler.handleKeyEvent(

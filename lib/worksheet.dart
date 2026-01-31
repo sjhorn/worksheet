@@ -47,6 +47,10 @@ export 'src/interaction/controllers/edit_controller.dart';
 export 'src/interaction/hit_testing/hit_test_result.dart';
 export 'src/interaction/hit_testing/hit_tester.dart';
 
+// Interaction - Clipboard
+export 'src/interaction/clipboard/clipboard_handler.dart';
+export 'src/interaction/clipboard/clipboard_serializer.dart';
+
 // Interaction - Gestures
 export 'src/interaction/gesture_handler.dart';
 

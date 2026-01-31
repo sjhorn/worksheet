@@ -6,6 +6,8 @@ import '../interaction/hit_testing/hit_test_result.dart';
 import '../core/geometry/layout_solver.dart';
 import '../core/geometry/span_list.dart';
 import '../core/models/cell_coordinate.dart';
+import '../interaction/clipboard/clipboard_handler.dart';
+import '../interaction/clipboard/clipboard_serializer.dart';
 import '../interaction/gesture_handler.dart';
 import '../interaction/gestures/keyboard_handler.dart';
 import '../interaction/hit_testing/hit_tester.dart';
@@ -86,6 +88,12 @@ class Worksheet extends StatefulWidget {
   /// Whether the worksheet is read-only (no selection or editing).
   final bool readOnly;
 
+  /// The clipboard serializer for copy/cut/paste operations.
+  ///
+  /// Defaults to [TsvClipboardSerializer], which uses tab-separated values
+  /// compatible with Excel and Google Sheets.
+  final ClipboardSerializer clipboardSerializer;
+
   const Worksheet({
     super.key,
     required this.data,
@@ -99,6 +107,7 @@ class Worksheet extends StatefulWidget {
     this.customRowHeights,
     this.customColumnWidths,
     this.readOnly = false,
+    this.clipboardSerializer = const TsvClipboardSerializer(),
   });
 
   @override
@@ -115,6 +124,7 @@ class _WorksheetState extends State<Worksheet> {
   late WorksheetHitTester _hitTester;
   late WorksheetGestureHandler _gestureHandler;
   late KeyboardHandler _keyboardHandler;
+  late ClipboardHandler _clipboardHandler;
 
   late SelectionRenderer _selectionRenderer;
   late HeaderRenderer _headerRenderer;
@@ -213,6 +223,12 @@ class _WorksheetState extends State<Worksheet> {
       },
     );
 
+    _clipboardHandler = ClipboardHandler(
+      data: widget.data,
+      selectionController: _controller.selectionController,
+      serializer: widget.clipboardSerializer,
+    );
+
     _keyboardHandler = KeyboardHandler(
       selectionController: _controller.selectionController,
       maxRow: widget.rowCount,
@@ -223,6 +239,23 @@ class _WorksheetState extends State<Worksheet> {
           widget.onEditCell?.call(cell);
         }
       },
+      onCopy: () => _clipboardHandler.copy(),
+      onCut: widget.readOnly
+          ? null
+          : () async {
+              await _clipboardHandler.cut();
+              _tileManager.invalidateAll();
+              _layoutVersion++;
+              if (mounted) setState(() {});
+            },
+      onPaste: widget.readOnly
+          ? null
+          : () async {
+              await _clipboardHandler.paste();
+              _tileManager.invalidateAll();
+              _layoutVersion++;
+              if (mounted) setState(() {});
+            },
     );
   }
 
@@ -372,6 +405,11 @@ class _WorksheetState extends State<Worksheet> {
             _applyResizeToSelectedColumns(column);
           },
         );
+        _clipboardHandler = ClipboardHandler(
+          data: widget.data,
+          selectionController: _controller.selectionController,
+          serializer: widget.clipboardSerializer,
+        );
         _keyboardHandler = KeyboardHandler(
           selectionController: _controller.selectionController,
           maxRow: widget.rowCount,
@@ -382,6 +420,23 @@ class _WorksheetState extends State<Worksheet> {
               widget.onEditCell?.call(cell);
             }
           },
+          onCopy: () => _clipboardHandler.copy(),
+          onCut: widget.readOnly
+              ? null
+              : () async {
+                  await _clipboardHandler.cut();
+                  _tileManager.invalidateAll();
+                  _layoutVersion++;
+                  if (mounted) setState(() {});
+                },
+          onPaste: widget.readOnly
+              ? null
+              : () async {
+                  await _clipboardHandler.paste();
+                  _tileManager.invalidateAll();
+                  _layoutVersion++;
+                  if (mounted) setState(() {});
+                },
         );
         final theme = WorksheetTheme.of(context);
         _selectionLayer.dispose();
