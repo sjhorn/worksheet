@@ -416,6 +416,50 @@ void main() {
       });
     });
 
+    group('delete key', () {
+      test('delete calls onDelete', () {
+        var deleteCalled = false;
+        final handler = KeyboardHandler(
+          selectionController: selectionController,
+          maxRow: 100,
+          maxColumn: 26,
+          onDelete: () => deleteCalled = true,
+        );
+
+        final handled = handler.handleKeyEvent(
+          createKeyEvent(LogicalKeyboardKey.delete),
+        );
+
+        expect(handled, isTrue);
+        expect(deleteCalled, isTrue);
+      });
+
+      test('backspace calls onDelete', () {
+        var deleteCalled = false;
+        final handler = KeyboardHandler(
+          selectionController: selectionController,
+          maxRow: 100,
+          maxColumn: 26,
+          onDelete: () => deleteCalled = true,
+        );
+
+        final handled = handler.handleKeyEvent(
+          createKeyEvent(LogicalKeyboardKey.backspace),
+        );
+
+        expect(handled, isTrue);
+        expect(deleteCalled, isTrue);
+      });
+
+      test('delete without onDelete still returns true', () {
+        final handled = keyboardHandler.handleKeyEvent(
+          createKeyEvent(LogicalKeyboardKey.delete),
+        );
+
+        expect(handled, isTrue);
+      });
+    });
+
     group('unhandled keys', () {
       test('returns false for unhandled keys', () {
         final handled = keyboardHandler.handleKeyEvent(

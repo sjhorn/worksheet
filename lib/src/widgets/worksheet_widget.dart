@@ -256,6 +256,16 @@ class _WorksheetState extends State<Worksheet> {
               _layoutVersion++;
               if (mounted) setState(() {});
             },
+      onDelete: widget.readOnly
+          ? null
+          : () {
+              final range = _controller.selectionController.selectedRange;
+              if (range == null) return;
+              widget.data.clearRange(range);
+              _tileManager.invalidateAll();
+              _layoutVersion++;
+              setState(() {});
+            },
     );
   }
 
@@ -436,6 +446,16 @@ class _WorksheetState extends State<Worksheet> {
                   _tileManager.invalidateAll();
                   _layoutVersion++;
                   if (mounted) setState(() {});
+                },
+          onDelete: widget.readOnly
+              ? null
+              : () {
+                  final range = _controller.selectionController.selectedRange;
+                  if (range == null) return;
+                  widget.data.clearRange(range);
+                  _tileManager.invalidateAll();
+                  _layoutVersion++;
+                  setState(() {});
                 },
         );
         final theme = WorksheetTheme.of(context);

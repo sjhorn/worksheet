@@ -46,6 +46,9 @@ class KeyboardHandler {
   /// Called when Ctrl+V (paste) is pressed.
   final VoidCallback? onPaste;
 
+  /// Called when Delete or Backspace is pressed (clear selection).
+  final VoidCallback? onDelete;
+
   /// Creates a keyboard handler.
   KeyboardHandler({
     required this.selectionController,
@@ -56,6 +59,7 @@ class KeyboardHandler {
     this.onCopy,
     this.onCut,
     this.onPaste,
+    this.onDelete,
   });
 
   /// Handles a key event.
@@ -212,6 +216,13 @@ class KeyboardHandler {
     // Clipboard: Ctrl+V (paste)
     if (isControlPressed && logicalKey == LogicalKeyboardKey.keyV) {
       onPaste?.call();
+      return true;
+    }
+
+    // Delete/Backspace: clear selected cells
+    if (logicalKey == LogicalKeyboardKey.delete ||
+        logicalKey == LogicalKeyboardKey.backspace) {
+      onDelete?.call();
       return true;
     }
 
