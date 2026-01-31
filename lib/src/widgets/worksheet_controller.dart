@@ -148,7 +148,8 @@ class WorksheetController extends ChangeNotifier {
   /// [rowHeight] and [columnWidth] are used to calculate the cell position.
   /// [viewportSize] is the size of the visible area.
   ///
-  /// Set [animate] to true for smooth scrolling.
+  /// Scrolling is animated by default. Set [animate] to false for an
+  /// immediate jump.
   void scrollToCell(
     CellCoordinate cell, {
     required double Function(int row) getRowTop,
@@ -158,7 +159,7 @@ class WorksheetController extends ChangeNotifier {
     required Size viewportSize,
     required double headerWidth,
     required double headerHeight,
-    bool animate = false,
+    bool animate = true,
     Duration duration = const Duration(milliseconds: 200),
     Curve curve = Curves.easeInOut,
   }) {

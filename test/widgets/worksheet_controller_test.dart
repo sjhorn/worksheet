@@ -249,7 +249,7 @@ void main() {
           ),
         );
 
-        // Scroll to a cell that's outside the viewport
+        // Scroll to a cell that's outside the viewport (immediate jump)
         controller.scrollToCell(
           const CellCoordinate(50, 20),
           getRowTop: (row) => row * 24.0,
@@ -259,6 +259,7 @@ void main() {
           viewportSize: const Size(800, 600),
           headerWidth: 50.0,
           headerHeight: 24.0,
+          animate: false,
         );
         await tester.pump();
 
@@ -378,7 +379,7 @@ void main() {
         controller.scrollTo(x: 5000, y: 5000);
         await tester.pump();
 
-        // Now scroll to cell near origin
+        // Now scroll to cell near origin (immediate jump)
         controller.scrollToCell(
           const CellCoordinate(5, 2),
           getRowTop: (row) => row * 24.0,
@@ -388,6 +389,7 @@ void main() {
           viewportSize: const Size(800, 600),
           headerWidth: 50.0,
           headerHeight: 24.0,
+          animate: false,
         );
         await tester.pump();
 

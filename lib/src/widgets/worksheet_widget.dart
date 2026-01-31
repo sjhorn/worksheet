@@ -257,6 +257,7 @@ class _WorksheetState extends State<Worksheet> {
           widget.onEditCell?.call(cell);
         }
       },
+      onEnsureVisible: _ensureSelectionVisible,
       onCopy: () => _clipboardHandler.copy(),
       onCut: widget.readOnly
           ? null
@@ -386,6 +387,28 @@ class _WorksheetState extends State<Worksheet> {
     }
   }
 
+  /// Smoothly scrolls to ensure the focused cell is visible.
+  void _ensureSelectionVisible() {
+    final cell = _controller.selectionController.focus;
+    if (cell == null) return;
+
+    final theme = WorksheetTheme.of(context);
+    final size = context.size;
+    if (size == null) return;
+
+    _controller.scrollToCell(
+      cell,
+      getRowTop: _layoutSolver.getRowTop,
+      getColumnLeft: _layoutSolver.getColumnLeft,
+      getRowHeight: _layoutSolver.getRowHeight,
+      getColumnWidth: _layoutSolver.getColumnWidth,
+      viewportSize: size,
+      headerWidth: theme.showHeaders ? theme.rowHeaderWidth * _controller.zoom : 0,
+      headerHeight: theme.showHeaders ? theme.columnHeaderHeight * _controller.zoom : 0,
+      animate: true,
+    );
+  }
+
   void _onControllerChanged() {
     setState(() {});
   }
@@ -448,6 +471,7 @@ class _WorksheetState extends State<Worksheet> {
               widget.onEditCell?.call(cell);
             }
           },
+          onEnsureVisible: _ensureSelectionVisible,
           onCopy: () => _clipboardHandler.copy(),
           onCut: widget.readOnly
               ? null
