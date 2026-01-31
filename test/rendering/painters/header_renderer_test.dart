@@ -229,6 +229,77 @@ void main() {
       });
     });
 
+    group('paintHeaderBorders', () {
+      test('paints at standard position with no scroll offset', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+
+        expect(
+          () => renderer.paintHeaderBorders(
+            canvas: canvas,
+            viewportSize: const Size(800, 600),
+            zoom: 1.0,
+          ),
+          returnsNormally,
+        );
+
+        recorder.endRecording();
+      });
+
+      test('paints at standard position with positive scroll offset', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+
+        // Normal scrolling — borders should stay at fixed header positions
+        expect(
+          () => renderer.paintHeaderBorders(
+            canvas: canvas,
+            viewportSize: const Size(800, 600),
+            zoom: 1.0,
+            scrollOffset: const Offset(200, 100),
+          ),
+          returnsNormally,
+        );
+
+        recorder.endRecording();
+      });
+
+      test('paints with negative scroll offset (elastic overscroll)', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+
+        // Elastic overscroll past start — borders should shift
+        expect(
+          () => renderer.paintHeaderBorders(
+            canvas: canvas,
+            viewportSize: const Size(800, 600),
+            zoom: 1.0,
+            scrollOffset: const Offset(-30, -20),
+          ),
+          returnsNormally,
+        );
+
+        recorder.endRecording();
+      });
+
+      test('paints with zoom and negative scroll offset', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+
+        expect(
+          () => renderer.paintHeaderBorders(
+            canvas: canvas,
+            viewportSize: const Size(800, 600),
+            zoom: 2.0,
+            scrollOffset: const Offset(-15, -10),
+          ),
+          returnsNormally,
+        );
+
+        recorder.endRecording();
+      });
+    });
+
     group('column index to letter conversion', () {
       // We can't test the private method directly, but we can verify
       // the visual output through a rendering test.

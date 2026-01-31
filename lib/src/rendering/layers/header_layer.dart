@@ -135,6 +135,7 @@ class HeaderLayer extends RenderLayer {
       canvas: context.canvas,
       viewportSize: context.viewportSize,
       zoom: zoom,
+      scrollOffset: context.scrollOffset,
     );
 
     // Restore canvas state

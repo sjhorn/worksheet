@@ -264,27 +264,55 @@ class HeaderRenderer {
   /// This draws the bottom border of the column header and the right border
   /// of the row header. These are drawn separately (unclipped) so they span
   /// the full viewport width/height.
+  ///
+  /// During elastic overscroll (negative [scrollOffset]), the borders shift
+  /// to stay aligned with the first row/column header cells.
   void paintHeaderBorders({
     required Canvas canvas,
     required Size viewportSize,
     required double zoom,
+    Offset scrollOffset = Offset.zero,
   }) {
     final scaledRowHeaderWidth = rowHeaderWidth * zoom;
     final scaledColumnHeaderHeight = columnHeaderHeight * zoom;
 
-    // Draw bottom border of column header (spans full width)
+    // Draw bottom border of column header (spans full width) — fixed
     canvas.drawLine(
       Offset(0, scaledColumnHeaderHeight - style.borderWidth / 2),
       Offset(viewportSize.width, scaledColumnHeaderHeight - style.borderWidth / 2),
       _borderPaint,
     );
 
-    // Draw right border of row header (spans full height)
+    // Draw right border of row header (spans full height) — fixed
     canvas.drawLine(
       Offset(scaledRowHeaderWidth - style.borderWidth / 2, 0),
       Offset(scaledRowHeaderWidth - style.borderWidth / 2, viewportSize.height),
       _borderPaint,
     );
+
+    // During elastic overscroll past the start, draw additional lines
+    // only in the header region (the content area already has its own
+    // gridlines). This avoids double-drawing which causes thicker lines.
+    // Positions match the content gridline convention: line center at
+    // the exact coordinate, no borderWidth/2 offset, no rounding — the
+    // GPU handles pixel alignment the same way it does for tile gridlines.
+    if (scrollOffset.dy < 0) {
+      final shiftedY = scaledColumnHeaderHeight - scrollOffset.dy * zoom;
+      canvas.drawLine(
+        Offset(0, shiftedY),
+        Offset(scaledRowHeaderWidth, shiftedY),
+        _borderPaint,
+      );
+    }
+
+    if (scrollOffset.dx < 0) {
+      final shiftedX = scaledRowHeaderWidth - scrollOffset.dx * zoom;
+      canvas.drawLine(
+        Offset(shiftedX, 0),
+        Offset(shiftedX, scaledColumnHeaderHeight),
+        _borderPaint,
+      );
+    }
   }
 
   void _drawCenteredText(
