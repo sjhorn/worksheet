@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:ui' show lerpDouble;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -152,6 +155,11 @@ class _WorksheetState extends State<Worksheet> {
   MouseCursor _currentCursor = SystemMouseCursors.basic;
   int _layoutVersion = 0;
   bool _pointerInScrollbarArea = false;
+
+  // Auto-scroll during drag selection
+  Timer? _autoScrollTimer;
+  Offset? _lastPointerPosition;
+  static const Duration _autoScrollInterval = Duration(milliseconds: 16);
 
   @override
   void initState() {
@@ -409,6 +417,74 @@ class _WorksheetState extends State<Worksheet> {
     );
   }
 
+  // Auto-scroll helpers
+
+  Rect _getContentArea(WorksheetThemeData theme) {
+    final size = context.size!;
+    final zoom = _controller.zoom;
+    final left = theme.showHeaders ? theme.rowHeaderWidth * zoom : 0.0;
+    final top = theme.showHeaders ? theme.columnHeaderHeight * zoom : 0.0;
+    return Rect.fromLTRB(left, top, size.width, size.height);
+  }
+
+  void _onAutoScrollTick() {
+    final position = _lastPointerPosition;
+    if (position == null || !_gestureHandler.isSelectingRange) {
+      _stopAutoScroll();
+      return;
+    }
+
+    final theme = WorksheetTheme.of(context);
+    final contentArea = _getContentArea(theme);
+
+    final dx = calcAutoScrollDelta(position.dx, contentArea.left, contentArea.right);
+    final dy = calcAutoScrollDelta(position.dy, contentArea.top, contentArea.bottom);
+
+    if (dx == 0.0 && dy == 0.0) return;
+
+    final hController = _controller.horizontalScrollController;
+    final vController = _controller.verticalScrollController;
+
+    if (dx != 0.0 && hController.hasClients) {
+      final maxH = hController.position.maxScrollExtent;
+      final newX = (hController.offset + dx).clamp(0.0, maxH);
+      hController.jumpTo(newX);
+    }
+
+    if (dy != 0.0 && vController.hasClients) {
+      final maxV = vController.position.maxScrollExtent;
+      final newY = (vController.offset + dy).clamp(0.0, maxV);
+      vController.jumpTo(newY);
+    }
+
+    // Clamp position to content area so the hit test resolves to a cell
+    // at the viewport edge, not a header or none result.
+    final clampedPosition = Offset(
+      position.dx.clamp(contentArea.left + 1, contentArea.right - 1),
+      position.dy.clamp(contentArea.top + 1, contentArea.bottom - 1),
+    );
+
+    _gestureHandler.onDragUpdate(
+      position: clampedPosition,
+      scrollOffset: Offset(_controller.scrollX, _controller.scrollY),
+      zoom: _controller.zoom,
+    );
+  }
+
+  void _startAutoScroll() {
+    if (_autoScrollTimer != null) return;
+    _autoScrollTimer = Timer.periodic(
+      _autoScrollInterval,
+      (_) => _onAutoScrollTick(),
+    );
+  }
+
+  void _stopAutoScroll() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    _lastPointerPosition = null;
+  }
+
   void _onControllerChanged() {
     setState(() {});
   }
@@ -537,6 +613,7 @@ class _WorksheetState extends State<Worksheet> {
 
   @override
   void dispose() {
+    _stopAutoScroll();
     _controller.removeListener(_onControllerChanged);
     if (_ownsController) {
       _controller.dispose();
@@ -635,11 +712,25 @@ class _WorksheetState extends State<Worksheet> {
                       ),
                       zoom: _controller.zoom,
                     );
+
+                    // Auto-scroll when dragging outside the content area
+                    _lastPointerPosition = event.localPosition;
+                    if (_gestureHandler.isSelectingRange) {
+                      final contentArea = _getContentArea(theme);
+                      final pos = event.localPosition;
+                      if (pos.dx < contentArea.left ||
+                          pos.dx > contentArea.right ||
+                          pos.dy < contentArea.top ||
+                          pos.dy > contentArea.bottom) {
+                        _startAutoScroll();
+                      }
+                    }
                   }
                 },
           onPointerUp: widget.readOnly
               ? null
               : (event) {
+                  _stopAutoScroll();
                   _pointerInScrollbarArea = false;
                   _gestureHandler.onDragEnd();
                 },
@@ -820,6 +911,32 @@ class _WorksheetState extends State<Worksheet> {
 
     return content;
   }
+}
+
+/// Calculates the auto-scroll speed delta for one axis.
+///
+/// Returns a negative value to scroll toward [start], positive toward [end],
+/// or 0 if [pos] is inside [start]..[end].
+///
+/// Speed ramps linearly from [baseSpeed] to [maxSpeed] over [rampDistance]
+/// pixels past the edge.
+@visibleForTesting
+double calcAutoScrollDelta(
+  double pos,
+  double start,
+  double end, {
+  double baseSpeed = 5.0,
+  double maxSpeed = 40.0,
+  double rampDistance = 100.0,
+}) {
+  if (pos < start) {
+    final t = ((start - pos) / rampDistance).clamp(0.0, 1.0);
+    return -(lerpDouble(baseSpeed, maxSpeed, t)!);
+  } else if (pos > end) {
+    final t = ((pos - end) / rampDistance).clamp(0.0, 1.0);
+    return lerpDouble(baseSpeed, maxSpeed, t)!;
+  }
+  return 0.0;
 }
 
 /// Custom painter for selection layer.

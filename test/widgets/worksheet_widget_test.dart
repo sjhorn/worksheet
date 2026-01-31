@@ -596,6 +596,47 @@ void main() {
     });
   });
 
+  group('autoScrollDelta', () {
+    // Content area from 50 to 800
+    const start = 50.0;
+    const end = 800.0;
+
+    test('returns 0 when pointer is inside content area', () {
+      expect(calcAutoScrollDelta(400.0, start, end), 0.0);
+      expect(calcAutoScrollDelta(50.0, start, end), 0.0);
+      expect(calcAutoScrollDelta(800.0, start, end), 0.0);
+    });
+
+    test('returns negative delta when pointer is before content', () {
+      final delta = calcAutoScrollDelta(30.0, start, end);
+      expect(delta, isNegative);
+    });
+
+    test('returns positive delta when pointer is past content', () {
+      final delta = calcAutoScrollDelta(850.0, start, end);
+      expect(delta, isPositive);
+    });
+
+    test('speed increases with distance from edge', () {
+      final near = calcAutoScrollDelta(810.0, start, end).abs();
+      final far = calcAutoScrollDelta(900.0, start, end).abs();
+      expect(far, greaterThan(near));
+    });
+
+    test('speed is capped at max distance', () {
+      final atMax = calcAutoScrollDelta(950.0, start, end).abs();
+      final pastMax = calcAutoScrollDelta(1200.0, start, end).abs();
+      expect(atMax, pastMax);
+    });
+
+    test('works symmetrically for both directions', () {
+      final left = calcAutoScrollDelta(0.0, start, end);
+      final right = calcAutoScrollDelta(850.0, start, end);
+      // At 50px past edge in both directions, magnitudes should be equal
+      expect(left.abs(), right.abs());
+    });
+  });
+
   // Note: Full widget rendering tests are skipped because the tile rendering
   // system uses ui.Picture which has limitations in the test environment.
   // The TileManager edge case fix (getCellRangeForTile clamping) resolves
