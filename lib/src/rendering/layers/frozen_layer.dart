@@ -3,6 +3,7 @@ import 'package:flutter/painting.dart';
 import '../../core/data/worksheet_data.dart';
 import '../../core/geometry/layout_solver.dart';
 import '../../core/models/cell_coordinate.dart';
+import '../../core/models/cell_format.dart';
 import '../../core/models/cell_style.dart';
 import '../../core/models/cell_value.dart';
 import '../../core/models/freeze_config.dart';
@@ -343,7 +344,8 @@ class FrozenLayer extends RenderLayer {
     // Paint content
     final value = data.getCell(coord);
     if (value != null && zoom >= 0.25) {
-      _paintCellContent(canvas, bounds, value, style, zoom);
+      final format = data.getFormat(coord);
+      _paintCellContent(canvas, bounds, value, style, zoom, format);
     }
   }
 
@@ -353,9 +355,10 @@ class FrozenLayer extends RenderLayer {
     CellValue value,
     CellStyle? style,
     double zoom,
+    CellFormat? format,
   ) {
     final mergedStyle = CellStyle.defaultStyle.merge(style);
-    final text = value.displayValue;
+    final text = format != null ? format.format(value) : value.displayValue;
 
     // Create text painter
     final textStyle = TextStyle(

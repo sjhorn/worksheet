@@ -876,10 +876,7 @@ void main() {
       // Populate some data
       for (var row = 0; row < 100; row++) {
         for (var col = 0; col < 10; col++) {
-          data.setCell(
-            CellCoordinate(row, col),
-            CellValue.text('Cell $row,$col'),
-          );
+          data[(row, col)] = Cell.text('Cell $row,$col');
         }
       }
 
@@ -948,10 +945,7 @@ void main() {
 
       // Add 100K cells
       for (var i = 0; i < 100000; i++) {
-        data.setCell(
-          CellCoordinate(i, 0),
-          CellValue.text('Row $i'),
-        );
+        data[(i, 0)] = Cell.text('Row $i');
       }
 
       // Memory should be O(100K), not O(17 billion)
@@ -975,7 +969,7 @@ testWidgets('maintains 60fps during scroll', (tester) async {
   // Populate visible area
   for (var row = 0; row < 100; row++) {
     for (var col = 0; col < 10; col++) {
-      data.setCell(CellCoordinate(row, col), CellValue.number((row * 10 + col).toDouble()));
+      data[(row, col)] = Cell.number((row * 10 + col).toDouble());
     }
   }
 

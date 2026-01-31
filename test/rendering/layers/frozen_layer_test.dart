@@ -5,6 +5,7 @@ import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/geometry/layout_solver.dart';
 import 'package:worksheet/src/core/geometry/span_list.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_format.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/core/models/freeze_config.dart';
 import 'package:worksheet/src/rendering/layers/frozen_layer.dart';
@@ -244,6 +245,33 @@ void main() {
       frozenLayer.markNeedsPaint();
 
       expect(paintRequested, isTrue);
+    });
+
+    test('paints formatted cells without error', () {
+      data.setCell(const CellCoordinate(0, 0), CellValue.number(0.42));
+      data.setFormat(const CellCoordinate(0, 0), CellFormat.percentage);
+      data.setCell(const CellCoordinate(0, 1), CellValue.number(1234.56));
+      data.setFormat(const CellCoordinate(0, 1), CellFormat.currency);
+
+      frozenLayer = FrozenLayer(
+        freezeConfig: const FreezeConfig(frozenRows: 1, frozenColumns: 1),
+        data: data,
+        layoutSolver: layoutSolver,
+      );
+
+      final recorder = PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      final context = LayerPaintContext(
+        canvas: canvas,
+        viewportSize: const Size(800, 600),
+        scrollOffset: Offset.zero,
+        zoom: 1.0,
+      );
+
+      expect(() => frozenLayer.paint(context), returnsNormally);
+
+      recorder.endRecording();
     });
   });
 }

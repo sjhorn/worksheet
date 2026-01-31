@@ -3,6 +3,7 @@ import 'dart:math' as math;
 
 import '../models/cell.dart';
 import '../models/cell_coordinate.dart';
+import '../models/cell_format.dart';
 import '../models/cell_range.dart';
 import '../models/cell_style.dart';
 import '../models/cell_value.dart';
@@ -21,6 +22,9 @@ class SparseWorksheetData implements WorksheetData {
 
   /// Cell styles indexed by coordinate.
   final Map<CellCoordinate, CellStyle> _styles = {};
+
+  /// Cell formats indexed by coordinate.
+  final Map<CellCoordinate, CellFormat> _formats = {};
 
   /// Change event stream controller.
   final _changeController = StreamController<DataChangeEvent>.broadcast();
@@ -42,15 +46,17 @@ class SparseWorksheetData implements WorksheetData {
 
   /// Creates a sparse worksheet data store with the given dimensions.
   ///
-  /// Optionally accepts a [cells] map to populate initial data:
+  /// Optionally accepts a [cells] map to populate initial data, using
+  /// Dart record tuples `(row, col)` as keys:
   ///
   /// ```dart
   /// final data = SparseWorksheetData(
   ///   rowCount: 100,
   ///   columnCount: 10,
   ///   cells: {
-  ///     CellCoordinate(0, 0): Cell.text('Name'),
-  ///     CellCoordinate(1, 0): Cell.number(42),
+  ///     (0, 0): 'Name'.cell,
+  ///     (0, 1): 'Amount'.cell,
+  ///     (1, 0): 42.cell,
   ///   },
   /// );
   /// ```
@@ -68,6 +74,9 @@ class SparseWorksheetData implements WorksheetData {
         }
         if (entry.value.style != null) {
           _styles[coord] = entry.value.style!;
+        }
+        if (entry.value.format != null) {
+          _formats[coord] = entry.value.format!;
         }
       }
     }
@@ -112,30 +121,38 @@ class SparseWorksheetData implements WorksheetData {
   }
 
   @override
+  CellFormat? getFormat(CellCoordinate coord) {
+    return _formats[coord];
+  }
+
+  @override
   bool hasValue(CellCoordinate coord) => _values.containsKey(coord);
 
-  /// Gets the [Cell] at [x, y], or null if the cell has no value and no style.
+  /// Gets the [Cell] at [x, y], or null if the cell has no value, style, or format.
   Cell? operator [](CellCoordinateRecord record) {
     final coord = CellCoordinate(record.$1, record.$2);
     final value = _values[coord];
     final style = _styles[coord];
-    if (value == null && style == null) return null;
-    return Cell(value: value, style: style);
+    final format = _formats[coord];
+    if (value == null && style == null && format == null) return null;
+    return Cell(value: value, style: style, format: format);
   }
 
-  /// Sets the [Cell] at [(x, y)], updating both value and style.
+  /// Sets the [Cell] at [(x, y)], updating value, style, and format.
   ///
-  /// Pass null to clear both value and style.
+  /// Pass null to clear value, style, and format.
   void operator []=(CellCoordinateRecord record, Cell? cell) {
     final coord = CellCoordinate(record.$1, record.$2);
     _checkNotDisposed();
     if (cell == null) {
       final hadValue = _values.containsKey(coord);
       final hadStyle = _styles.containsKey(coord);
+      final hadFormat = _formats.containsKey(coord);
       if (hadValue) _values.remove(coord);
       if (hadStyle) _styles.remove(coord);
+      if (hadFormat) _formats.remove(coord);
       if (hadValue) _recalculateBounds();
-      if (hadValue || hadStyle) {
+      if (hadValue || hadStyle || hadFormat) {
         _changeController.add(DataChangeEvent.cellValue(coord));
       }
     } else {
@@ -151,18 +168,27 @@ class SparseWorksheetData implements WorksheetData {
       } else if (_styles.containsKey(coord)) {
         _styles.remove(coord);
       }
+      if (cell.format != null) {
+        _formats[coord] = cell.format!;
+      } else if (_formats.containsKey(coord)) {
+        _formats.remove(coord);
+      }
       _changeController.add(DataChangeEvent.cellValue(coord));
     }
   }
 
   /// Returns a snapshot of all populated cells as a map.
   ///
-  /// A cell is included if it has a value, a style, or both.
+  /// A cell is included if it has a value, a style, a format, or any combination.
   Map<CellCoordinate, Cell> get cells {
-    final allCoords = {..._values.keys, ..._styles.keys};
+    final allCoords = {..._values.keys, ..._styles.keys, ..._formats.keys};
     return {
       for (final coord in allCoords)
-        coord: Cell(value: _values[coord], style: _styles[coord]),
+        coord: Cell(
+          value: _values[coord],
+          style: _styles[coord],
+          format: _formats[coord],
+        ),
     };
   }
 
@@ -197,6 +223,21 @@ class SparseWorksheetData implements WorksheetData {
     } else {
       _styles[coord] = style;
       _changeController.add(DataChangeEvent.cellStyle(coord));
+    }
+  }
+
+  @override
+  void setFormat(CellCoordinate coord, CellFormat? format) {
+    _checkNotDisposed();
+
+    if (format == null) {
+      if (_formats.containsKey(coord)) {
+        _formats.remove(coord);
+        _changeController.add(DataChangeEvent.cellFormat(coord));
+      }
+    } else {
+      _formats[coord] = format;
+      _changeController.add(DataChangeEvent.cellFormat(coord));
     }
   }
 
@@ -253,6 +294,18 @@ class SparseWorksheetData implements WorksheetData {
       _styles.remove(coord);
     }
 
+    // Also clear formats
+    final formatsToRemove = <CellCoordinate>[];
+    for (final coord in _formats.keys) {
+      if (range.contains(coord)) {
+        formatsToRemove.add(coord);
+      }
+    }
+
+    for (final coord in formatsToRemove) {
+      _formats.remove(coord);
+    }
+
     _recalculateBounds();
     _changeController.add(DataChangeEvent.range(range));
   }
@@ -264,6 +317,7 @@ class SparseWorksheetData implements WorksheetData {
       _changeController.close();
       _values.clear();
       _styles.clear();
+      _formats.clear();
     }
   }
 }
@@ -309,6 +363,16 @@ class _BatchImpl implements WorksheetDataBatch {
   }
 
   @override
+  void setFormat(CellCoordinate coord, CellFormat? format) {
+    if (format == null) {
+      _data._formats.remove(coord);
+    } else {
+      _data._formats[coord] = format;
+    }
+    _expandRange(coord);
+  }
+
+  @override
   void clearRange(CellRange range) {
     for (final coord in _data._values.keys.toList()) {
       if (range.contains(coord)) {
@@ -318,6 +382,11 @@ class _BatchImpl implements WorksheetDataBatch {
     for (final coord in _data._styles.keys.toList()) {
       if (range.contains(coord)) {
         _data._styles.remove(coord);
+      }
+    }
+    for (final coord in _data._formats.keys.toList()) {
+      if (range.contains(coord)) {
+        _data._formats.remove(coord);
       }
     }
     if (_affectedRange == null) {

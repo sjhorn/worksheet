@@ -9,6 +9,9 @@ enum DataChangeType {
   /// A single cell style changed.
   cellStyle,
 
+  /// A single cell format changed.
+  cellFormat,
+
   /// Multiple cells changed (batch update).
   range,
 
@@ -69,6 +72,14 @@ class DataChangeEvent {
     );
   }
 
+  /// Creates an event for a cell format change.
+  factory DataChangeEvent.cellFormat(CellCoordinate coord) {
+    return DataChangeEvent._(
+      type: DataChangeType.cellFormat,
+      cell: coord,
+    );
+  }
+
   /// Creates an event for a range change.
   factory DataChangeEvent.range(CellRange range) {
     return DataChangeEvent._(
@@ -121,6 +132,8 @@ class DataChangeEvent {
         return 'DataChangeEvent.cellValue($cell)';
       case DataChangeType.cellStyle:
         return 'DataChangeEvent.cellStyle($cell)';
+      case DataChangeType.cellFormat:
+        return 'DataChangeEvent.cellFormat($cell)';
       case DataChangeType.range:
         return 'DataChangeEvent.range($range)';
       case DataChangeType.rowInserted:

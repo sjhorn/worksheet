@@ -7,11 +7,12 @@ Quick reference for the worksheet widget API.
 1. [WorksheetController](#worksheetcontroller)
 2. [Callback Signatures](#callback-signatures)
 3. [CellValue Types](#cellvalue-types)
-4. [CellStyle Properties](#cellstyle-properties)
-5. [Selection Types](#selection-types)
-6. [Theme Classes](#theme-classes)
-7. [Event Streams](#event-streams)
-8. [Core Models](#core-models)
+4. [CellFormat](#cellformat)
+5. [CellStyle Properties](#cellstyle-properties)
+6. [Selection Types](#selection-types)
+7. [Theme Classes](#theme-classes)
+8. [Event Streams](#event-streams)
+9. [Core Models](#core-models)
 
 ---
 
@@ -269,6 +270,151 @@ print(error.displayValue);  // "#DIV/0!"
 
 ---
 
+## Cell Class
+
+Combines a `CellValue` and `CellStyle` into a single object for Map-like access on `SparseWorksheetData`.
+
+### Constructors
+
+```dart
+// General constructor
+const Cell({CellValue? value, CellStyle? style})
+
+// Typed constructors
+Cell.text(String text, {CellStyle? style})
+Cell.number(num n, {CellStyle? style})
+Cell.boolean(bool b, {CellStyle? style})
+Cell.formula(String formula, {CellStyle? style})
+Cell.date(DateTime date, {CellStyle? style})
+Cell.withStyle(CellStyle style)  // style only, no value
+```
+
+### Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `value` | `CellValue?` | The cell's value |
+| `style` | `CellStyle?` | The cell's style |
+| `hasValue` | `bool` | Whether the cell has a value |
+| `hasStyle` | `bool` | Whether the cell has a style |
+| `isEmpty` | `bool` | True if no value and no style |
+
+### Extensions
+
+Convenience `.cell` getter on core Dart types for quick cell creation:
+
+```dart
+// WorksheetString (on String)
+'Hello'.cell           // Cell.text('Hello')
+'=SUM(A1:A10)'.formula // Cell.formula('=SUM(A1:A10)')
+
+// WorksheetNum (on num)
+42.cell                // Cell.number(42)
+3.14.cell              // Cell.number(3.14)
+
+// WorksheetBool (on bool)
+true.cell              // Cell.boolean(true)
+
+// WorksheetDate (on DateTime)
+DateTime.now().cell    // Cell.date(DateTime.now())
+```
+
+### SparseWorksheetData Map-like API
+
+```dart
+// Construction with (row, col) record keys
+final data = SparseWorksheetData(
+  rowCount: 100,
+  columnCount: 10,
+  cells: {
+    (0, 0): 'Name'.cell,
+    (0, 1): 42.cell,
+  },
+);
+
+// Bracket read/write using (row, col) records
+data[(1, 0)] = Cell.text('Apples');
+final cell = data[(0, 0)];  // Cell?
+data[(1, 0)] = null;         // clears value and style
+
+// Snapshot of all populated cells
+final allCells = data.cells;  // Map<CellCoordinate, Cell>
+```
+
+---
+
+## CellFormat
+
+Controls how cell values are displayed using Excel-style format codes. Format lives on `Cell`, not `CellStyle`.
+
+### CellFormatType Enum
+
+```dart
+enum CellFormatType {
+  general,     // Default display
+  number,      // Numeric with decimals/thousands
+  currency,    // Monetary values with symbol
+  accounting,  // Aligned currency/decimals
+  date,        // Date display
+  time,        // Time display
+  percentage,  // Multiply by 100, append %
+  fraction,    // Display as fraction (1/2, 3/4)
+  scientific,  // Exponential notation
+  text,        // Plain text pass-through
+  special,     // Phone numbers, postal codes
+  custom,      // User-defined format code
+}
+```
+
+### CellFormat Class
+
+```dart
+const CellFormat({required CellFormatType type, required String formatCode})
+```
+
+### Built-in Presets
+
+| Preset | Format Code | Example Input | Example Output |
+|--------|-------------|---------------|----------------|
+| `CellFormat.general` | `General` | `42` | `42` |
+| `CellFormat.integer` | `#,##0` | `1234` | `1,234` |
+| `CellFormat.decimal` | `0.00` | `3.1` | `3.10` |
+| `CellFormat.number` | `#,##0.00` | `1234.5` | `1,234.50` |
+| `CellFormat.currency` | `$#,##0.00` | `1234.5` | `$1,234.50` |
+| `CellFormat.percentage` | `0%` | `0.42` | `42%` |
+| `CellFormat.percentageDecimal` | `0.00%` | `0.4256` | `42.56%` |
+| `CellFormat.scientific` | `0.00E+00` | `12345` | `1.23E+04` |
+| `CellFormat.dateIso` | `yyyy-MM-dd` | `2024-01-15` | `2024-01-15` |
+| `CellFormat.dateUs` | `m/d/yyyy` | `2024-01-15` | `1/15/2024` |
+| `CellFormat.dateShort` | `d-mmm-yy` | `2024-01-15` | `15-Jan-24` |
+| `CellFormat.dateMonthYear` | `mmm-yy` | `2024-01-15` | `Jan-24` |
+| `CellFormat.time24` | `H:mm` | `14:30` | `14:30` |
+| `CellFormat.time24Seconds` | `H:mm:ss` | `14:30:05` | `14:30:05` |
+| `CellFormat.time12` | `h:mm AM/PM` | `14:30` | `2:30 PM` |
+| `CellFormat.text` | `@` | `hello` | `hello` |
+| `CellFormat.fraction` | `# ?/?` | `3.5` | `3 1/2` |
+
+### Usage
+
+```dart
+// Via Cell constructor
+Cell.number(1234.56, format: CellFormat.currency)    // "$1,234.56"
+Cell.number(0.42, format: CellFormat.percentage)      // "42%"
+Cell.date(DateTime.now(), format: CellFormat.dateIso) // "2024-01-15"
+
+// Via data layer
+data.setFormat(const CellCoordinate(0, 0), CellFormat.currency);
+
+// Custom format codes
+const myFormat = CellFormat(type: CellFormatType.number, formatCode: '#,##0.000');
+
+// Cell.displayValue uses format when present
+final cell = Cell.number(42, format: CellFormat.currency);
+cell.displayValue  // "$42.00"
+```
+
+---
+
 ## CellStyle Properties
 
 ### Full Property List
@@ -303,7 +449,7 @@ const CellStyle({
 | `verticalAlignment` | `CellVerticalAlignment?` | null (middle) | Vertical alignment |
 | `borders` | `CellBorders?` | null (no borders) | Cell border configuration |
 | `wrapText` | `bool?` | null (false) | Enable text wrapping |
-| `numberFormat` | `String?` | null | Number format pattern |
+| `numberFormat` | `String?` | null | **Deprecated** — use `CellFormat` on `Cell` instead |
 
 ### CellTextAlignment Enum
 
@@ -693,17 +839,29 @@ void dispose() {
 ### Common Operations
 
 ```dart
-// Set cell value
-data.setCell(CellCoordinate(0, 0), CellValue.text('Hello'));
+// Map literal construction with (row, col) records
+final data = SparseWorksheetData(
+  rowCount: 1000,
+  columnCount: 26,
+  cells: {
+    (0, 0): 'Hello'.cell,
+    (0, 1): 42.cell,
+    (1, 0): Cell.text('World', style: const CellStyle(fontWeight: FontWeight.bold)),
+  },
+);
 
-// Get cell value
-final value = data.getCell(CellCoordinate(0, 0));
+// Bracket access
+data[(2, 0)] = 'New value'.cell;
+final cell = data[(0, 0)];  // Cell(value: 'Hello', style: null)
+data[(2, 0)] = null;         // Clear cell
 
-// Set cell style
-data.setStyle(CellCoordinate(0, 0), CellStyle(fontWeight: FontWeight.bold));
+// Low-level access (value and style separately)
+data.setCell(const CellCoordinate(0, 0), CellValue.text('Hello'));
+final value = data.getCell(const CellCoordinate(0, 0));
+data.setStyle(const CellCoordinate(0, 0), const CellStyle(fontWeight: FontWeight.bold));
 
 // Select cell
-controller.selectCell(CellCoordinate(5, 3));
+controller.selectCell(const CellCoordinate(5, 3));
 
 // Select range
 controller.selectRange(CellRange(0, 0, 10, 5));

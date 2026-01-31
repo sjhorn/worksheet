@@ -23,15 +23,13 @@ class MySpreadsheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final data = SparseWorksheetData(rowCount: 100, columnCount: 10, cells: {
-        (0, 0): 'Name'.text,
-        (0, 1): 'Amount'.text,
-        (1, 0): 'Apples'.text,
-        (1, 1): '42'.number,
+        (0, 0): 'Name'.cell,
+        (0, 1): 'Amount'.cell,
+        (1, 0): 'Apples'.cell,
+        (1, 1): 42.cell,
         (2, 1): '=2+42'.formula,
         (3, 1): Cell.text('test'),
     });
-
-    
 
     return Scaffold(
       body: WorksheetTheme(
@@ -100,6 +98,29 @@ Now you can:
 - Track selection via `_controller.selectedRange`
 - Zoom with pinch gestures or `_controller.setZoom(1.5)`
 
+## Format Your Numbers
+
+Display values as currency, percentages, dates, and more using Excel-style format codes:
+
+```dart
+final data = SparseWorksheetData(rowCount: 100, columnCount: 10, cells: {
+    (0, 0): 'Revenue'.cell,
+    (0, 1): Cell.number(1234.56, format: CellFormat.currency),     // "$1,234.56"
+    (1, 0): 'Growth'.cell,
+    (1, 1): Cell.number(0.085, format: CellFormat.percentage),     // "9%"
+    (2, 0): 'Date'.cell,
+    (2, 1): Cell.date(DateTime(2024, 1, 15), format: CellFormat.dateIso), // "2024-01-15"
+    (3, 0): 'Precision'.cell,
+    (3, 1): Cell.number(3.14159, format: CellFormat.scientific),   // "3.14E+00"
+});
+```
+
+16 built-in presets cover common formats. For custom codes, create your own:
+
+```dart
+const custom = CellFormat(type: CellFormatType.number, formatCode: '#,##0.000');
+```
+
 ## Style Your Data
 
 Add colors, bold text, and conditional formatting:
@@ -140,10 +161,7 @@ final data = SparseWorksheetData(
 
 // Only populated cells use memory
 for (var row = 0; row < 50000; row++) {
-  data.setCell(
-    CellCoordinate(row, 0),
-    CellValue.text('Row ${row + 1}'),
-  );
+  data[(row, 0)] = Cell.text('Row ${row + 1}');
 }
 // Memory usage: ~50K cells, not 17 billion empty cells
 ```
@@ -224,25 +242,41 @@ flutter pub get
 ## Quick API Overview
 
 ```dart
-// Data
-final data = SparseWorksheetData(rowCount: 1000, columnCount: 26);
-data.setCell(CellCoordinate(0, 0), CellValue.text('Hello'));
-data.setCell(CellCoordinate(0, 1), CellValue.number(42));
-data.setStyle(CellCoordinate(0, 0), CellStyle(fontWeight: FontWeight.bold));
+// Data - map literal construction with record coordinates
+final data = SparseWorksheetData(
+  rowCount: 1000,
+  columnCount: 26,
+  cells: {
+    (0, 0): 'Hello'.cell,
+    (0, 1): 42.cell,
+  },
+);
+
+// Bracket access with (row, col) records
+data[(1, 0)] = 'World'.cell;
+data[(1, 1)] = Cell.number(99, style: const CellStyle(fontWeight: FontWeight.bold));
+final cell = data[(0, 0)];  // Cell(value: 'Hello', style: null)
+
+// Extensions for quick cell creation
+'Hello'.cell            // Cell with text value
+42.cell                 // Cell with numeric value
+true.cell               // Cell with boolean value
+DateTime.now().cell     // Cell with date value
+'=SUM(A1:A10)'.formula  // Cell with formula
+
+// Cell constructors for full control (when you need style or format)
+Cell.text('Hello', style: headerStyle)
+Cell.number(42.5, format: CellFormat.currency)
+Cell.boolean(true)
+Cell.date(DateTime.now(), format: CellFormat.dateIso)
+Cell.withStyle(headerStyle)  // style only, no value
 
 // Controller
 final controller = WorksheetController();
-controller.selectCell(CellCoordinate(5, 3));
+controller.selectCell(const CellCoordinate(5, 3));
 controller.selectRange(CellRange(0, 0, 10, 5));
 controller.setZoom(1.5);  // 150%
 controller.scrollTo(x: 500, y: 1000, animate: true);
-
-// Cell values
-CellValue.text('Hello')
-CellValue.number(42.5)
-CellValue.boolean(true)
-CellValue.date(DateTime.now())
-CellValue.formula('=SUM(A1:A10)')
 ```
 
 ---

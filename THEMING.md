@@ -383,7 +383,7 @@ const CellStyle({
   this.verticalAlignment,    // CellVerticalAlignment (top, middle, bottom)
   this.borders,              // CellBorders (all four sides)
   this.wrapText,             // Whether to wrap text
-  this.numberFormat,         // Number format pattern
+  this.numberFormat,         // @Deprecated — use CellFormat on Cell instead
 })
 ```
 
@@ -398,17 +398,18 @@ const boldHeader = CellStyle(
   textAlignment: CellTextAlignment.center,
 );
 
-// Currency formatting (right-aligned)
+// Currency formatting — use CellFormat on Cell for number display
+// Style controls alignment; format controls display
 const currencyStyle = CellStyle(
   textAlignment: CellTextAlignment.right,
-  numberFormat: '\$#,##0.00',
 );
+// Cell.number(1234.56, format: CellFormat.currency, style: currencyStyle)
 
 // Percentage formatting
 const percentStyle = CellStyle(
   textAlignment: CellTextAlignment.right,
-  numberFormat: '0.0%',
 );
+// Cell.number(0.42, format: CellFormat.percentage, style: percentStyle)
 
 // Italic text
 const italicStyle = CellStyle(

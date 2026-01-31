@@ -7,6 +7,7 @@ import 'package:worksheet/src/core/geometry/layout_solver.dart';
 import 'package:worksheet/src/core/geometry/span_list.dart';
 import 'package:worksheet/src/core/geometry/zoom_transformer.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_format.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/core/models/cell_style.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
@@ -213,6 +214,52 @@ void main() {
 
       test('renders error values', () {
         data.setCell(CellCoordinate(0, 0), CellValue.error('#DIV/0!'));
+
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 5, 2),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+
+      test('renders formatted currency values', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.number(1234.56));
+        data.setFormat(CellCoordinate(0, 0), CellFormat.currency);
+
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 5, 2),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+
+      test('renders formatted percentage values', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.number(0.42));
+        data.setFormat(CellCoordinate(0, 0), CellFormat.percentage);
+
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 5, 2),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+
+      test('renders formatted date values', () {
+        data.setCell(
+            CellCoordinate(0, 0), CellValue.date(DateTime(2024, 1, 15)));
+        data.setFormat(CellCoordinate(0, 0), CellFormat.dateIso);
 
         final picture = painter.renderTile(
           coordinate: TileCoordinate(0, 0),

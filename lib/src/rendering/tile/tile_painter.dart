@@ -7,6 +7,7 @@ import '../../core/geometry/layout_solver.dart';
 import '../../core/geometry/zoom_transformer.dart';
 import '../../core/models/cell_coordinate.dart';
 import '../../core/models/cell_range.dart';
+import '../../core/models/cell_format.dart';
 import '../../core/models/cell_style.dart';
 import '../../core/models/cell_value.dart';
 import 'tile_coordinate.dart';
@@ -139,7 +140,9 @@ class TilePainter implements TileRenderer {
         if (shouldRenderText) {
           final value = data.getCell(coord);
           if (value != null) {
-            _renderCellContent(canvas, localBounds, value, style, zoomBucket);
+            final format = data.getFormat(coord);
+            _renderCellContent(
+                canvas, localBounds, value, style, zoomBucket, format);
           }
         }
       }
@@ -160,9 +163,10 @@ class TilePainter implements TileRenderer {
     CellValue value,
     CellStyle? style,
     ZoomBucket zoomBucket,
+    CellFormat? format,
   ) {
     final mergedStyle = CellStyle.defaultStyle.merge(style);
-    final text = value.displayValue;
+    final text = format != null ? format.format(value) : value.displayValue;
 
     // Create text painter
     final textStyle = TextStyle(

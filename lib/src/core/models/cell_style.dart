@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use_from_same_package
+
 import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
@@ -117,6 +119,7 @@ class CellStyle {
   final bool? wrapText;
 
   /// Number format pattern (e.g., "#,##0.00", "0%").
+  @Deprecated('Use CellFormat on Cell instead. See cell_format.dart.')
   final String? numberFormat;
 
   const CellStyle({

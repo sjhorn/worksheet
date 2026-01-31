@@ -135,7 +135,7 @@ final data = SparseWorksheetData(
 
 // Only populated cells use memory
 for (var i = 0; i < 50000; i++) {
-  data.setCell(CellCoordinate(i, 0), CellValue.text('Row $i'));
+  data[(i, 0)] = Cell.text('Row $i');
 }
 // Memory usage: ~50K cells, not 17 billion
 ```
@@ -159,7 +159,7 @@ When loading large amounts of data, use batch updates:
 ```dart
 // Bad: Individual updates trigger change notifications each time
 for (var i = 0; i < 100000; i++) {
-  data.setCell(CellCoordinate(i, 0), CellValue.number(i.toDouble()));
+  data[(i, 0)] = Cell.number(i.toDouble());
 }
 
 // Good: Use microtasks to batch UI updates
@@ -170,7 +170,7 @@ Future<void> loadLargeDataset() async {
     // Process batch
     await Future.microtask(() {
       for (var i = start; i < start + batchSize; i++) {
-        data.setCell(CellCoordinate(i, 0), CellValue.number(i.toDouble()));
+        data[(i, 0)] = Cell.number(i.toDouble());
       }
     });
 

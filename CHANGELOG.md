@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-01-30
+
+### Added
+- `CellFormat` class with Excel-style format codes for cell display formatting
+- 16 built-in format presets (currency, percentage, date, scientific, fraction, etc.)
+- `CellFormatType` enum with 12 format categories
+- `Cell.format` field for per-cell formatting
+- `Cell.displayValue` getter — uses format when present
+- `Cell.copyWithFormat()` method
+- `WorksheetData.getFormat()`/`setFormat()` with backward-compatible defaults
+- `SparseWorksheetData` format storage with change events and batch support
+- `DataChangeType.cellFormat` event type
+
+### Changed
+- `TilePainter` and `FrozenLayer` use `CellFormat` when rendering cell content
+- `Cell.isEmpty` considers format field
+
+### Deprecated
+- `CellStyle.numberFormat` — use `CellFormat` on `Cell` instead
+
 ## [1.1.0] - 2025-01-27
 
 ### Added

@@ -6,14 +6,15 @@ Practical recipes for common worksheet tasks.
 
 1. [Read-Only Spreadsheet Viewer](#read-only-spreadsheet-viewer)
 2. [Editable Data Grid with Persistence](#editable-data-grid-with-persistence)
-3. [Custom Cell Styling (Conditional Formatting)](#custom-cell-styling-conditional-formatting)
-4. [Large Dataset Loading](#large-dataset-loading)
-5. [Keyboard Navigation](#keyboard-navigation)
-6. [Programmatic Scrolling to Cells](#programmatic-scrolling-to-cells)
-7. [Export Data to CSV](#export-data-to-csv)
-8. [Custom Column Widths](#custom-column-widths)
-9. [Cell Value Validation](#cell-value-validation)
-10. [Multi-Select Resize](#multi-select-resize)
+3. [Number Formatting](#number-formatting)
+4. [Custom Cell Styling (Conditional Formatting)](#custom-cell-styling-conditional-formatting)
+5. [Large Dataset Loading](#large-dataset-loading)
+6. [Keyboard Navigation](#keyboard-navigation)
+7. [Programmatic Scrolling to Cells](#programmatic-scrolling-to-cells)
+8. [Export Data to CSV](#export-data-to-csv)
+9. [Custom Column Widths](#custom-column-widths)
+10. [Cell Value Validation](#cell-value-validation)
+11. [Multi-Select Resize](#multi-select-resize)
 
 ---
 
@@ -44,15 +45,12 @@ class _ReadOnlyViewerState extends State<ReadOnlyViewer> {
     );
     _controller = WorksheetController();
 
-    // Load data
+    // Load data using bracket access with (row, col) records
     for (var row = 0; row < widget.data.length; row++) {
       for (var col = 0; col < widget.data[row].length; col++) {
         final value = widget.data[row][col];
         if (value.isNotEmpty) {
-          _worksheetData.setCell(
-            CellCoordinate(row, col),
-            CellValue.text(value),
-          );
+          _worksheetData[(row, col)] = Cell.text(value);
         }
       }
     }
@@ -247,6 +245,90 @@ class _EditableDataGridState extends State<EditableDataGrid> {
 
 ---
 
+## Number Formatting
+
+Display values as currency, percentages, dates, and more using `CellFormat`:
+
+### Built-in Presets
+
+```dart
+final data = SparseWorksheetData(
+  rowCount: 100,
+  columnCount: 10,
+  cells: {
+    (0, 0): 'Item'.cell,
+    (0, 1): 'Price'.cell,
+    (0, 2): 'Qty'.cell,
+    (0, 3): 'Tax'.cell,
+    (0, 4): 'Date'.cell,
+    // Formatted data rows
+    (1, 0): 'Widget'.cell,
+    (1, 1): Cell.number(29.99, format: CellFormat.currency),       // "$29.99"
+    (1, 2): Cell.number(1500, format: CellFormat.integer),         // "1,500"
+    (1, 3): Cell.number(0.085, format: CellFormat.percentage),     // "9%"
+    (1, 4): Cell.date(DateTime(2024, 3, 15), format: CellFormat.dateUs), // "3/15/2024"
+  },
+);
+```
+
+### Custom Format Codes
+
+```dart
+// Three decimal places with thousands separator
+const threeDecimals = CellFormat(
+  type: CellFormatType.number,
+  formatCode: '#,##0.000',
+);
+
+// Percentage with two decimal places
+const precisePercent = CellFormat(
+  type: CellFormatType.percentage,
+  formatCode: '0.00%',
+);
+
+// Apply format to existing cells via data layer
+data.setFormat(const CellCoordinate(1, 1), CellFormat.currency);
+```
+
+### Combining Format and Style
+
+```dart
+// Format controls display, style controls appearance
+data[(0, 0)] = Cell.number(
+  -1234.56,
+  format: CellFormat.currency,
+  style: const CellStyle(
+    textColor: Color(0xFFCC0000),        // Red for negative
+    textAlignment: CellTextAlignment.right,
+  ),
+);
+// Displays: "$1,234.56" in red, right-aligned
+```
+
+### All Available Presets
+
+| Preset | Example Output |
+|--------|---------------|
+| `CellFormat.general` | `42` |
+| `CellFormat.integer` | `1,234` |
+| `CellFormat.decimal` | `42.00` |
+| `CellFormat.number` | `1,234.56` |
+| `CellFormat.currency` | `$1,234.56` |
+| `CellFormat.percentage` | `42%` |
+| `CellFormat.percentageDecimal` | `42.56%` |
+| `CellFormat.scientific` | `1.23E+04` |
+| `CellFormat.dateIso` | `2024-01-15` |
+| `CellFormat.dateUs` | `1/15/2024` |
+| `CellFormat.dateShort` | `15-Jan-24` |
+| `CellFormat.dateMonthYear` | `Jan-24` |
+| `CellFormat.time24` | `14:30` |
+| `CellFormat.time24Seconds` | `14:30:05` |
+| `CellFormat.time12` | `2:30 PM` |
+| `CellFormat.text` | `hello` |
+| `CellFormat.fraction` | `3 1/2` |
+
+---
+
 ## Custom Cell Styling (Conditional Formatting)
 
 Apply styles based on cell values:
@@ -370,10 +452,7 @@ class _AsyncDataLoaderState extends State<AsyncDataLoader> {
         await Future.microtask(() {
           for (var row = startRow; row < startRow + batchSize && row < 50000; row++) {
             for (var col = 0; col < 10; col++) {
-              data.setCell(
-                CellCoordinate(row, col),
-                CellValue.number((row * 10 + col).toDouble()),
-              );
+              data[(row, col)] = Cell.number((row * 10 + col).toDouble());
             }
           }
         });
@@ -485,16 +564,10 @@ class _PaginatedWorksheetState extends State<PaginatedWorksheet> {
     // Simulate API call
     // final pageData = await api.fetchRows(startRow, endRow);
 
-    // Populate data
+    // Populate data using bracket access
     for (var row = startRow; row < endRow; row++) {
-      _data.setCell(
-        CellCoordinate(row, 0),
-        CellValue.text('Row ${row + 1}'),
-      );
-      _data.setCell(
-        CellCoordinate(row, 1),
-        CellValue.number(row.toDouble()),
-      );
+      _data[(row, 0)] = Cell.text('Row ${row + 1}');
+      _data[(row, 1)] = Cell.number(row.toDouble());
     }
 
     // Trigger repaint

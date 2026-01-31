@@ -1,4 +1,5 @@
 import '../models/cell_coordinate.dart';
+import '../models/cell_format.dart';
 import '../models/cell_range.dart';
 import '../models/cell_style.dart';
 import '../models/cell_value.dart';
@@ -24,6 +25,14 @@ abstract class WorksheetData {
   ///
   /// Pass null to use the default style.
   void setStyle(CellCoordinate coord, CellStyle? style);
+
+  /// Gets the format of the cell at [coord], or null for General format.
+  CellFormat? getFormat(CellCoordinate coord) => null;
+
+  /// Sets the format of the cell at [coord].
+  ///
+  /// Pass null to use General format.
+  void setFormat(CellCoordinate coord, CellFormat? format) {}
 
   /// Performs batch updates atomically.
   ///
@@ -59,6 +68,9 @@ abstract class WorksheetDataBatch {
 
   /// Sets a cell style within the batch.
   void setStyle(CellCoordinate coord, CellStyle? style);
+
+  /// Sets a cell format within the batch.
+  void setFormat(CellCoordinate coord, CellFormat? format) {}
 
   /// Clears a range within the batch.
   void clearRange(CellRange range);

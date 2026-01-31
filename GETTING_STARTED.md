@@ -52,12 +52,15 @@ class _WorksheetExampleState extends State<WorksheetExample> {
   @override
   void initState() {
     super.initState();
-    _data = SparseWorksheetData(rowCount: 1000, columnCount: 26);
+    _data = SparseWorksheetData(
+      rowCount: 1000,
+      columnCount: 26,
+      cells: {
+        (0, 0): 'Hello'.cell,
+        (0, 1): 42.cell,
+      },
+    );
     _controller = WorksheetController();
-
-    // Add some sample data
-    _data.setCell(const CellCoordinate(0, 0), CellValue.text('Hello'));
-    _data.setCell(const CellCoordinate(0, 1), CellValue.number(42));
   }
 
   @override
@@ -87,29 +90,29 @@ class _WorksheetExampleState extends State<WorksheetExample> {
 The `WorksheetData` abstract class defines the data interface. Use `SparseWorksheetData` for efficient storage of sparse data (most cells empty):
 
 ```dart
-// Create a worksheet data source
+// Create with map literal and record coordinates (row, col)
 final data = SparseWorksheetData(
   rowCount: 100000,    // Up to 1,048,576 rows (Excel limit)
   columnCount: 16384,  // Up to 16,384 columns (A to XFD)
+  cells: {
+    (0, 0): 'Product Name'.cell,  // .cell extension for quick creation
+    (1, 0): 99.99.cell,           // Works on num too
+  },
 );
 
-// Set cell values
-data.setCell(
-  const CellCoordinate(0, 0),  // row 0, column 0 (A1)
-  CellValue.text('Product Name'),
-);
+// Bracket access with (row, col) records
+data[(2, 0)] = Cell.text('Another Product');
+data[(2, 1)] = Cell.number(49.99);
 
-data.setCell(
-  const CellCoordinate(1, 0),  // row 1, column 0 (A2)
-  CellValue.number(99.99),
-);
-
-// Get cell values
-final value = data.getCell(const CellCoordinate(0, 0));
-print(value?.displayValue);  // "Product Name"
+// Read cells
+final cell = data[(0, 0)];  // Cell(value: 'Product Name', style: null)
 
 // Clear a cell
-data.setCell(const CellCoordinate(0, 0), null);
+data[(2, 0)] = null;
+
+// Low-level access (CellValue/CellStyle separately) is also available:
+data.setCell(const CellCoordinate(0, 0), CellValue.text('Product Name'));
+final value = data.getCell(const CellCoordinate(0, 0));
 ```
 
 ### CellValue Types
@@ -135,6 +138,24 @@ CellValue.formula('=SUM(A1:A10)')
 // Error values
 CellValue.error('#DIV/0!')
 ```
+
+### Cell Formatting
+
+Control how values are displayed using `CellFormat` with Excel-style format codes:
+
+```dart
+// Built-in presets
+Cell.number(1234.56, format: CellFormat.currency)       // "$1,234.56"
+Cell.number(0.42, format: CellFormat.percentage)         // "42%"
+Cell.date(DateTime(2024, 1, 15), format: CellFormat.dateIso)  // "2024-01-15"
+Cell.number(12345, format: CellFormat.scientific)        // "1.23E+04"
+
+// Custom format codes
+const custom = CellFormat(type: CellFormatType.number, formatCode: '#,##0.000');
+Cell.number(3.14159, format: custom)                     // "3.142"
+```
+
+See [COOKBOOK.md](COOKBOOK.md) for the full list of presets and more examples.
 
 ## Using WorksheetController
 

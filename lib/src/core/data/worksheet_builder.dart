@@ -4,9 +4,9 @@ import 'package:worksheet/worksheet.dart';
 ///
 /// Usage:
 /// final cells = (WorksheetBuilder()
-///   ..row(['Name'.text, 'Amount'.text])
-///   ..row(['Apples'.text, 42.number])
-///   ..row([Cell.empty, '=2+42'.formula])
+///   ..row(['Name'.cell, 'Amount'.cell])
+///   ..row(['Apples'.cell, 42.cell])
+///   ..row([const Cell(), '=2+42'.formula])
 /// ).build();
 ///
 

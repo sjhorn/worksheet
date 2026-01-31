@@ -12,12 +12,19 @@ class MySpreadsheet extends StatelessWidget {
       rowCount: 100,
       columnCount: 10,
       cells: {
-        (0, 0): 'Name'.text,
-        (0, 1): 'Amount'.text,
-        (1, 0): 'Apples'.text,
-        (1, 1): '42'.number,
+        (0, 0): 'Name'.cell,
+        (0, 1): 'Amount'.cell,
+        (1, 0): 'Apples'.cell,
+        (1, 1): 42.cell,
         (2, 1): '=2+42'.formula,
         (3, 1): Cell.text('test'),
+        (3, 2): true.cell,
+        (4, 0): 'Price'.cell,
+        (4, 1): Cell.number(1234.56, format: CellFormat.currency),
+        (5, 0): 'Tax'.cell,
+        (5, 1): Cell.number(0.085, format: CellFormat.percentage),
+        (6, 0): 'Date'.cell,
+        (6, 1): Cell.date(DateTime.now(), format: CellFormat.dateIso),
       },
     );
 

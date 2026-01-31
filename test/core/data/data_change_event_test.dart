@@ -43,6 +43,25 @@ void main() {
       });
     });
 
+    group('cellFormat', () {
+      test('creates cell format event', () {
+        final coord = CellCoordinate(2, 4);
+        final event = DataChangeEvent.cellFormat(coord);
+
+        expect(event.type, DataChangeType.cellFormat);
+        expect(event.cell, coord);
+        expect(event.range, isNull);
+      });
+
+      test('toString returns correct format', () {
+        final coord = CellCoordinate(0, 2);
+        final event = DataChangeEvent.cellFormat(coord);
+
+        expect(
+            event.toString(), 'DataChangeEvent.cellFormat(CellCoordinate(C1))');
+      });
+    });
+
     group('range', () {
       test('creates range event', () {
         final range = CellRange(0, 0, 10, 10);
@@ -146,15 +165,16 @@ void main() {
 
   group('DataChangeType enum', () {
     test('has expected values', () {
-      expect(DataChangeType.values.length, 8);
+      expect(DataChangeType.values.length, 9);
       expect(DataChangeType.cellValue.index, 0);
       expect(DataChangeType.cellStyle.index, 1);
-      expect(DataChangeType.range.index, 2);
-      expect(DataChangeType.rowInserted.index, 3);
-      expect(DataChangeType.rowDeleted.index, 4);
-      expect(DataChangeType.columnInserted.index, 5);
-      expect(DataChangeType.columnDeleted.index, 6);
-      expect(DataChangeType.reset.index, 7);
+      expect(DataChangeType.cellFormat.index, 2);
+      expect(DataChangeType.range.index, 3);
+      expect(DataChangeType.rowInserted.index, 4);
+      expect(DataChangeType.rowDeleted.index, 5);
+      expect(DataChangeType.columnInserted.index, 6);
+      expect(DataChangeType.columnDeleted.index, 7);
+      expect(DataChangeType.reset.index, 8);
     });
   });
 }

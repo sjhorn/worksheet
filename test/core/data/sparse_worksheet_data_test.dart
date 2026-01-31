@@ -6,6 +6,7 @@ import 'package:worksheet/src/core/data/data_change_event.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/models/cell.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_format.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/core/models/cell_style.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
@@ -97,6 +98,56 @@ void main() {
 
         data.setStyle(coord, null);
         expect(data.getStyle(coord), isNull);
+      });
+    });
+
+    group('getFormat/setFormat', () {
+      test('returns null for default format', () {
+        expect(data.getFormat(CellCoordinate(0, 0)), isNull);
+      });
+
+      test('stores and retrieves format', () {
+        final coord = CellCoordinate(5, 10);
+        data.setFormat(coord, CellFormat.currency);
+
+        expect(data.getFormat(coord), CellFormat.currency);
+      });
+
+      test('clears format when set to null', () {
+        final coord = CellCoordinate(5, 10);
+        data.setFormat(coord, CellFormat.currency);
+        expect(data.getFormat(coord), isNotNull);
+
+        data.setFormat(coord, null);
+        expect(data.getFormat(coord), isNull);
+      });
+
+      test('emits cellFormat event on change', () async {
+        final coord = CellCoordinate(5, 10);
+        final events = <DataChangeEvent>[];
+        final subscription = data.changes.listen(events.add);
+
+        data.setFormat(coord, CellFormat.percentage);
+
+        await Future.delayed(Duration.zero);
+        await subscription.cancel();
+
+        expect(events.length, 1);
+        expect(events[0].type, DataChangeType.cellFormat);
+        expect(events[0].cell, coord);
+      });
+
+      test('does not emit event when clearing non-existent format', () async {
+        final coord = CellCoordinate(5, 10);
+        final events = <DataChangeEvent>[];
+        final subscription = data.changes.listen(events.add);
+
+        data.setFormat(coord, null);
+
+        await Future.delayed(Duration.zero);
+        await subscription.cancel();
+
+        expect(events.length, 0);
       });
     });
 
@@ -227,6 +278,26 @@ void main() {
         expect(data.getStyle(CellCoordinate(0, 0)), isNull);
       });
 
+      test('batch setFormat applies formats', () {
+        data.batchUpdate((batch) {
+          batch.setCell(CellCoordinate(0, 0), CellValue.number(42));
+          batch.setFormat(CellCoordinate(0, 0), CellFormat.currency);
+        });
+
+        expect(data.getFormat(CellCoordinate(0, 0)), CellFormat.currency);
+        expect(data.getCell(CellCoordinate(0, 0)), CellValue.number(42));
+      });
+
+      test('batch setFormat with null removes format', () {
+        data.setFormat(CellCoordinate(0, 0), CellFormat.currency);
+
+        data.batchUpdate((batch) {
+          batch.setFormat(CellCoordinate(0, 0), null);
+        });
+
+        expect(data.getFormat(CellCoordinate(0, 0)), isNull);
+      });
+
       test('batch clearRange clears cells and styles', () {
         data.setCell(CellCoordinate(0, 0), CellValue.text('A1'));
         data.setCell(CellCoordinate(5, 5), CellValue.text('F6'));
@@ -340,6 +411,18 @@ void main() {
         expect(events.length, 1);
         expect(events[0].type, DataChangeType.range);
       });
+
+      test('clears formats in range', () {
+        data.setFormat(CellCoordinate(0, 0), CellFormat.currency);
+        data.setFormat(CellCoordinate(5, 5), CellFormat.percentage);
+        data.setFormat(CellCoordinate(100, 50), CellFormat.scientific);
+
+        data.clearRange(CellRange(0, 0, 10, 10));
+
+        expect(data.getFormat(CellCoordinate(0, 0)), isNull);
+        expect(data.getFormat(CellCoordinate(5, 5)), isNull);
+        expect(data.getFormat(CellCoordinate(100, 50)), CellFormat.scientific);
+      });
     });
 
     group('memory efficiency', () {
@@ -418,6 +501,24 @@ void main() {
         expect(d.populatedCellCount, 0);
         d.dispose();
       });
+
+      test('populates formats from cells map', () {
+        final d = SparseWorksheetData(
+          rowCount: 100,
+          columnCount: 10,
+          cells: {
+            (0, 0): Cell.number(1234.56, format: CellFormat.currency),
+            (1, 0): Cell.number(0.42, format: CellFormat.percentage),
+            (2, 0): Cell.number(99),
+          },
+        );
+
+        expect(d.getFormat(const CellCoordinate(0, 0)), CellFormat.currency);
+        expect(d.getFormat(const CellCoordinate(1, 0)), CellFormat.percentage);
+        expect(d.getFormat(const CellCoordinate(2, 0)), isNull);
+
+        d.dispose();
+      });
     });
 
     group('operator[]', () {
@@ -457,6 +558,24 @@ void main() {
 
       test('returns null for empty cell', () {
         expect(data[(5, 5)], isNull);
+      });
+
+      test('returns Cell with format', () {
+        data.setCell(const CellCoordinate(3, 3), CellValue.number(42));
+        data.setFormat(const CellCoordinate(3, 3), CellFormat.currency);
+
+        final cell = data[(3, 3)];
+        expect(cell, isNotNull);
+        expect(cell!.format, CellFormat.currency);
+      });
+
+      test('returns Cell with format only', () {
+        data.setFormat(const CellCoordinate(4, 4), CellFormat.percentage);
+
+        final cell = data[(4, 4)];
+        expect(cell, isNotNull);
+        expect(cell!.value, isNull);
+        expect(cell.format, CellFormat.percentage);
       });
     });
 
@@ -519,6 +638,27 @@ void main() {
 
         expect(events, hasLength(1));
         expect(events.first.cell, const CellCoordinate(3, 3));
+      });
+
+      test('sets format via Cell', () {
+        data[(0, 0)] = Cell.number(1234, format: CellFormat.currency);
+
+        expect(data.getFormat(const CellCoordinate(0, 0)), CellFormat.currency);
+        expect(data.getCell(const CellCoordinate(0, 0)), CellValue.number(1234));
+      });
+
+      test('null clears format', () {
+        data[(0, 0)] = Cell.number(1234, format: CellFormat.currency);
+        data[(0, 0)] = null;
+
+        expect(data.getFormat(const CellCoordinate(0, 0)), isNull);
+      });
+
+      test('Cell without format clears existing format', () {
+        data[(0, 0)] = Cell.number(42, format: CellFormat.currency);
+        data[(0, 0)] = Cell.number(42);
+
+        expect(data.getFormat(const CellCoordinate(0, 0)), isNull);
       });
     });
 
