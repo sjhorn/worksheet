@@ -5,7 +5,7 @@ homepage: https://pub.dev/packages/worksheet
 repository: https://github.com/sjhorn/worksheet
 description: High-performance Flutter spreadsheet widget supporting large datasets, 10%-400% zoom, and GPU-optimized tile-based rendering.
 screenshots:
-  - description: 'Worksheet'
+  - description: 'Worksheet widget screenshot'
     path: assets/worksheet.png
 topics:
   - spreadsheet
