@@ -94,6 +94,12 @@ class Worksheet extends StatefulWidget {
   /// compatible with Excel and Google Sheets.
   final ClipboardSerializer clipboardSerializer;
 
+  /// Controls how diagonal drags are handled by the scroll view.
+  ///
+  /// Defaults to [DiagonalDragBehavior.free], which allows simultaneous
+  /// horizontal and vertical scrolling.
+  final DiagonalDragBehavior diagonalDragBehavior;
+
   const Worksheet({
     super.key,
     required this.data,
@@ -108,6 +114,7 @@ class Worksheet extends StatefulWidget {
     this.customColumnWidths,
     this.readOnly = false,
     this.clipboardSerializer = const TsvClipboardSerializer(),
+    this.diagonalDragBehavior = DiagonalDragBehavior.free,
   });
 
   @override
@@ -668,6 +675,7 @@ class _WorksheetState extends State<Worksheet> {
     // Use TwoDimensionalScrollable for proper 2D scrolling
     // Note: viewportBuilder receives (context, verticalOffset, horizontalOffset)
     return TwoDimensionalScrollable(
+      diagonalDragBehavior: widget.diagonalDragBehavior,
       horizontalDetails: ScrollableDetails.horizontal(
         controller: _controller.horizontalScrollController,
         physics: const BouncingScrollPhysics(),
