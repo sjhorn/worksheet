@@ -238,8 +238,8 @@ class KeyboardHandler {
       rowDelta: rowDelta,
       columnDelta: columnDelta,
       extend: extend,
-      maxRow: maxRow - 1,
-      maxColumn: maxColumn - 1,
+      maxRow: maxRow,
+      maxColumn: maxColumn,
     );
     onEnsureVisible?.call();
   }
