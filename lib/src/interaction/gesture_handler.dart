@@ -292,44 +292,50 @@ class WorksheetGestureHandler {
     Offset scrollOffset,
     double zoom,
   ) {
+    final worksheetPos = hitTester.screenToWorksheet(
+      screenPosition: position,
+      scrollOffset: scrollOffset,
+      zoom: zoom,
+    );
+
+    // Row header drag: always extend as row selection regardless of cursor position
+    if (_dragStartHit?.isRowHeader == true) {
+      final endRow = hitTester.layoutSolver.getRowAt(worksheetPos.dy);
+      if (endRow < 0) return;
+
+      final startRow = _dragStartHit!.headerIndex!;
+      final minRow = startRow < endRow ? startRow : endRow;
+      final maxRow = startRow > endRow ? startRow : endRow;
+
+      selectionController.selectRange(
+        CellRange(minRow, 0, maxRow, hitTester.layoutSolver.columnCount - 1),
+      );
+      return;
+    }
+
+    // Column header drag: always extend as column selection
+    if (_dragStartHit?.isColumnHeader == true) {
+      final endCol = hitTester.layoutSolver.getColumnAt(worksheetPos.dx);
+      if (endCol < 0) return;
+
+      final startCol = _dragStartHit!.headerIndex!;
+      final minCol = startCol < endCol ? startCol : endCol;
+      final maxCol = startCol > endCol ? startCol : endCol;
+
+      selectionController.selectRange(
+        CellRange(0, minCol, hitTester.layoutSolver.rowCount - 1, maxCol),
+      );
+      return;
+    }
+
+    // Cell drag: hit test and extend to cell
     final hit = hitTester.hitTest(
       position: position,
       scrollOffset: scrollOffset,
       zoom: zoom,
     );
-
     if (hit.isCell) {
       selectionController.extendSelection(hit.cell!);
-    } else if (hit.isRowHeader && _dragStartHit?.isRowHeader == true) {
-      // Extending row selection
-      final startRow = _dragStartHit!.headerIndex!;
-      final endRow = hit.headerIndex!;
-      final minRow = startRow < endRow ? startRow : endRow;
-      final maxRow = startRow > endRow ? startRow : endRow;
-
-      selectionController.selectRange(
-        CellRange(
-          minRow,
-          0,
-          maxRow,
-          hitTester.layoutSolver.columnCount - 1,
-        ),
-      );
-    } else if (hit.isColumnHeader && _dragStartHit?.isColumnHeader == true) {
-      // Extending column selection
-      final startCol = _dragStartHit!.headerIndex!;
-      final endCol = hit.headerIndex!;
-      final minCol = startCol < endCol ? startCol : endCol;
-      final maxCol = startCol > endCol ? startCol : endCol;
-
-      selectionController.selectRange(
-        CellRange(
-          0,
-          minCol,
-          hitTester.layoutSolver.rowCount - 1,
-          maxCol,
-        ),
-      );
     }
   }
 }

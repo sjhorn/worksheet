@@ -558,17 +558,92 @@ void main() {
         expect(selectionController.hasSelection, isTrue);
       });
 
-      test('drag from row header to cell area does not change selection type', () {
-        // Start in row header, drag to cell area
-        const startPos = Offset(25.0, 40.0); // Row header
-        const endPos = Offset(60.0, 60.0); // Cell area
+      test('drag from row header to cell area stays as full row selection', () {
+        // Start in row header (row 0), drag into cell area (row 1)
+        const startPos = Offset(25.0, 40.0); // Row header, row 0
+        // Cell area position at row 1: y = 30 + 24 + 12 = 66
+        const endPos = Offset(200.0, 66.0); // Deep in cell area, row 1
 
         handler.onDragStart(position: startPos, scrollOffset: Offset.zero, zoom: 1.0);
         handler.onDragUpdate(position: endPos, scrollOffset: Offset.zero, zoom: 1.0);
         handler.onDragEnd();
 
-        // Started as row selection, should remain row selection behavior
-        expect(selectionController.hasSelection, isTrue);
+        final range = selectionController.selectedRange!;
+        // Should be full row selection (rows 0-1, all columns)
+        expect(range.startRow, equals(0));
+        expect(range.endRow, equals(1));
+        expect(range.startColumn, equals(0));
+        expect(range.endColumn, equals(25)); // All 26 columns
+      });
+
+      test('drag from column header to cell area stays as full column selection', () {
+        // Start in column header (column 0), drag into cell area
+        const startPos = Offset(60.0, 15.0); // Column header, column 0
+        // Cell area position at column 2: x = 50 + 200 + 50 = 300
+        const endPos = Offset(300.0, 200.0); // Deep in cell area, column 2
+
+        handler.onDragStart(position: startPos, scrollOffset: Offset.zero, zoom: 1.0);
+        handler.onDragUpdate(position: endPos, scrollOffset: Offset.zero, zoom: 1.0);
+        handler.onDragEnd();
+
+        final range = selectionController.selectedRange!;
+        // Should be full column selection (columns 0-2, all rows)
+        expect(range.startColumn, equals(0));
+        expect(range.endColumn, equals(2));
+        expect(range.startRow, equals(0));
+        expect(range.endRow, equals(99)); // All 100 rows
+      });
+
+      test('drag from row header to column header area stays as row selection', () {
+        // Start in row header (row 2), drag to column header area
+        const startPos = Offset(25.0, 82.0); // Row header, row 2
+        // Column header area: y < 30, x > 50
+        const endPos = Offset(200.0, 15.0); // Column header area
+
+        handler.onDragStart(position: startPos, scrollOffset: Offset.zero, zoom: 1.0);
+        handler.onDragUpdate(position: endPos, scrollOffset: Offset.zero, zoom: 1.0);
+        handler.onDragEnd();
+
+        final range = selectionController.selectedRange!;
+        // The y position in column header area maps to a negative worksheet y
+        // which returns row -1, so the selection should not update.
+        // The initial selection from onDragStart (row 2) should remain.
+        expect(range.startRow, equals(2));
+        expect(range.endRow, equals(2));
+        expect(range.startColumn, equals(0));
+        expect(range.endColumn, equals(25));
+      });
+
+      test('row header drag with multiple updates through cell area', () {
+        // Simulate a drag that starts in row header, moves through cell area,
+        // then continues further down
+        const startPos = Offset(25.0, 40.0); // Row header, row 0
+
+        handler.onDragStart(position: startPos, scrollOffset: Offset.zero, zoom: 1.0);
+
+        // Drag drifts into cell area at row 1
+        handler.onDragUpdate(
+          position: const Offset(100.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        var range = selectionController.selectedRange!;
+        expect(range.startColumn, equals(0));
+        expect(range.endColumn, equals(25)); // Still full rows
+
+        // Continue dragging further into cell area at row 3
+        handler.onDragUpdate(
+          position: const Offset(300.0, 110.0), // row 3: y = 30 + 3*24 + 8
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        range = selectionController.selectedRange!;
+        expect(range.startRow, equals(0));
+        expect(range.endRow, equals(3));
+        expect(range.startColumn, equals(0));
+        expect(range.endColumn, equals(25)); // Still full rows
+
+        handler.onDragEnd();
       });
     });
   });
