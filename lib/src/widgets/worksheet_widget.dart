@@ -1062,6 +1062,7 @@ class _SelectionPainter extends CustomPainter {
   final double zoom;
   final Offset headerOffset;
   final int layoutVersion;
+  final CellRange? fillPreviewRange;
 
   _SelectionPainter({
     required this.layer,
@@ -1069,7 +1070,8 @@ class _SelectionPainter extends CustomPainter {
     required this.zoom,
     required this.headerOffset,
     required this.layoutVersion,
-  }) : super(repaint: layer.selectionController);
+  }) : fillPreviewRange = layer.fillPreviewRange,
+       super(repaint: layer.selectionController);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1093,7 +1095,8 @@ class _SelectionPainter extends CustomPainter {
     return scrollOffset != oldDelegate.scrollOffset ||
         zoom != oldDelegate.zoom ||
         headerOffset != oldDelegate.headerOffset ||
-        layoutVersion != oldDelegate.layoutVersion;
+        layoutVersion != oldDelegate.layoutVersion ||
+        fillPreviewRange != oldDelegate.fillPreviewRange;
   }
 }
 
