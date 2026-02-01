@@ -258,6 +258,8 @@ class _WorksheetState extends State<Worksheet> {
           ? null
           : (sourceRange, destination) {
               widget.data.smartFill(sourceRange, destination);
+              _controller.selectionController
+                  .selectRange(sourceRange.expand(destination));
               _selectionLayer.fillPreviewRange = null;
               _tileManager.invalidateAll();
               _layoutVersion++;
@@ -595,6 +597,8 @@ class _WorksheetState extends State<Worksheet> {
               ? null
               : (sourceRange, destination) {
                   widget.data.smartFill(sourceRange, destination);
+                  _controller.selectionController
+                      .selectRange(sourceRange.expand(destination));
                   _selectionLayer.fillPreviewRange = null;
                   _tileManager.invalidateAll();
                   _layoutVersion++;

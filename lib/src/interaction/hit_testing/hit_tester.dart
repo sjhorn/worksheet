@@ -114,7 +114,7 @@ class WorksheetHitTester {
         zoom: zoom,
       );
 
-      final tolerance = fillHandleSize / 2 + 2;
+      final tolerance = fillHandleSize + 4;
       if ((position.dx - screenCorner.dx).abs() <= tolerance &&
           (position.dy - screenCorner.dy).abs() <= tolerance) {
         return WorksheetHitTestResult.fillHandle(CellCoordinate(row, col));
