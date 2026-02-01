@@ -8,6 +8,7 @@ import '../models/cell_range.dart';
 import '../models/cell_style.dart';
 import '../models/cell_value.dart';
 import 'data_change_event.dart';
+import 'fill_pattern_detector.dart';
 import 'worksheet_data.dart';
 
 typedef CellCoordinateRecord = (int row, int col);
@@ -254,6 +255,20 @@ class SparseWorksheetData implements WorksheetData {
   }
 
   @override
+  Future<void> batchUpdateAsync(
+    Future<void> Function(WorksheetDataBatch batch) updates,
+  ) async {
+    _checkNotDisposed();
+
+    final batch = _BatchImpl(this);
+    await updates(batch);
+
+    if (batch._affectedRange != null) {
+      _changeController.add(DataChangeEvent.range(batch._affectedRange!));
+    }
+  }
+
+  @override
   Stream<DataChangeEvent> get changes => _changeController.stream;
 
   @override
@@ -319,6 +334,210 @@ class SparseWorksheetData implements WorksheetData {
       _styles.clear();
       _formats.clear();
     }
+  }
+
+  /// Gets the full [Cell] at the given coordinate, or null if empty.
+  Cell? _getCellAt(CellCoordinate coord) {
+    final value = _values[coord];
+    final style = _styles[coord];
+    final format = _formats[coord];
+    if (value == null && style == null && format == null) return null;
+    return Cell(value: value, style: style, format: format);
+  }
+
+  @override
+  void fillRange(
+    CellCoordinate source,
+    CellRange range, [
+    Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
+  ]) {
+    _checkNotDisposed();
+    final sourceCell = _getCellAt(source);
+
+    // Empty source with no generator = no-op
+    if (sourceCell == null && valueGenerator == null) return;
+
+    batchUpdate((batch) {
+      for (int row = range.startRow; row <= range.endRow; row++) {
+        for (int col = range.startColumn; col <= range.endColumn; col++) {
+          final coord = CellCoordinate(row, col);
+          final cell =
+              valueGenerator != null ? valueGenerator(coord, sourceCell) : sourceCell;
+
+          if (cell != null) {
+            if (cell.value != null) {
+              batch.setCell(coord, cell.value);
+            }
+            if (cell.style != null) {
+              batch.setStyle(coord, cell.style);
+            }
+            if (cell.format != null) {
+              batch.setFormat(coord, cell.format);
+            }
+          }
+        }
+      }
+    });
+  }
+
+  @override
+  void smartFill(
+    CellRange range,
+    CellCoordinate destination, [
+    Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
+  ]) {
+    _checkNotDisposed();
+
+    // Determine fill direction by comparing destination to source range
+    final bool fillDown = destination.row > range.endRow;
+    final bool fillUp = destination.row < range.startRow;
+    final bool fillRight = destination.column > range.endColumn;
+    final bool fillLeft = destination.column < range.startColumn;
+
+    final bool vertical = fillDown || fillUp;
+    final bool horizontal = fillRight || fillLeft;
+    final bool reverse = fillUp || fillLeft;
+
+    // Determine the target region to fill
+    CellRange targetRange;
+    if (vertical) {
+      final startRow = fillDown ? range.endRow + 1 : destination.row;
+      final endRow = fillDown ? destination.row : range.startRow - 1;
+      targetRange = CellRange(
+        startRow,
+        range.startColumn,
+        endRow,
+        range.endColumn,
+      );
+    } else if (horizontal) {
+      final startCol = fillRight ? range.endColumn + 1 : destination.column;
+      final endCol = fillRight ? destination.column : range.startColumn - 1;
+      targetRange = CellRange(
+        range.startRow,
+        startCol,
+        range.endRow,
+        endCol,
+      );
+    } else {
+      return; // destination is inside the source range, nothing to do
+    }
+
+    batchUpdate((batch) {
+      if (valueGenerator != null) {
+        // Use generator, skip auto-detection
+        for (int row = targetRange.startRow; row <= targetRange.endRow; row++) {
+          for (int col = targetRange.startColumn;
+              col <= targetRange.endColumn;
+              col++) {
+            final coord = CellCoordinate(row, col);
+            final cell = valueGenerator(coord, null);
+            if (cell != null) {
+              if (cell.value != null) batch.setCell(coord, cell.value);
+              if (cell.style != null) batch.setStyle(coord, cell.style);
+              if (cell.format != null) batch.setFormat(coord, cell.format);
+            }
+          }
+        }
+        return;
+      }
+
+      if (vertical) {
+        // Detect pattern per column independently
+        for (int col = range.startColumn; col <= range.endColumn; col++) {
+          final sourceCells = <Cell?>[];
+          if (reverse) {
+            // For fill-up, reverse source so pattern detects correctly
+            for (int row = range.endRow; row >= range.startRow; row--) {
+              sourceCells.add(_getCellAt(CellCoordinate(row, col)));
+            }
+          } else {
+            for (int row = range.startRow; row <= range.endRow; row++) {
+              sourceCells.add(_getCellAt(CellCoordinate(row, col)));
+            }
+          }
+
+          final pattern = FillPatternDetector.detect(sourceCells);
+          final sourceLen = sourceCells.length;
+
+          if (fillDown) {
+            for (int row = targetRange.startRow;
+                row <= targetRange.endRow;
+                row++) {
+              final index = sourceLen + (row - targetRange.startRow);
+              final cell = pattern.generate(index);
+              final coord = CellCoordinate(row, col);
+              if (cell != null) {
+                if (cell.value != null) batch.setCell(coord, cell.value);
+                if (cell.style != null) batch.setStyle(coord, cell.style);
+                if (cell.format != null) batch.setFormat(coord, cell.format);
+              }
+            }
+          } else {
+            // Fill up: generate in reverse order
+            for (int row = targetRange.endRow;
+                row >= targetRange.startRow;
+                row--) {
+              final distFromSource = targetRange.endRow - row + 1;
+              final index = sourceLen + (distFromSource - 1);
+              final cell = pattern.generate(index);
+              final coord = CellCoordinate(row, col);
+              if (cell != null) {
+                if (cell.value != null) batch.setCell(coord, cell.value);
+                if (cell.style != null) batch.setStyle(coord, cell.style);
+                if (cell.format != null) batch.setFormat(coord, cell.format);
+              }
+            }
+          }
+        }
+      } else {
+        // Horizontal fill: detect pattern per row independently
+        for (int row = range.startRow; row <= range.endRow; row++) {
+          final sourceCells = <Cell?>[];
+          if (reverse) {
+            for (int col = range.endColumn; col >= range.startColumn; col--) {
+              sourceCells.add(_getCellAt(CellCoordinate(row, col)));
+            }
+          } else {
+            for (int col = range.startColumn; col <= range.endColumn; col++) {
+              sourceCells.add(_getCellAt(CellCoordinate(row, col)));
+            }
+          }
+
+          final pattern = FillPatternDetector.detect(sourceCells);
+          final sourceLen = sourceCells.length;
+
+          if (fillRight) {
+            for (int col = targetRange.startColumn;
+                col <= targetRange.endColumn;
+                col++) {
+              final index = sourceLen + (col - targetRange.startColumn);
+              final cell = pattern.generate(index);
+              final coord = CellCoordinate(row, col);
+              if (cell != null) {
+                if (cell.value != null) batch.setCell(coord, cell.value);
+                if (cell.style != null) batch.setStyle(coord, cell.style);
+                if (cell.format != null) batch.setFormat(coord, cell.format);
+              }
+            }
+          } else {
+            // Fill left: generate in reverse order
+            for (int col = targetRange.endColumn;
+                col >= targetRange.startColumn;
+                col--) {
+              final distFromSource = targetRange.endColumn - col + 1;
+              final index = sourceLen + (distFromSource - 1);
+              final cell = pattern.generate(index);
+              final coord = CellCoordinate(row, col);
+              if (cell != null) {
+                if (cell.value != null) batch.setCell(coord, cell.value);
+                if (cell.style != null) batch.setStyle(coord, cell.style);
+                if (cell.format != null) batch.setFormat(coord, cell.format);
+              }
+            }
+          }
+        }
+      }
+    });
   }
 }
 
@@ -389,6 +608,97 @@ class _BatchImpl implements WorksheetDataBatch {
         _data._formats.remove(coord);
       }
     }
+    if (_affectedRange == null) {
+      _affectedRange = range;
+    } else {
+      _affectedRange = _affectedRange!.union(range);
+    }
+  }
+
+  @override
+  void fillRangeWithCell(CellRange range, Cell? value) {
+    for (int row = range.startRow; row <= range.endRow; row++) {
+      for (int col = range.startColumn; col <= range.endColumn; col++) {
+        final coord = CellCoordinate(row, col);
+        if (value != null) {
+          if (value.value != null) {
+            setCell(coord, value.value!);
+          }
+          if (value.style != null) {
+            setStyle(coord, value.style!);
+          }
+          if (value.format != null) {
+            setFormat(coord, value.format!);
+          }
+        }
+      }
+    }
+  }
+
+  @override
+  void clearStyles(CellRange range) {
+    for (final coord in _data._styles.keys.toList()) {
+      if (range.contains(coord)) {
+        setStyle(coord, null);
+      }
+    }
+  }
+
+  @override
+  void clearFormats(CellRange range) {
+    for (final coord in _data._formats.keys.toList()) {
+      if (range.contains(coord)) {
+        setFormat(coord, null);
+      }
+    }
+  }
+
+  @override
+  void clearValues(CellRange range) {
+    for (final coord in _data._values.keys.toList()) {
+      if (range.contains(coord)) {
+        setCell(coord, null);
+      }
+    }
+  }
+
+  @override
+  void copyRange(CellRange source, CellCoordinate destination) {
+    int offsetRow = 0;
+    for (int row = source.startRow; row <= source.endRow; row++, offsetRow++) {
+      int offsetCol = 0;
+      for (
+        int col = source.startColumn;
+        col <= source.endColumn;
+        col++, offsetCol++
+      ) {
+        final sourceCell = CellCoordinate(row, col);
+        final destCell = CellCoordinate(
+          destination.row + offsetRow,
+          destination.column + offsetCol,
+        );
+        final value = _data.getCell(sourceCell);
+        final style = _data.getStyle(sourceCell);
+        final format = _data.getFormat(sourceCell);
+
+        if (value != null) {
+          _data._values[destCell] = value;
+          _data._updateBounds(destCell);
+        }
+        if (style != null) {
+          _data._styles[destCell] = style;
+        }
+        if (format != null) {
+          _data._formats[destCell] = format;
+        }
+      }
+    }
+    final range = CellRange(
+      destination.row,
+      destination.column,
+      destination.row + source.rowCount - 1,
+      destination.column + source.columnCount - 1,
+    );
     if (_affectedRange == null) {
       _affectedRange = range;
     } else {

@@ -12,6 +12,7 @@ void main() {
         HitTestType.columnHeader,
         HitTestType.rowResizeHandle,
         HitTestType.columnResizeHandle,
+        HitTestType.fillHandle,
       ]));
     });
   });
@@ -81,6 +82,35 @@ void main() {
         expect(result.type, HitTestType.columnResizeHandle);
         expect(result.headerIndex, 5);
         expect(result.isResizeHandle, isTrue);
+      });
+    });
+
+    group('fillHandle', () {
+      test('creates fill handle result', () {
+        final coord = CellCoordinate(3, 5);
+        final result = WorksheetHitTestResult.fillHandle(coord);
+
+        expect(result.type, HitTestType.fillHandle);
+        expect(result.cell, coord);
+        expect(result.headerIndex, isNull);
+        expect(result.isFillHandle, isTrue);
+        expect(result.isCell, isFalse);
+        expect(result.isNone, isFalse);
+      });
+
+      test('toString contains fillHandle', () {
+        final result = WorksheetHitTestResult.fillHandle(CellCoordinate(2, 3));
+        expect(result.toString(), contains('fillHandle'));
+      });
+
+      test('equality works for fill handle', () {
+        final a = WorksheetHitTestResult.fillHandle(CellCoordinate(1, 2));
+        final b = WorksheetHitTestResult.fillHandle(CellCoordinate(1, 2));
+        final c = WorksheetHitTestResult.fillHandle(CellCoordinate(1, 3));
+
+        expect(a, b);
+        expect(a.hashCode, b.hashCode);
+        expect(a, isNot(c));
       });
     });
 

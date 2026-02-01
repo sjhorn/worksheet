@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/geometry/layout_solver.dart';
 import 'package:worksheet/src/core/geometry/span_list.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/interaction/controllers/selection_controller.dart';
 import 'package:worksheet/src/interaction/gesture_handler.dart';
 import 'package:worksheet/src/interaction/hit_testing/hit_tester.dart';
@@ -410,6 +411,136 @@ void main() {
         expect(lastResizeRow, equals(0));
         // 40 pixels at 2x zoom = 20 worksheet units
         expect(lastResizeDelta, closeTo(20.0, 0.1));
+      });
+    });
+
+    group('fill handle drag', () {
+      test('drag from fill handle sets isFilling', () {
+        // First select a range so we have a fill handle
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+
+        final fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) {},
+          onFillComplete: (source, dest) {},
+          onFillCancel: () {},
+        );
+
+        // Drag from fill handle position (bottom-right corner of selection)
+        // Row 2 ends at 3*24=72, Col 2 ends at 3*100=300
+        // Screen: (50+300, 30+72) = (350, 102)
+        const startPos = Offset(349.0, 101.0);
+        fillHandler.onDragStart(
+          position: startPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(fillHandler.isFilling, isTrue);
+        expect(fillHandler.isSelectingRange, isFalse);
+      });
+
+      test('drag update calls onFillPreviewUpdate with expanded range', () {
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+
+        CellRange? previewRange;
+
+        final fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) => previewRange = range,
+          onFillComplete: (source, dest) {},
+          onFillCancel: () {},
+        );
+
+        // Start at fill handle
+        const startPos = Offset(349.0, 101.0);
+        fillHandler.onDragStart(
+          position: startPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag down to row 4: y = 30 + 4*24 + 12 = 138
+        const updatePos = Offset(155.0, 138.0);
+        fillHandler.onDragUpdate(
+          position: updatePos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRange, isNotNull);
+        // Preview should be expanded from selection (0,0)-(2,2) to include row 4
+        expect(previewRange!.endRow, greaterThanOrEqualTo(3));
+      });
+
+      test('drag end calls onFillComplete with source range and destination', () {
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+
+        CellRange? completedSource;
+        CellCoordinate? completedDest;
+
+        final fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) {},
+          onFillComplete: (source, dest) {
+            completedSource = source;
+            completedDest = dest;
+          },
+          onFillCancel: () {},
+        );
+
+        // Start at fill handle
+        const startPos = Offset(349.0, 101.0);
+        fillHandler.onDragStart(
+          position: startPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag down
+        const updatePos = Offset(155.0, 138.0);
+        fillHandler.onDragUpdate(
+          position: updatePos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        fillHandler.onDragEnd();
+
+        expect(completedSource, const CellRange(0, 0, 2, 2));
+        expect(completedDest, isNotNull);
+        expect(fillHandler.isFilling, isFalse);
+      });
+
+      test('short drag with no update calls onFillCancel', () {
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+
+        bool cancelCalled = false;
+
+        final fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) {},
+          onFillComplete: (source, dest) {},
+          onFillCancel: () => cancelCalled = true,
+        );
+
+        // Start at fill handle
+        const startPos = Offset(349.0, 101.0);
+        fillHandler.onDragStart(
+          position: startPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // End immediately without update
+        fillHandler.onDragEnd();
+
+        expect(cancelCalled, isTrue);
+        expect(fillHandler.isFilling, isFalse);
       });
     });
 

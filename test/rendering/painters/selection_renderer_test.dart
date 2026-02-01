@@ -48,6 +48,21 @@ void main() {
       expect(style.borderColor, const Color(0xFFFF0000));
       expect(style.borderWidth, 3.0);
     });
+
+    test('has fill handle defaults', () {
+      const style = SelectionStyle();
+      expect(style.fillHandleColor, const Color(0xFF0078D4));
+      expect(style.fillHandleSize, 6.0);
+    });
+
+    test('fill handle can be customized', () {
+      const style = SelectionStyle(
+        fillHandleColor: Color(0xFFFF0000),
+        fillHandleSize: 8.0,
+      );
+      expect(style.fillHandleColor, const Color(0xFFFF0000));
+      expect(style.fillHandleSize, 8.0);
+    });
   });
 
   group('SelectionRenderer', () {
@@ -223,6 +238,78 @@ void main() {
             startRow: 2,
             endRow: 6,
             headerWidth: 50.0,
+          ),
+          returnsNormally,
+        );
+
+        recorder.endRecording();
+      });
+    });
+
+    group('paintFillHandle', () {
+      test('paints without error', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+
+        expect(
+          () => renderer.paintFillHandle(
+            canvas: canvas,
+            viewportOffset: Offset.zero,
+            zoom: 1.0,
+            range: const CellRange(0, 0, 2, 2),
+          ),
+          returnsNormally,
+        );
+
+        recorder.endRecording();
+      });
+
+      test('paints with zoom and offset', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+
+        expect(
+          () => renderer.paintFillHandle(
+            canvas: canvas,
+            viewportOffset: const Offset(50, 25),
+            zoom: 1.5,
+            range: const CellRange(1, 1, 5, 5),
+          ),
+          returnsNormally,
+        );
+
+        recorder.endRecording();
+      });
+    });
+
+    group('paintFillPreview', () {
+      test('paints without error', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+
+        expect(
+          () => renderer.paintFillPreview(
+            canvas: canvas,
+            viewportOffset: Offset.zero,
+            zoom: 1.0,
+            range: const CellRange(3, 0, 6, 2),
+          ),
+          returnsNormally,
+        );
+
+        recorder.endRecording();
+      });
+
+      test('paints with zoom and offset', () {
+        final recorder = PictureRecorder();
+        final canvas = Canvas(recorder);
+
+        expect(
+          () => renderer.paintFillPreview(
+            canvas: canvas,
+            viewportOffset: const Offset(100, 50),
+            zoom: 2.0,
+            range: const CellRange(0, 0, 3, 3),
           ),
           returnsNormally,
         );

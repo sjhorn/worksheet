@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/geometry/layout_solver.dart';
 import 'package:worksheet/src/core/geometry/span_list.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/interaction/hit_testing/hit_test_result.dart';
 import 'package:worksheet/src/interaction/hit_testing/hit_tester.dart';
 
@@ -271,6 +272,76 @@ void main() {
 
         // (150-50+100, 80-30+50) = (200, 100)
         expect(worksheet, const Offset(200, 100));
+      });
+    });
+
+    group('fill handle hit testing', () {
+      test('detects fill handle at bottom-right of selection', () {
+        // Selection: rows 0-2, columns 0-2
+        // Row 2 ends at 3*25=75, column 2 ends at 3*100=300
+        // Screen position of bottom-right corner with headers (50, 30):
+        // x = 50 + 300 = 350, y = 30 + 75 = 105
+        // Hit near that corner
+        final result = hitTester.hitTest(
+          position: const Offset(349, 104),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(0, 0, 2, 2),
+        );
+
+        expect(result.type, HitTestType.fillHandle);
+      });
+
+      test('returns cell when not near fill handle', () {
+        // Far from the bottom-right corner of selection
+        final result = hitTester.hitTest(
+          position: const Offset(60, 40),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(0, 0, 2, 2),
+        );
+
+        expect(result.type, HitTestType.cell);
+        expect(result.cell, CellCoordinate(0, 0));
+      });
+
+      test('no fill handle when selectionRange is null', () {
+        final result = hitTester.hitTest(
+          position: const Offset(349, 104),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(result.type, HitTestType.cell);
+      });
+
+      test('detects fill handle with zoom', () {
+        // At zoom 2.0: headers scaled to (100, 60)
+        // Selection (0,0)-(1,1): row 1 ends at 50, col 1 ends at 200
+        // Screen: x = 100 + 200*2 = 500, y = 60 + 50*2 = 160
+        final result = hitTester.hitTest(
+          position: const Offset(499, 159),
+          scrollOffset: Offset.zero,
+          zoom: 2.0,
+          selectionRange: const CellRange(0, 0, 1, 1),
+        );
+
+        expect(result.type, HitTestType.fillHandle);
+      });
+
+      test('detects fill handle with scroll offset', () {
+        // Selection: rows 2-4, columns 1-3
+        // Row 4 ends at 5*25=125, column 3 ends at 4*100=400
+        // With scroll (100, 50), screen corner:
+        // x = 50 + (400 - 100) = 350, y = 30 + (125 - 50) = 105
+        final result = hitTester.hitTest(
+          position: const Offset(349, 104),
+          scrollOffset: const Offset(100, 50),
+          zoom: 1.0,
+          selectionRange: const CellRange(2, 1, 4, 3),
+        );
+
+        expect(result.type, HitTestType.fillHandle);
       });
     });
 

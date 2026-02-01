@@ -19,6 +19,9 @@ enum HitTestType {
 
   /// A column resize handle was hit.
   columnResizeHandle,
+
+  /// The fill handle (bottom-right corner of selection) was hit.
+  fillHandle,
 }
 
 /// Result of a hit test on the worksheet.
@@ -70,6 +73,12 @@ class WorksheetHitTestResult {
         cell = null,
         headerIndex = columnIndex;
 
+  /// Creates a result indicating the fill handle was hit.
+  WorksheetHitTestResult.fillHandle(CellCoordinate coordinate)
+      : type = HitTestType.fillHandle,
+        cell = coordinate,
+        headerIndex = null;
+
   /// Whether nothing was hit.
   bool get isNone => type == HitTestType.none;
 
@@ -89,6 +98,9 @@ class WorksheetHitTestResult {
   bool get isResizeHandle =>
       type == HitTestType.rowResizeHandle ||
       type == HitTestType.columnResizeHandle;
+
+  /// Whether the fill handle was hit.
+  bool get isFillHandle => type == HitTestType.fillHandle;
 
   @override
   bool operator ==(Object other) {
@@ -117,6 +129,8 @@ class WorksheetHitTestResult {
         return 'WorksheetHitTestResult.rowResizeHandle($headerIndex)';
       case HitTestType.columnResizeHandle:
         return 'WorksheetHitTestResult.columnResizeHandle($headerIndex)';
+      case HitTestType.fillHandle:
+        return 'WorksheetHitTestResult.fillHandle($cell)';
     }
   }
 }

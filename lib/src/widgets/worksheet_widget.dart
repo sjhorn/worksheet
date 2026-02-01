@@ -9,6 +9,7 @@ import '../core/data/worksheet_data.dart';
 import '../core/geometry/layout_solver.dart';
 import '../core/geometry/span_list.dart';
 import '../core/models/cell_coordinate.dart';
+import '../core/models/cell_range.dart';
 import '../interaction/clipboard/clipboard_handler.dart';
 import '../interaction/clipboard/clipboard_serializer.dart';
 import '../interaction/gesture_handler.dart';
@@ -247,6 +248,27 @@ class _WorksheetState extends State<Worksheet> {
       onResizeColumnEnd: (column) {
         _applyResizeToSelectedColumns(column);
       },
+      onFillPreviewUpdate: widget.readOnly
+          ? null
+          : (previewRange) {
+              _selectionLayer.fillPreviewRange = previewRange;
+              setState(() {});
+            },
+      onFillComplete: widget.readOnly
+          ? null
+          : (sourceRange, destination) {
+              widget.data.smartFill(sourceRange, destination);
+              _selectionLayer.fillPreviewRange = null;
+              _tileManager.invalidateAll();
+              _layoutVersion++;
+              setState(() {});
+            },
+      onFillCancel: widget.readOnly
+          ? null
+          : () {
+              _selectionLayer.fillPreviewRange = null;
+              setState(() {});
+            },
     );
 
     _clipboardHandler = ClipboardHandler(
@@ -293,6 +315,36 @@ class _WorksheetState extends State<Worksheet> {
               _layoutVersion++;
               setState(() {});
             },
+      onFillDown: widget.readOnly
+          ? null
+          : () {
+              final range = _controller.selectionController.selectedRange;
+              if (range == null || range.rowCount < 2) return;
+              for (int col = range.startColumn; col <= range.endColumn; col++) {
+                widget.data.fillRange(
+                  CellCoordinate(range.startRow, col),
+                  CellRange(range.startRow + 1, col, range.endRow, col),
+                );
+              }
+              _tileManager.invalidateAll();
+              _layoutVersion++;
+              setState(() {});
+            },
+      onFillRight: widget.readOnly
+          ? null
+          : () {
+              final range = _controller.selectionController.selectedRange;
+              if (range == null || range.columnCount < 2) return;
+              for (int row = range.startRow; row <= range.endRow; row++) {
+                widget.data.fillRange(
+                  CellCoordinate(row, range.startColumn),
+                  CellRange(row, range.startColumn + 1, row, range.endColumn),
+                );
+              }
+              _tileManager.invalidateAll();
+              _layoutVersion++;
+              setState(() {});
+            },
     );
   }
 
@@ -313,6 +365,7 @@ class _WorksheetState extends State<Worksheet> {
       selectionController: _controller.selectionController,
       renderer: _selectionRenderer,
       onNeedsPaint: () => setState(() {}),
+      showFillHandle: !widget.readOnly,
     );
 
     _headerLayer = HeaderLayer(
@@ -429,7 +482,8 @@ class _WorksheetState extends State<Worksheet> {
 
   void _onAutoScrollTick() {
     final position = _lastPointerPosition;
-    if (position == null || !_gestureHandler.isSelectingRange) {
+    if (position == null ||
+        (!_gestureHandler.isSelectingRange && !_gestureHandler.isFilling)) {
       _stopAutoScroll();
       return;
     }
@@ -531,6 +585,27 @@ class _WorksheetState extends State<Worksheet> {
           onResizeColumnEnd: (column) {
             _applyResizeToSelectedColumns(column);
           },
+          onFillPreviewUpdate: widget.readOnly
+              ? null
+              : (previewRange) {
+                  _selectionLayer.fillPreviewRange = previewRange;
+                  setState(() {});
+                },
+          onFillComplete: widget.readOnly
+              ? null
+              : (sourceRange, destination) {
+                  widget.data.smartFill(sourceRange, destination);
+                  _selectionLayer.fillPreviewRange = null;
+                  _tileManager.invalidateAll();
+                  _layoutVersion++;
+                  setState(() {});
+                },
+          onFillCancel: widget.readOnly
+              ? null
+              : () {
+                  _selectionLayer.fillPreviewRange = null;
+                  setState(() {});
+                },
         );
         _clipboardHandler = ClipboardHandler(
           data: widget.data,
@@ -571,6 +646,42 @@ class _WorksheetState extends State<Worksheet> {
                   final range = _controller.selectionController.selectedRange;
                   if (range == null) return;
                   widget.data.clearRange(range);
+                  _tileManager.invalidateAll();
+                  _layoutVersion++;
+                  setState(() {});
+                },
+          onFillDown: widget.readOnly
+              ? null
+              : () {
+                  final range = _controller.selectionController.selectedRange;
+                  if (range == null || range.rowCount < 2) return;
+                  for (int col = range.startColumn;
+                      col <= range.endColumn;
+                      col++) {
+                    widget.data.fillRange(
+                      CellCoordinate(range.startRow, col),
+                      CellRange(
+                          range.startRow + 1, col, range.endRow, col),
+                    );
+                  }
+                  _tileManager.invalidateAll();
+                  _layoutVersion++;
+                  setState(() {});
+                },
+          onFillRight: widget.readOnly
+              ? null
+              : () {
+                  final range = _controller.selectionController.selectedRange;
+                  if (range == null || range.columnCount < 2) return;
+                  for (int row = range.startRow;
+                      row <= range.endRow;
+                      row++) {
+                    widget.data.fillRange(
+                      CellCoordinate(row, range.startColumn),
+                      CellRange(row, range.startColumn + 1, row,
+                          range.endColumn),
+                    );
+                  }
                   _tileManager.invalidateAll();
                   _layoutVersion++;
                   setState(() {});
@@ -653,10 +764,12 @@ class _WorksheetState extends State<Worksheet> {
                 position: event.localPosition,
                 scrollOffset: Offset(_controller.scrollX, _controller.scrollY),
                 zoom: _controller.zoom,
+                selectionRange: _controller.selectionController.selectedRange,
               );
               final newCursor = switch (hit.type) {
                 HitTestType.rowResizeHandle => SystemMouseCursors.resizeRow,
                 HitTestType.columnResizeHandle => SystemMouseCursors.resizeColumn,
+                HitTestType.fillHandle => SystemMouseCursors.precise,
                 _ => SystemMouseCursors.basic,
               };
               if (_currentCursor != newCursor) {
@@ -715,7 +828,8 @@ class _WorksheetState extends State<Worksheet> {
 
                     // Auto-scroll when dragging outside the content area
                     _lastPointerPosition = event.localPosition;
-                    if (_gestureHandler.isSelectingRange) {
+                    if (_gestureHandler.isSelectingRange ||
+                        _gestureHandler.isFilling) {
                       final contentArea = _getContentArea(theme);
                       final pos = event.localPosition;
                       if (pos.dx < contentArea.left ||

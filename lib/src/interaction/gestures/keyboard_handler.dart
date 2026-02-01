@@ -49,6 +49,12 @@ class KeyboardHandler {
   /// Called when Delete or Backspace is pressed (clear selection).
   final VoidCallback? onDelete;
 
+  /// Called when Ctrl+D (fill down) is pressed.
+  final VoidCallback? onFillDown;
+
+  /// Called when Ctrl+R (fill right) is pressed.
+  final VoidCallback? onFillRight;
+
   /// Creates a keyboard handler.
   KeyboardHandler({
     required this.selectionController,
@@ -60,6 +66,8 @@ class KeyboardHandler {
     this.onCut,
     this.onPaste,
     this.onDelete,
+    this.onFillDown,
+    this.onFillRight,
   });
 
   /// Handles a key event.
@@ -216,6 +224,18 @@ class KeyboardHandler {
     // Clipboard: Ctrl+V (paste)
     if (isControlPressed && logicalKey == LogicalKeyboardKey.keyV) {
       onPaste?.call();
+      return true;
+    }
+
+    // Fill down: Ctrl+D
+    if (isControlPressed && logicalKey == LogicalKeyboardKey.keyD) {
+      onFillDown?.call();
+      return true;
+    }
+
+    // Fill right: Ctrl+R
+    if (isControlPressed && logicalKey == LogicalKeyboardKey.keyR) {
+      onFillRight?.call();
       return true;
     }
 

@@ -21,6 +21,16 @@ typedef OnResizeRowEnd = void Function(int row);
 /// Callback for when column resize ends.
 typedef OnResizeColumnEnd = void Function(int column);
 
+/// Callback for when the fill preview range changes during drag.
+typedef OnFillPreviewUpdate = void Function(CellRange previewRange);
+
+/// Callback for when a fill drag completes.
+typedef OnFillComplete = void Function(
+    CellRange sourceRange, CellCoordinate destination);
+
+/// Callback for when a fill drag is cancelled.
+typedef OnFillCancel = void Function();
+
 /// Handles gesture events for worksheet interaction.
 ///
 /// Coordinates between hit testing and selection/resize operations.
@@ -50,12 +60,24 @@ class WorksheetGestureHandler {
   /// Callback when column resize ends.
   final OnResizeColumnEnd? onResizeColumnEnd;
 
+  /// Callback when the fill preview range changes during drag.
+  final OnFillPreviewUpdate? onFillPreviewUpdate;
+
+  /// Callback when a fill drag completes.
+  final OnFillComplete? onFillComplete;
+
+  /// Callback when a fill drag is cancelled.
+  final OnFillCancel? onFillCancel;
+
   // Internal state
   WorksheetHitTestResult? _dragStartHit;
   Offset? _dragStartPosition;
   Offset? _lastDragPosition;
   bool _isResizing = false;
   bool _isSelectingRange = false;
+  bool _isFilling = false;
+  CellRange? _fillSourceRange;
+  CellCoordinate? _lastFillDestination;
 
   /// Creates a gesture handler.
   WorksheetGestureHandler({
@@ -66,6 +88,9 @@ class WorksheetGestureHandler {
     this.onResizeColumn,
     this.onResizeRowEnd,
     this.onResizeColumnEnd,
+    this.onFillPreviewUpdate,
+    this.onFillComplete,
+    this.onFillCancel,
   });
 
   /// Whether a resize operation is in progress.
@@ -73,6 +98,9 @@ class WorksheetGestureHandler {
 
   /// Whether a range selection drag is in progress.
   bool get isSelectingRange => _isSelectingRange;
+
+  /// Whether a fill handle drag is in progress.
+  bool get isFilling => _isFilling;
 
   /// Handles tap down event.
   void onTapDown({
@@ -138,13 +166,18 @@ class WorksheetGestureHandler {
       position: position,
       scrollOffset: scrollOffset,
       zoom: zoom,
+      selectionRange: selectionController.selectedRange,
     );
 
     _dragStartHit = hit;
     _dragStartPosition = position;
     _lastDragPosition = position;
 
-    if (hit.isResizeHandle) {
+    if (hit.isFillHandle) {
+      _isFilling = true;
+      _fillSourceRange = selectionController.selectedRange;
+      _lastFillDestination = null;
+    } else if (hit.isResizeHandle) {
       _isResizing = true;
     } else if (hit.isCell) {
       _isSelectingRange = true;
@@ -172,7 +205,9 @@ class WorksheetGestureHandler {
   }) {
     if (_dragStartHit == null || _dragStartPosition == null) return;
 
-    if (_isResizing) {
+    if (_isFilling) {
+      _handleFillUpdate(position, scrollOffset, zoom);
+    } else if (_isResizing) {
       _handleResizeUpdate(position, zoom);
     } else if (_isSelectingRange) {
       _handleSelectionUpdate(position, scrollOffset, zoom);
@@ -181,6 +216,22 @@ class WorksheetGestureHandler {
 
   /// Handles drag end event.
   void onDragEnd() {
+    // Handle fill drag completion
+    if (_isFilling) {
+      if (_lastFillDestination != null && _fillSourceRange != null) {
+        onFillComplete?.call(_fillSourceRange!, _lastFillDestination!);
+      } else {
+        onFillCancel?.call();
+      }
+      _isFilling = false;
+      _fillSourceRange = null;
+      _lastFillDestination = null;
+      _dragStartHit = null;
+      _dragStartPosition = null;
+      _lastDragPosition = null;
+      return;
+    }
+
     // Call resize end callbacks if we were resizing
     if (_isResizing && _dragStartHit != null) {
       if (_dragStartHit!.type == HitTestType.rowResizeHandle) {
@@ -212,6 +263,27 @@ class WorksheetGestureHandler {
       // Horizontal resize - use x delta, convert from screen to worksheet
       final worksheetDelta = delta.dx / zoom;
       onResizeColumn?.call(_dragStartHit!.headerIndex!, worksheetDelta);
+    }
+  }
+
+  void _handleFillUpdate(
+    Offset position,
+    Offset scrollOffset,
+    double zoom,
+  ) {
+    if (_fillSourceRange == null) return;
+
+    // Hit test without selectionRange to get the cell under the cursor
+    final hit = hitTester.hitTest(
+      position: position,
+      scrollOffset: scrollOffset,
+      zoom: zoom,
+    );
+
+    if (hit.isCell && hit.cell != null) {
+      _lastFillDestination = hit.cell;
+      final previewRange = _fillSourceRange!.expand(hit.cell!);
+      onFillPreviewUpdate?.call(previewRange);
     }
   }
 

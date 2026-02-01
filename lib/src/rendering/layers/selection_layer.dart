@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import '../../core/models/cell_range.dart';
 import '../../interaction/controllers/selection_controller.dart';
 import '../painters/selection_renderer.dart';
 import 'render_layer.dart';
@@ -18,11 +19,18 @@ class SelectionLayer extends RenderLayer {
   /// Callback to trigger repaint when selection changes.
   final VoidCallback? onNeedsPaint;
 
+  /// Whether to show the fill handle at the bottom-right of the selection.
+  final bool showFillHandle;
+
+  /// The fill preview range to display during a fill drag.
+  CellRange? fillPreviewRange;
+
   /// Creates a selection layer.
   SelectionLayer({
     required this.selectionController,
     required this.renderer,
     this.onNeedsPaint,
+    this.showFillHandle = true,
     super.enabled,
   }) {
     selectionController.addListener(_onSelectionChanged);
@@ -65,6 +73,26 @@ class SelectionLayer extends RenderLayer {
         zoom: context.zoom,
         range: range,
         focus: focus,
+      );
+    }
+
+    // Paint fill handle at bottom-right of selection
+    if (showFillHandle) {
+      renderer.paintFillHandle(
+        canvas: context.canvas,
+        viewportOffset: context.scrollOffset,
+        zoom: context.zoom,
+        range: range,
+      );
+    }
+
+    // Paint fill preview range during drag
+    if (fillPreviewRange != null) {
+      renderer.paintFillPreview(
+        canvas: context.canvas,
+        viewportOffset: context.scrollOffset,
+        zoom: context.zoom,
+        range: fillPreviewRange!,
       );
     }
   }

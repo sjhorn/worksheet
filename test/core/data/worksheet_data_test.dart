@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/data_change_event.dart';
 import 'package:worksheet/src/core/data/worksheet_data.dart';
+import 'package:worksheet/src/core/models/cell.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/core/models/cell_style.dart';
@@ -53,7 +54,9 @@ class _MinimalWorksheetData extends WorksheetData {
   Stream<DataChangeEvent> get changes => _controller.stream;
 
   @override
-  Iterable<MapEntry<CellCoordinate, CellValue>> getCellsInRange(CellRange range) {
+  Iterable<MapEntry<CellCoordinate, CellValue>> getCellsInRange(
+    CellRange range,
+  ) {
     return _cells.entries.where((e) => range.contains(e.key));
   }
 
@@ -65,6 +68,32 @@ class _MinimalWorksheetData extends WorksheetData {
   @override
   void dispose() {
     _controller.close();
+  }
+
+  @override
+  Future<void> batchUpdateAsync(
+    Future<void> Function(WorksheetDataBatch batch) updates,
+  ) {
+    // TODO: implement batchUpdateAsync
+    throw UnimplementedError();
+  }
+
+  @override
+  void fillRange(
+    CellCoordinate source,
+    CellRange range, [
+    Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
+  ]) {
+    // Minimal implementation
+  }
+
+  @override
+  void smartFill(
+    CellRange range,
+    CellCoordinate destination, [
+    Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
+  ]) {
+    // Minimal implementation
   }
 
   // Note: We intentionally do NOT override hasValue to test the default implementation

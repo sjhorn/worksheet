@@ -26,6 +26,12 @@ class SelectionStyle {
   /// The border width for the focus cell.
   final double focusBorderWidth;
 
+  /// The color of the fill handle square.
+  final Color fillHandleColor;
+
+  /// The size (side length) of the fill handle square.
+  final double fillHandleSize;
+
   const SelectionStyle({
     this.fillColor = const Color(0x220078D4),
     this.borderColor = const Color(0xFF0078D4),
@@ -33,6 +39,8 @@ class SelectionStyle {
     this.focusFillColor = const Color(0x00000000),
     this.focusBorderColor = const Color(0xFF0078D4),
     this.focusBorderWidth = 1.0, // Thin like Excel
+    this.fillHandleColor = const Color(0xFF0078D4),
+    this.fillHandleSize = 6.0,
   });
 
   /// Default Excel-like selection style.
@@ -56,6 +64,7 @@ class SelectionRenderer {
   late final Paint _fillPaint;
   late final Paint _borderPaint;
   late final Paint _focusBorderPaint;
+  late final Paint _fillHandlePaint;
 
   /// Creates a selection renderer.
   SelectionRenderer({
@@ -77,6 +86,10 @@ class SelectionRenderer {
       ..strokeWidth = style.focusBorderWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false; // Crisp 1px lines
+
+    _fillHandlePaint = Paint()
+      ..color = style.fillHandleColor
+      ..style = PaintingStyle.fill;
   }
 
   /// Paints the selection for a cell range.
@@ -201,5 +214,56 @@ class SelectionRenderer {
     );
 
     canvas.drawRect(screenRect, _fillPaint);
+  }
+
+  /// Paints the fill handle at the bottom-right corner of [range].
+  void paintFillHandle({
+    required Canvas canvas,
+    required Offset viewportOffset,
+    required double zoom,
+    required CellRange range,
+  }) {
+    final bounds = layoutSolver.getRangeBounds(
+      startRow: range.startRow,
+      startColumn: range.startColumn,
+      endRow: range.endRow,
+      endColumn: range.endColumn,
+    );
+
+    // Bottom-right corner in screen coordinates
+    final cornerX = (bounds.right - viewportOffset.dx) * zoom;
+    final cornerY = (bounds.bottom - viewportOffset.dy) * zoom;
+
+    final handleRect = Rect.fromCenter(
+      center: Offset(cornerX, cornerY),
+      width: style.fillHandleSize,
+      height: style.fillHandleSize,
+    );
+
+    canvas.drawRect(handleRect, _fillHandlePaint);
+  }
+
+  /// Paints a dashed-style preview border for the fill region during drag.
+  void paintFillPreview({
+    required Canvas canvas,
+    required Offset viewportOffset,
+    required double zoom,
+    required CellRange range,
+  }) {
+    final bounds = layoutSolver.getRangeBounds(
+      startRow: range.startRow,
+      startColumn: range.startColumn,
+      endRow: range.endRow,
+      endColumn: range.endColumn,
+    );
+
+    final screenBounds = Rect.fromLTRB(
+      (bounds.left - viewportOffset.dx) * zoom,
+      (bounds.top - viewportOffset.dy) * zoom,
+      (bounds.right - viewportOffset.dx) * zoom,
+      (bounds.bottom - viewportOffset.dy) * zoom,
+    );
+
+    canvas.drawRect(screenBounds, _borderPaint);
   }
 }

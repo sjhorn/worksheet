@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import '../../core/geometry/layout_solver.dart';
 import '../../core/models/cell_coordinate.dart';
+import '../../core/models/cell_range.dart';
 import 'hit_test_result.dart';
 
 /// Resolves screen coordinates to worksheet elements.
@@ -36,6 +37,8 @@ class WorksheetHitTester {
     required Offset scrollOffset,
     required double zoom,
     double resizeHandleTolerance = 4.0,
+    CellRange? selectionRange,
+    double fillHandleSize = 6.0,
   }) {
     // Check for negative positions (outside viewport)
     if (position.dx < 0 || position.dy < 0) {
@@ -97,6 +100,25 @@ class WorksheetHitTester {
 
     if (row < 0 || col < 0) {
       return const WorksheetHitTestResult.none();
+    }
+
+    // Fill handle detection: check proximity to bottom-right corner of selection
+    if (selectionRange != null) {
+      final selBottom = layoutSolver.getRowEnd(selectionRange.endRow);
+      final selRight = layoutSolver.getColumnEnd(selectionRange.endColumn);
+
+      // Convert selection corner to screen coordinates
+      final screenCorner = worksheetToScreen(
+        worksheetPosition: Offset(selRight, selBottom),
+        scrollOffset: scrollOffset,
+        zoom: zoom,
+      );
+
+      final tolerance = fillHandleSize / 2 + 2;
+      if ((position.dx - screenCorner.dx).abs() <= tolerance &&
+          (position.dy - screenCorner.dy).abs() <= tolerance) {
+        return WorksheetHitTestResult.fillHandle(CellCoordinate(row, col));
+      }
     }
 
     return WorksheetHitTestResult.cell(CellCoordinate(row, col));

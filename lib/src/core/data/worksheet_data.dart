@@ -1,9 +1,4 @@
-import '../models/cell_coordinate.dart';
-import '../models/cell_format.dart';
-import '../models/cell_range.dart';
-import '../models/cell_style.dart';
-import '../models/cell_value.dart';
-import 'data_change_event.dart';
+import 'package:worksheet/worksheet.dart';
 
 /// Abstract interface for worksheet data access.
 ///
@@ -39,6 +34,11 @@ abstract class WorksheetData {
   /// All changes made within [updates] are batched into a single change event.
   void batchUpdate(void Function(WorksheetDataBatch batch) updates);
 
+  /// Async version for batch updates that may need await
+  Future<void> batchUpdateAsync(
+    Future<void> Function(WorksheetDataBatch batch) updates,
+  );
+
   /// Stream of data change events.
   Stream<DataChangeEvent> get changes;
 
@@ -52,10 +52,26 @@ abstract class WorksheetData {
   bool hasValue(CellCoordinate coord) => getCell(coord) != null;
 
   /// Gets all non-empty cells within [range].
-  Iterable<MapEntry<CellCoordinate, CellValue>> getCellsInRange(CellRange range);
+  Iterable<MapEntry<CellCoordinate, CellValue>> getCellsInRange(
+    CellRange range,
+  );
 
   /// Clears all cells within [range].
   void clearRange(CellRange range);
+
+  /// Pattern fill from range to target cell - either override this or provide a generator
+  void smartFill(
+    CellRange range,
+    CellCoordinate destination, [
+    Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
+  ]);
+
+  /// Implement fill Down / fillRight from source to target - either override this or provide a generator
+  void fillRange(
+    CellCoordinate source,
+    CellRange range, [
+    Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
+  ]);
 
   /// Releases resources.
   void dispose();
@@ -74,4 +90,19 @@ abstract class WorksheetDataBatch {
 
   /// Clears a range within the batch.
   void clearRange(CellRange range);
+
+  /// Fill all cells in range with the same value
+  void fillRangeWithCell(CellRange range, Cell? value);
+
+  /// Clear only values, preserve styles
+  void clearValues(CellRange range);
+
+  /// Clear only styles, preserve values
+  void clearStyles(CellRange range);
+
+  /// Clear only formats, preserve values and styles
+  void clearFormats(CellRange range);
+
+  /// Copy cells from source range to destination
+  void copyRange(CellRange source, CellCoordinate destination);
 }

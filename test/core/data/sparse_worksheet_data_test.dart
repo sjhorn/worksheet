@@ -702,6 +702,373 @@ void main() {
       });
     });
 
+    group('copyRange', () {
+      test('multi-row copy maps columns correctly', () {
+        // Set up a 2x2 source block at (0,0)
+        data.batchUpdate((batch) {
+          batch.setCell(CellCoordinate(0, 0), CellValue.text('A1'));
+          batch.setCell(CellCoordinate(0, 1), CellValue.text('B1'));
+          batch.setCell(CellCoordinate(1, 0), CellValue.text('A2'));
+          batch.setCell(CellCoordinate(1, 1), CellValue.text('B2'));
+        });
+
+        // Copy to (5,5)
+        data.batchUpdate((batch) {
+          batch.copyRange(CellRange(0, 0, 1, 1), CellCoordinate(5, 5));
+        });
+
+        expect(data.getCell(CellCoordinate(5, 5)), CellValue.text('A1'));
+        expect(data.getCell(CellCoordinate(5, 6)), CellValue.text('B1'));
+        expect(data.getCell(CellCoordinate(6, 5)), CellValue.text('A2'));
+        expect(data.getCell(CellCoordinate(6, 6)), CellValue.text('B2'));
+      });
+
+      test('copies styles and formats', () {
+        data.batchUpdate((batch) {
+          batch.setCell(CellCoordinate(0, 0), CellValue.number(42));
+          batch.setStyle(
+            CellCoordinate(0, 0),
+            const CellStyle(fontSize: 14.0),
+          );
+          batch.setFormat(CellCoordinate(0, 0), CellFormat.currency);
+        });
+
+        data.batchUpdate((batch) {
+          batch.copyRange(CellRange(0, 0, 0, 0), CellCoordinate(3, 3));
+        });
+
+        expect(data.getCell(CellCoordinate(3, 3)), CellValue.number(42));
+        expect(data.getStyle(CellCoordinate(3, 3))?.fontSize, 14.0);
+        expect(data.getFormat(CellCoordinate(3, 3)), CellFormat.currency);
+      });
+    });
+
+    group('fillRange', () {
+      test('fills range with source value', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.number(42));
+
+        data.fillRange(
+          CellCoordinate(0, 0),
+          CellRange(1, 0, 3, 0),
+        );
+
+        expect(data.getCell(CellCoordinate(1, 0)), CellValue.number(42));
+        expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(42));
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.number(42));
+      });
+
+      test('copies style and format from source', () {
+        data[(0, 0)] = Cell.number(
+          100,
+          style: const CellStyle(fontSize: 14.0),
+          format: CellFormat.currency,
+        );
+
+        data.fillRange(
+          CellCoordinate(0, 0),
+          CellRange(1, 0, 2, 0),
+        );
+
+        expect(data.getCell(CellCoordinate(1, 0)), CellValue.number(100));
+        expect(data.getStyle(CellCoordinate(1, 0))?.fontSize, 14.0);
+        expect(data.getFormat(CellCoordinate(1, 0)), CellFormat.currency);
+        expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(100));
+        expect(data.getStyle(CellCoordinate(2, 0))?.fontSize, 14.0);
+        expect(data.getFormat(CellCoordinate(2, 0)), CellFormat.currency);
+      });
+
+      test('emits single change event', () async {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('fill'));
+        final events = <DataChangeEvent>[];
+        final subscription = data.changes.listen(events.add);
+
+        data.fillRange(
+          CellCoordinate(0, 0),
+          CellRange(1, 0, 5, 0),
+        );
+
+        await Future.delayed(Duration.zero);
+        await subscription.cancel();
+
+        expect(events.length, 1);
+        expect(events[0].type, DataChangeType.range);
+      });
+
+      test('empty source makes no changes', () async {
+        final events = <DataChangeEvent>[];
+        final subscription = data.changes.listen(events.add);
+
+        data.fillRange(
+          CellCoordinate(0, 0), // empty cell
+          CellRange(1, 0, 3, 0),
+        );
+
+        await Future.delayed(Duration.zero);
+        await subscription.cancel();
+
+        expect(events.length, 0);
+        expect(data.getCell(CellCoordinate(1, 0)), isNull);
+      });
+
+      test('valueGenerator overrides source', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.number(1));
+
+        data.fillRange(
+          CellCoordinate(0, 0),
+          CellRange(1, 0, 3, 0),
+          (coord, sourceCell) => Cell.number(coord.row * 10),
+        );
+
+        expect(data.getCell(CellCoordinate(1, 0)), CellValue.number(10));
+        expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(20));
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.number(30));
+      });
+
+      test('source inside target range is safe', () {
+        data.setCell(CellCoordinate(1, 0), CellValue.text('original'));
+
+        data.fillRange(
+          CellCoordinate(1, 0),
+          CellRange(0, 0, 2, 0),
+        );
+
+        expect(data.getCell(CellCoordinate(0, 0)), CellValue.text('original'));
+        expect(data.getCell(CellCoordinate(1, 0)), CellValue.text('original'));
+        expect(data.getCell(CellCoordinate(2, 0)), CellValue.text('original'));
+      });
+
+      test('fills 2D range', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('fill'));
+
+        data.fillRange(
+          CellCoordinate(0, 0),
+          CellRange(1, 0, 2, 2),
+        );
+
+        for (int row = 1; row <= 2; row++) {
+          for (int col = 0; col <= 2; col++) {
+            expect(
+              data.getCell(CellCoordinate(row, col)),
+              CellValue.text('fill'),
+            );
+          }
+        }
+      });
+    });
+
+    group('smartFill', () {
+      test('fill down: constant value', () {
+        data[(0, 0)] = Cell.number(42);
+
+        // Source is row 0, destination is below at row 3
+        data.smartFill(
+          CellRange(0, 0, 0, 0),
+          CellCoordinate(3, 0),
+        );
+
+        expect(data.getCell(CellCoordinate(1, 0)), CellValue.number(42));
+        expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(42));
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.number(42));
+      });
+
+      test('fill down: linear sequence', () {
+        data[(0, 0)] = Cell.number(1);
+        data[(1, 0)] = Cell.number(2);
+        data[(2, 0)] = Cell.number(3);
+
+        // Source rows 0-2, destination below at row 5
+        data.smartFill(
+          CellRange(0, 0, 2, 0),
+          CellCoordinate(5, 0),
+        );
+
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.number(4));
+        expect(data.getCell(CellCoordinate(4, 0)), CellValue.number(5));
+        expect(data.getCell(CellCoordinate(5, 0)), CellValue.number(6));
+      });
+
+      test('fill down: text with suffix', () {
+        data[(0, 0)] = Cell.text('Item1');
+        data[(1, 0)] = Cell.text('Item2');
+        data[(2, 0)] = Cell.text('Item3');
+
+        data.smartFill(
+          CellRange(0, 0, 2, 0),
+          CellCoordinate(5, 0),
+        );
+
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.text('Item4'));
+        expect(data.getCell(CellCoordinate(4, 0)), CellValue.text('Item5'));
+        expect(data.getCell(CellCoordinate(5, 0)), CellValue.text('Item6'));
+      });
+
+      test('fill down: repeating cycle', () {
+        data[(0, 0)] = Cell.text('A');
+        data[(1, 0)] = Cell.text('B');
+        data[(2, 0)] = Cell.text('C');
+
+        data.smartFill(
+          CellRange(0, 0, 2, 0),
+          CellCoordinate(8, 0),
+        );
+
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.text('A'));
+        expect(data.getCell(CellCoordinate(4, 0)), CellValue.text('B'));
+        expect(data.getCell(CellCoordinate(5, 0)), CellValue.text('C'));
+        expect(data.getCell(CellCoordinate(6, 0)), CellValue.text('A'));
+        expect(data.getCell(CellCoordinate(7, 0)), CellValue.text('B'));
+        expect(data.getCell(CellCoordinate(8, 0)), CellValue.text('C'));
+      });
+
+      test('fill down: date sequence', () {
+        data[(0, 0)] = Cell.date(DateTime(2024, 1, 1));
+        data[(1, 0)] = Cell.date(DateTime(2024, 1, 2));
+        data[(2, 0)] = Cell.date(DateTime(2024, 1, 3));
+
+        data.smartFill(
+          CellRange(0, 0, 2, 0),
+          CellCoordinate(4, 0),
+        );
+
+        expect(
+          data.getCell(CellCoordinate(3, 0)),
+          CellValue.date(DateTime(2024, 1, 4)),
+        );
+        expect(
+          data.getCell(CellCoordinate(4, 0)),
+          CellValue.date(DateTime(2024, 1, 5)),
+        );
+      });
+
+      test('fill right: linear sequence', () {
+        data[(0, 0)] = Cell.number(10);
+        data[(0, 1)] = Cell.number(20);
+        data[(0, 2)] = Cell.number(30);
+
+        // Source cols 0-2, destination to the right at col 5
+        data.smartFill(
+          CellRange(0, 0, 0, 2),
+          CellCoordinate(0, 5),
+        );
+
+        expect(data.getCell(CellCoordinate(0, 3)), CellValue.number(40));
+        expect(data.getCell(CellCoordinate(0, 4)), CellValue.number(50));
+        expect(data.getCell(CellCoordinate(0, 5)), CellValue.number(60));
+      });
+
+      test('fill up: reversed extrapolation', () {
+        data[(5, 0)] = Cell.number(1);
+        data[(6, 0)] = Cell.number(2);
+        data[(7, 0)] = Cell.number(3);
+
+        // Source rows 5-7, destination above at row 2
+        data.smartFill(
+          CellRange(5, 0, 7, 0),
+          CellCoordinate(2, 0),
+        );
+
+        // Filling upward: row 4 = 0, row 3 = -1, row 2 = -2
+        expect(data.getCell(CellCoordinate(4, 0)), CellValue.number(0));
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.number(-1));
+        expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(-2));
+      });
+
+      test('fill left: reversed extrapolation', () {
+        data[(0, 5)] = Cell.number(10);
+        data[(0, 6)] = Cell.number(20);
+        data[(0, 7)] = Cell.number(30);
+
+        // Source cols 5-7, destination to the left at col 2
+        data.smartFill(
+          CellRange(0, 5, 0, 7),
+          CellCoordinate(0, 2),
+        );
+
+        // Filling leftward: col 4 = 0, col 3 = -10, col 2 = -20
+        expect(data.getCell(CellCoordinate(0, 4)), CellValue.number(0));
+        expect(data.getCell(CellCoordinate(0, 3)), CellValue.number(-10));
+        expect(data.getCell(CellCoordinate(0, 2)), CellValue.number(-20));
+      });
+
+      test('multi-column fill down with independent patterns', () {
+        // Column 0: numeric sequence
+        data[(0, 0)] = Cell.number(1);
+        data[(1, 0)] = Cell.number(2);
+
+        // Column 1: text sequence
+        data[(0, 1)] = Cell.text('Q1');
+        data[(1, 1)] = Cell.text('Q2');
+
+        data.smartFill(
+          CellRange(0, 0, 1, 1),
+          CellCoordinate(3, 1),
+        );
+
+        // Column 0 continues: 3, 4
+        expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(3));
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.number(4));
+
+        // Column 1 continues: Q3, Q4
+        expect(data.getCell(CellCoordinate(2, 1)), CellValue.text('Q3'));
+        expect(data.getCell(CellCoordinate(3, 1)), CellValue.text('Q4'));
+      });
+
+      test('emits single change event', () async {
+        data[(0, 0)] = Cell.number(1);
+        data[(1, 0)] = Cell.number(2);
+        final events = <DataChangeEvent>[];
+        final subscription = data.changes.listen(events.add);
+
+        data.smartFill(
+          CellRange(0, 0, 1, 0),
+          CellCoordinate(5, 0),
+        );
+
+        await Future.delayed(Duration.zero);
+        await subscription.cancel();
+
+        expect(events.length, 1);
+        expect(events[0].type, DataChangeType.range);
+      });
+
+      test('valueGenerator overrides auto-detection', () {
+        data[(0, 0)] = Cell.number(1);
+        data[(1, 0)] = Cell.number(2);
+
+        data.smartFill(
+          CellRange(0, 0, 1, 0),
+          CellCoordinate(4, 0),
+          (coord, sourceCell) => Cell.text('custom${coord.row}'),
+        );
+
+        expect(data.getCell(CellCoordinate(2, 0)), CellValue.text('custom2'));
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.text('custom3'));
+        expect(data.getCell(CellCoordinate(4, 0)), CellValue.text('custom4'));
+      });
+
+      test('preserves style and format', () {
+        data[(0, 0)] = Cell.number(
+          10,
+          style: const CellStyle(fontSize: 14.0),
+          format: CellFormat.currency,
+        );
+        data[(1, 0)] = Cell.number(
+          20,
+          style: const CellStyle(fontSize: 14.0),
+          format: CellFormat.currency,
+        );
+
+        data.smartFill(
+          CellRange(0, 0, 1, 0),
+          CellCoordinate(3, 0),
+        );
+
+        expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(30));
+        expect(data.getStyle(CellCoordinate(2, 0))?.fontSize, 14.0);
+        expect(data.getFormat(CellCoordinate(2, 0)), CellFormat.currency);
+      });
+    });
+
     group('dispose', () {
       test('closes change stream', () async {
         final completer = Completer<void>();
