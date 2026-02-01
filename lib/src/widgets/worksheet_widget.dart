@@ -890,6 +890,7 @@ class _WorksheetState extends State<Worksheet> {
                             theme.rowHeaderWidth * _controller.zoom,
                             theme.columnHeaderHeight * _controller.zoom,
                           ),
+                          layoutVersion: _layoutVersion,
                         ),
                       ),
                     ),
@@ -907,6 +908,7 @@ class _WorksheetState extends State<Worksheet> {
                             _controller.scrollY / _controller.zoom,
                           ),
                           zoom: _controller.zoom,
+                          layoutVersion: _layoutVersion,
                         ),
                       ),
                     ),
@@ -1059,12 +1061,14 @@ class _SelectionPainter extends CustomPainter {
   final Offset scrollOffset;
   final double zoom;
   final Offset headerOffset;
+  final int layoutVersion;
 
   _SelectionPainter({
     required this.layer,
     required this.scrollOffset,
     required this.zoom,
     required this.headerOffset,
+    required this.layoutVersion,
   }) : super(repaint: layer.selectionController);
 
   @override
@@ -1088,7 +1092,8 @@ class _SelectionPainter extends CustomPainter {
   bool shouldRepaint(_SelectionPainter oldDelegate) {
     return scrollOffset != oldDelegate.scrollOffset ||
         zoom != oldDelegate.zoom ||
-        headerOffset != oldDelegate.headerOffset;
+        headerOffset != oldDelegate.headerOffset ||
+        layoutVersion != oldDelegate.layoutVersion;
   }
 }
 
@@ -1097,11 +1102,13 @@ class _HeaderPainter extends CustomPainter {
   final HeaderLayer layer;
   final Offset scrollOffset;
   final double zoom;
+  final int layoutVersion;
 
   _HeaderPainter({
     required this.layer,
     required this.scrollOffset,
     required this.zoom,
+    required this.layoutVersion,
   }) : super(repaint: layer.selectionController);
 
   @override
@@ -1116,6 +1123,8 @@ class _HeaderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HeaderPainter oldDelegate) {
-    return scrollOffset != oldDelegate.scrollOffset || zoom != oldDelegate.zoom;
+    return scrollOffset != oldDelegate.scrollOffset ||
+        zoom != oldDelegate.zoom ||
+        layoutVersion != oldDelegate.layoutVersion;
   }
 }
