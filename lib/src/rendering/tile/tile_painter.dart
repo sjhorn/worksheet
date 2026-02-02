@@ -81,6 +81,12 @@ class TilePainter implements TileRenderer {
     final localCullRect = ui.Rect.fromLTWH(0, 0, bounds.width, bounds.height);
     final canvas = Canvas(recorder, localCullRect);
 
+    // Hard-clip to tile bounds — cullRect is only a performance hint, not a
+    // clip.  Without this, cell backgrounds that straddle a tile boundary
+    // overflow into the Picture and get composited on top of adjacent tiles,
+    // hiding text in neighbouring cells.
+    canvas.clipRect(localCullRect);
+
     // Fill background
     canvas.drawRect(
       ui.Rect.fromLTWH(0, 0, bounds.width, bounds.height),
@@ -93,9 +99,19 @@ class TilePainter implements TileRenderer {
     }
 
     // Render cells on top (backgrounds will cover gridlines where present)
-    _renderCells(canvas, bounds, cellRange, zoomBucket);
+    // Collect TextPainters for deferred disposal — disposing native Paragraph
+    // resources before endRecording() can cause missing text on some backends.
+    final textPainters = <TextPainter>[];
+    _renderCells(canvas, bounds, cellRange, zoomBucket, textPainters);
 
-    return recorder.endRecording();
+    final picture = recorder.endRecording();
+
+    // Now safe to dispose TextPainters — picture has captured all draw commands
+    for (final tp in textPainters) {
+      tp.dispose();
+    }
+
+    return picture;
   }
 
   void _renderCells(
@@ -103,6 +119,7 @@ class TilePainter implements TileRenderer {
     ui.Rect tileBounds,
     CellRange cellRange,
     ZoomBucket zoomBucket,
+    List<TextPainter> textPainters,
   ) {
     final shouldRenderText = _shouldRenderText(zoomBucket);
 
@@ -142,7 +159,8 @@ class TilePainter implements TileRenderer {
           if (value != null) {
             final format = data.getFormat(coord);
             _renderCellContent(
-                canvas, localBounds, value, style, zoomBucket, format);
+                canvas, localBounds, value, style, zoomBucket, format,
+                textPainters);
           }
         }
       }
@@ -164,6 +182,7 @@ class TilePainter implements TileRenderer {
     CellStyle? style,
     ZoomBucket zoomBucket,
     CellFormat? format,
+    List<TextPainter> textPainters,
   ) {
     final mergedStyle = CellStyle.defaultStyle.merge(style);
     final text = format != null ? format.format(value) : value.displayValue;
@@ -198,8 +217,9 @@ class TilePainter implements TileRenderer {
     textPainter.paint(canvas, offset);
     canvas.restore();
 
-    // Dispose text painter
-    textPainter.dispose();
+    // Defer disposal — the PictureRecorder may reference the native Paragraph
+    // until endRecording() finalizes the picture.
+    textPainters.add(textPainter);
   }
 
   Color _getTextColor(CellValue value, CellStyle style) {

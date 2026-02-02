@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/geometry/layout_solver.dart';
 import 'package:worksheet/src/core/geometry/span_list.dart';
 import 'package:worksheet/src/core/geometry/zoom_transformer.dart';
+import 'package:worksheet/src/core/models/cell_coordinate.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/rendering/tile/tile.dart';
 import 'package:worksheet/src/rendering/tile/tile_config.dart';
@@ -294,6 +295,226 @@ void main() {
 
         // Accessing after dispose should still work (creates new tiles)
         // but internal state is cleared
+      });
+    });
+
+    group('column resize cell coverage', () {
+      // These tests verify that after a column resize, every visible cell
+      // is covered by at least one tile's cell range (no gaps).
+
+      late LayoutSolver resizeSolver;
+      late TileManager resizeManager;
+      late TestTileRenderer resizeRenderer;
+
+      setUp(() {
+        // Use example-app dimensions: 20px rows, 64px columns
+        resizeSolver = LayoutSolver(
+          rows: SpanList(count: 100, defaultSize: 20.0),
+          columns: SpanList(count: 26, defaultSize: 64.0),
+        );
+        resizeRenderer = TestTileRenderer();
+        resizeManager = TileManager(
+          layoutSolver: resizeSolver,
+          config: const TileConfig(tileSize: 256, maxCachedTiles: 50),
+          renderer: resizeRenderer,
+        );
+      });
+
+      tearDown(() {
+        resizeManager.dispose();
+      });
+
+      /// Returns all (row, col) pairs covered by at least one tile's
+      /// cell range for the given viewport.
+      Set<(int, int)> getCoveredCells(ui.Rect viewport) {
+        final coords = resizeManager.getTileCoordinatesForViewport(
+          viewport: viewport,
+        );
+        final covered = <(int, int)>{};
+        for (final coord in coords) {
+          final range = resizeManager.getCellRangeForTile(
+            coord, ZoomBucket.full,
+          );
+          for (int r = range.startRow; r <= range.endRow; r++) {
+            for (int c = range.startColumn; c <= range.endColumn; c++) {
+              covered.add((r, c));
+            }
+          }
+        }
+        return covered;
+      }
+
+      /// Returns the set of (row, col) pairs that are geometrically
+      /// visible in the viewport, based on the layout solver.
+      Set<(int, int)> getExpectedVisibleCells(ui.Rect viewport) {
+        final rowRange = resizeSolver.getVisibleRows(
+          viewport.top, viewport.height,
+        );
+        final colRange = resizeSolver.getVisibleColumns(
+          viewport.left, viewport.width,
+        );
+        final expected = <(int, int)>{};
+        for (int r = rowRange.startIndex; r <= rowRange.endIndex; r++) {
+          for (int c = colRange.startIndex; c <= colRange.endIndex; c++) {
+            expected.add((r, c));
+          }
+        }
+        return expected;
+      }
+
+      test('all visible cells covered before resize', () {
+        const viewport = ui.Rect.fromLTWH(0, 0, 800, 600);
+        final covered = getCoveredCells(viewport);
+        final expected = getExpectedVisibleCells(viewport);
+
+        // Every expected cell should be covered by a tile
+        for (final cell in expected) {
+          expect(covered, contains(cell),
+              reason: 'Cell (${cell.$1}, ${cell.$2}) not covered');
+        }
+      });
+
+      test('all visible cells covered after widening column 0', () {
+        const viewport = ui.Rect.fromLTWH(0, 0, 800, 600);
+
+        // Resize column 0 from 64px to 150px
+        resizeSolver.setColumnWidth(0, 150.0);
+        resizeManager.invalidateAll();
+
+        final covered = getCoveredCells(viewport);
+        final expected = getExpectedVisibleCells(viewport);
+
+        for (final cell in expected) {
+          expect(covered, contains(cell),
+              reason: 'Cell (${cell.$1}, ${cell.$2}) not covered after resize');
+        }
+      });
+
+      test('all visible cells covered after narrowing column 0', () {
+        const viewport = ui.Rect.fromLTWH(0, 0, 800, 600);
+
+        // Resize column 0 from 64px to 25px (near minimum)
+        resizeSolver.setColumnWidth(0, 25.0);
+        resizeManager.invalidateAll();
+
+        final covered = getCoveredCells(viewport);
+        final expected = getExpectedVisibleCells(viewport);
+
+        for (final cell in expected) {
+          expect(covered, contains(cell),
+              reason: 'Cell (${cell.$1}, ${cell.$2}) not covered after narrow');
+        }
+      });
+
+      test('all visible cells covered after widening column wider than tile',
+          () {
+        const viewport = ui.Rect.fromLTWH(0, 0, 800, 600);
+
+        // Make column 0 wider than a tile (300px > 256px)
+        resizeSolver.setColumnWidth(0, 300.0);
+        resizeManager.invalidateAll();
+
+        final covered = getCoveredCells(viewport);
+        final expected = getExpectedVisibleCells(viewport);
+
+        for (final cell in expected) {
+          expect(covered, contains(cell),
+              reason: 'Cell (${cell.$1}, ${cell.$2}) not covered (wide col)');
+        }
+      });
+
+      test('all visible cells covered after multiple column resizes', () {
+        const viewport = ui.Rect.fromLTWH(0, 0, 800, 600);
+
+        // Simulate incremental drag resize (multiple small changes)
+        for (var width = 64.0; width <= 200.0; width += 5.0) {
+          resizeSolver.setColumnWidth(2, width);
+          resizeManager.invalidateAll();
+        }
+
+        final covered = getCoveredCells(viewport);
+        final expected = getExpectedVisibleCells(viewport);
+
+        for (final cell in expected) {
+          expect(covered, contains(cell),
+              reason:
+                  'Cell (${cell.$1}, ${cell.$2}) not covered after '
+                  'incremental resize');
+        }
+      });
+
+      test('cells at tile boundaries are intersect-checked correctly', () {
+        // Resize column 0 so that cells straddle tile boundaries
+        // (offset columns from tile grid alignment)
+        resizeSolver.setColumnWidth(0, 100.0);
+        resizeManager.invalidateAll();
+
+        const tileSize = 256.0;
+
+        // Check tiles along the first row
+        for (var tileCol = 0; tileCol < 4; tileCol++) {
+          final tileBounds = ui.Rect.fromLTWH(
+            tileCol * tileSize, 0, tileSize, tileSize,
+          );
+          final coord = TileCoordinate(0, tileCol);
+          final range = resizeManager.getCellRangeForTile(
+            coord, ZoomBucket.full,
+          );
+
+          // Every cell in the range should geometrically intersect
+          // the tile bounds
+          for (int r = range.startRow; r <= range.endRow; r++) {
+            for (int c = range.startColumn; c <= range.endColumn; c++) {
+              final cellBounds = resizeSolver.getCellBounds(
+                CellCoordinate(r, c),
+              );
+              final localLeft = cellBounds.left - tileBounds.left;
+              final localTop = cellBounds.top - tileBounds.top;
+
+              // Replicate _boundsIntersect check
+              final intersects =
+                  localLeft < tileSize &&
+                  localLeft + cellBounds.width > 0 &&
+                  localTop < tileSize &&
+                  localTop + cellBounds.height > 0;
+
+              expect(intersects, isTrue,
+                  reason:
+                      'Cell ($r, $c) in tile (0, $tileCol) range but '
+                      'does not intersect tile bounds');
+            }
+          }
+        }
+      });
+
+      test('tiles re-render all viewport tiles after invalidateAll', () {
+        const viewport = ui.Rect.fromLTWH(0, 0, 800, 600);
+
+        // Initial render
+        resizeManager.getTilesForViewport(
+          viewport: viewport,
+          zoomBucket: ZoomBucket.full,
+        );
+        final renderCount1 = resizeRenderer.renderCallCount;
+
+        // Resize and invalidate
+        resizeSolver.setColumnWidth(0, 150.0);
+        resizeManager.invalidateAll();
+
+        // Re-render
+        final tiles2 = resizeManager.getTilesForViewport(
+          viewport: viewport,
+          zoomBucket: ZoomBucket.full,
+        );
+        final renderCount2 = resizeRenderer.renderCallCount;
+
+        // All viewport tiles should have been re-rendered
+        expect(renderCount2 - renderCount1, equals(tiles2.length));
+
+        // All returned tiles should be valid
+        for (final tile in tiles2) {
+          expect(tile.isValid, isTrue);
+        }
       });
     });
   });

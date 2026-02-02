@@ -236,6 +236,7 @@ The worksheet is divided into 256×256 pixel tiles, each rendered to a GPU-backe
         │
         └──► Cache MISS: TilePainter.renderTile()
                 │
+                ├── clipRect to tile bounds (hard clip)
                 ├── Draw background
                 ├── Draw gridlines (if zoom ≥ 40%)
                 └── Draw cell contents (if zoom ≥ 25%)
@@ -501,10 +502,13 @@ TilePainter.renderTile(
 ```
 
 **Rendering order:**
-1. Fill background (white)
-2. Draw gridlines (if zoom ≥ 40%)
-3. Draw cell backgrounds (styled cells)
-4. Draw cell text (if zoom ≥ 25%)
+1. Hard-clip canvas to tile bounds (`cullRect` is only a hint)
+2. Fill background (white)
+3. Draw gridlines (if zoom ≥ 40%)
+4. Draw cell backgrounds (styled cells)
+5. Draw cell text (if zoom ≥ 25%)
+6. `endRecording()` to finalize the `ui.Picture`
+7. Dispose `TextPainter`s (must be after step 6)
 
 **LOD optimizations:**
 - Skip gridlines below 40% zoom

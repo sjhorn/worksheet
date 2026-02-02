@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WorksheetController.hasLayout` / `layoutSolver` / `headerWidth` / `headerHeight` — public read access to the widget's internal layout state
 - `WorksheetController.attachLayout()` / `detachLayout()` — called by the `Worksheet` widget to share its internal `LayoutSolver`
 
+### Fixed
+- Cell text disappearing on alternating rows after column resize — cell backgrounds straddling a tile boundary overflowed into adjacent tiles because `PictureRecorder` `cullRect` is only a hint; added hard `clipRect` to tile canvas
+- Deferred `TextPainter` disposal until after `PictureRecorder.endRecording()` to prevent premature native `Paragraph` resource release
+
 ### Changed
 - `Worksheet` widget now attaches its `LayoutSolver` and header dimensions to the controller after initialization
 - Simplified `_ensureSelectionVisible` in `Worksheet` to use `ensureCellVisible`
