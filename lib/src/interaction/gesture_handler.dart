@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui';
 
 import '../core/models/cell_coordinate.dart';
@@ -5,6 +6,9 @@ import '../core/models/cell_range.dart';
 import 'controllers/selection_controller.dart';
 import 'hit_testing/hit_test_result.dart';
 import 'hit_testing/hit_tester.dart';
+
+/// The axis along which a fill drag is constrained.
+enum FillAxis { vertical, horizontal }
 
 /// Callback for when a cell should be edited.
 typedef OnEditCell = void Function(CellCoordinate cell);
@@ -78,6 +82,7 @@ class WorksheetGestureHandler {
   bool _isFilling = false;
   CellRange? _fillSourceRange;
   CellCoordinate? _lastFillDestination;
+  FillAxis? _fillAxis;
 
   /// Creates a gesture handler.
   WorksheetGestureHandler({
@@ -112,7 +117,12 @@ class WorksheetGestureHandler {
       position: position,
       scrollOffset: scrollOffset,
       zoom: zoom,
+      selectionRange: selectionController.selectedRange,
     );
+
+    // Don't change selection when tapping fill or resize handles —
+    // those are handled by onDragStart.
+    if (hit.isFillHandle || hit.isResizeHandle) return;
 
     if (hit.isCell) {
       selectionController.selectCell(hit.cell!);
@@ -177,6 +187,7 @@ class WorksheetGestureHandler {
       _isFilling = true;
       _fillSourceRange = selectionController.selectedRange;
       _lastFillDestination = null;
+      _fillAxis = null;
     } else if (hit.isResizeHandle) {
       _isResizing = true;
     } else if (hit.isCell) {
@@ -226,6 +237,7 @@ class WorksheetGestureHandler {
       _isFilling = false;
       _fillSourceRange = null;
       _lastFillDestination = null;
+      _fillAxis = null;
       _dragStartHit = null;
       _dragStartPosition = null;
       _lastDragPosition = null;
@@ -280,11 +292,73 @@ class WorksheetGestureHandler {
       zoom: zoom,
     );
 
-    if (hit.isCell && hit.cell != null) {
-      _lastFillDestination = hit.cell;
-      final previewRange = _fillSourceRange!.expand(hit.cell!);
+    if (!hit.isCell || hit.cell == null) return;
+    final cell = hit.cell!;
+    final source = _fillSourceRange!;
+
+    // Single-cell source: no series to disambiguate, expand freely
+    final isSingleCell = source.startRow == source.endRow &&
+        source.startColumn == source.endColumn;
+    if (isSingleCell) {
+      _lastFillDestination = cell;
+      final previewRange = source.expand(cell);
       onFillPreviewUpdate?.call(previewRange);
+      return;
     }
+
+    // If cursor is still inside the source range and axis not yet locked, skip
+    if (source.contains(cell) && _fillAxis == null) return;
+
+    // Lock axis on first cell outside source range
+    if (_fillAxis == null) {
+      final outsideRow =
+          cell.row < source.startRow || cell.row > source.endRow;
+      final outsideCol =
+          cell.column < source.startColumn || cell.column > source.endColumn;
+
+      if (outsideRow && outsideCol) {
+        // Diagonal — use pixel displacement to break tie
+        final dx = (position.dx - _dragStartPosition!.dx).abs();
+        final dy = (position.dy - _dragStartPosition!.dy).abs();
+        _fillAxis = dy >= dx ? FillAxis.vertical : FillAxis.horizontal;
+      } else if (outsideRow) {
+        _fillAxis = FillAxis.vertical;
+      } else if (outsideCol) {
+        _fillAxis = FillAxis.horizontal;
+      } else {
+        return; // Still inside source (shouldn't reach here)
+      }
+    }
+
+    // Constrain destination to the locked axis
+    final CellCoordinate constrained;
+    if (_fillAxis == FillAxis.vertical) {
+      constrained = CellCoordinate(cell.row, source.endColumn);
+    } else {
+      constrained = CellCoordinate(source.endRow, cell.column);
+    }
+
+    _lastFillDestination = constrained;
+
+    // Build the preview range: source expanded along the locked axis only
+    final CellRange previewRange;
+    if (_fillAxis == FillAxis.vertical) {
+      previewRange = CellRange(
+        math.min(source.startRow, constrained.row),
+        source.startColumn,
+        math.max(source.endRow, constrained.row),
+        source.endColumn,
+      );
+    } else {
+      previewRange = CellRange(
+        source.startRow,
+        math.min(source.startColumn, constrained.column),
+        source.endRow,
+        math.max(source.endColumn, constrained.column),
+      );
+    }
+
+    onFillPreviewUpdate?.call(previewRange);
   }
 
   void _handleSelectionUpdate(

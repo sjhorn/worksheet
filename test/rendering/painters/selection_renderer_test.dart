@@ -55,6 +55,21 @@ void main() {
       expect(style.fillHandleSize, 6.0);
     });
 
+    test('has fill preview defaults', () {
+      const style = SelectionStyle();
+      expect(style.fillPreviewColor, const Color(0x110078D4));
+      expect(style.fillPreviewBorderColor, const Color(0x880078D4));
+    });
+
+    test('fill preview can be customized', () {
+      const style = SelectionStyle(
+        fillPreviewColor: Color(0x22FF0000),
+        fillPreviewBorderColor: Color(0xAAFF0000),
+      );
+      expect(style.fillPreviewColor, const Color(0x22FF0000));
+      expect(style.fillPreviewBorderColor, const Color(0xAAFF0000));
+    });
+
     test('fill handle can be customized', () {
       const style = SelectionStyle(
         fillHandleColor: Color(0xFFFF0000),

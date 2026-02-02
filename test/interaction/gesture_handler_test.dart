@@ -68,12 +68,12 @@ void main() {
         handler.onTapDown(position: const Offset(60.0, 40.0), scrollOffset: Offset.zero, zoom: 1.0);
         handler.onTapUp(position: const Offset(60.0, 40.0), scrollOffset: Offset.zero, zoom: 1.0);
 
-        // Then tap on cell (1, 1) - at (150, 54) based on layout
-        // Column 1 starts at 100, row 1 starts at 24
-        // Screen position = header + worksheet position * zoom
-        // = (50, 30) + (100, 24) = (150, 54)
-        handler.onTapDown(position: const Offset(155.0, 60.0), scrollOffset: Offset.zero, zoom: 1.0);
-        handler.onTapUp(position: const Offset(155.0, 60.0), scrollOffset: Offset.zero, zoom: 1.0);
+        // Then tap on cell (1, 1) - center of cell
+        // Column 1: x = 100..200 (worksheet), screen x = 150..250
+        // Row 1: y = 24..48 (worksheet), screen y = 54..78
+        // Center: (200, 66) — well away from any fill handle
+        handler.onTapDown(position: const Offset(200.0, 66.0), scrollOffset: Offset.zero, zoom: 1.0);
+        handler.onTapUp(position: const Offset(200.0, 66.0), scrollOffset: Offset.zero, zoom: 1.0);
 
         expect(selectionController.focus, equals(CellCoordinate(1, 1)));
       });
@@ -515,6 +515,62 @@ void main() {
         expect(fillHandler.isFilling, isFalse);
       });
 
+      test('onTapDown on fill handle does not collapse selection', () {
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+
+        // Tap at the fill handle position — should NOT collapse the selection
+        // Fill handle is at bottom-right of (0,0)-(2,2): screen (350, 102)
+        handler.onTapDown(
+          position: const Offset(349.0, 101.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Selection should remain as the original range, not collapse to single cell
+        final range = selectionController.selectedRange!;
+        expect(range, const CellRange(0, 0, 2, 2));
+      });
+
+      test('fill source range preserves original multi-cell selection', () {
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+
+        CellRange? completedSource;
+
+        final fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) {},
+          onFillComplete: (source, dest) {
+            completedSource = source;
+          },
+          onFillCancel: () {},
+        );
+
+        // Simulate full pointer-down flow: onTapDown then onDragStart
+        const fillHandlePos = Offset(349.0, 101.0);
+        fillHandler.onTapDown(
+          position: fillHandlePos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        fillHandler.onDragStart(
+          position: fillHandlePos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag down
+        fillHandler.onDragUpdate(
+          position: const Offset(200.0, 138.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        fillHandler.onDragEnd();
+
+        // Source should be the original multi-cell range, not a single cell
+        expect(completedSource, const CellRange(0, 0, 2, 2));
+      });
+
       test('short drag with no update calls onFillCancel', () {
         selectionController.selectRange(const CellRange(0, 0, 2, 2));
 
@@ -541,6 +597,336 @@ void main() {
 
         expect(cancelCalled, isTrue);
         expect(fillHandler.isFilling, isFalse);
+      });
+    });
+
+    group('fill axis constraint', () {
+      // Layout: headerWidth=50, headerHeight=30, rowHeight=24, colWidth=100
+      // Selection (0,0)-(2,2): rows 0-72, cols 0-300
+      // Fill handle at screen (350, 102)
+      // Cell (r,c) screen position: (50 + c*100 + 50, 30 + r*24 + 12)
+
+      late WorksheetGestureHandler fillHandler;
+      late List<CellRange> previewRanges;
+      CellRange? completedSource;
+      CellCoordinate? completedDest;
+
+      setUp(() {
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+        previewRanges = [];
+        completedSource = null;
+        completedDest = null;
+
+        fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) => previewRanges.add(range),
+          onFillComplete: (source, dest) {
+            completedSource = source;
+            completedDest = dest;
+          },
+          onFillCancel: () {},
+        );
+      });
+
+      void startFillDrag() {
+        fillHandler.onDragStart(
+          position: const Offset(349.0, 101.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+      }
+
+      test('drag down locks to vertical axis', () {
+        startFillDrag();
+
+        // Drag to row 4, col 1 (inside source cols) — screen (200, 138)
+        fillHandler.onDragUpdate(
+          position: const Offset(200.0, 138.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, hasLength(1));
+        final preview = previewRanges.last;
+        // Vertical: rows expand, columns stay as source
+        expect(preview.startRow, 0);
+        expect(preview.endRow, 4);
+        expect(preview.startColumn, 0);
+        expect(preview.endColumn, 2);
+      });
+
+      test('drag right locks to horizontal axis', () {
+        startFillDrag();
+
+        // Drag to col 4 (x = 50 + 4*100 + 50 = 500), row 1 (inside source rows)
+        // Screen: (500, 60)
+        fillHandler.onDragUpdate(
+          position: const Offset(500.0, 60.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, hasLength(1));
+        final preview = previewRanges.last;
+        // Horizontal: columns expand, rows stay as source
+        expect(preview.startRow, 0);
+        expect(preview.endRow, 2);
+        expect(preview.startColumn, 0);
+        expect(preview.endColumn, 4);
+      });
+
+      test('drag up locks to vertical axis', () {
+        // Select range (3,0)-(5,2) so we can drag up
+        selectionController.selectRange(const CellRange(3, 0, 5, 2));
+        fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) => previewRanges.add(range),
+          onFillComplete: (source, dest) {
+            completedSource = source;
+            completedDest = dest;
+          },
+          onFillCancel: () {},
+        );
+
+        // Fill handle for (3,0)-(5,2): row 5 ends at 144, col 2 ends at 300
+        // Screen: (350, 174)
+        fillHandler.onDragStart(
+          position: const Offset(349.0, 173.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag up to row 1: screen y = 30 + 1*24 + 12 = 66
+        fillHandler.onDragUpdate(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, hasLength(1));
+        final preview = previewRanges.last;
+        expect(preview.startRow, 1);
+        expect(preview.endRow, 5);
+        expect(preview.startColumn, 0);
+        expect(preview.endColumn, 2);
+      });
+
+      test('drag left locks to horizontal axis', () {
+        // Select range (0,3)-(2,5)
+        selectionController.selectRange(const CellRange(0, 3, 2, 5));
+        fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) => previewRanges.add(range),
+          onFillComplete: (source, dest) {
+            completedSource = source;
+            completedDest = dest;
+          },
+          onFillCancel: () {},
+        );
+
+        // Fill handle for (0,3)-(2,5): row 2 ends at 72, col 5 ends at 600
+        // Screen: (650, 102)
+        fillHandler.onDragStart(
+          position: const Offset(649.0, 101.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag left to col 1: screen x = 50 + 1*100 + 50 = 200
+        fillHandler.onDragUpdate(
+          position: const Offset(200.0, 60.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, hasLength(1));
+        final preview = previewRanges.last;
+        expect(preview.startRow, 0);
+        expect(preview.endRow, 2);
+        expect(preview.startColumn, 1);
+        expect(preview.endColumn, 5);
+      });
+
+      test('diagonal drag locks to axis with greater pixel displacement', () {
+        startFillDrag();
+
+        // Drag diagonally: more vertical (dy=80) than horizontal (dx=20)
+        // From start (349, 101) to (369, 181) — cell outside both axes
+        // Cell at that position: row = (181-30)/24 = ~6, col = (369-50)/100 = ~3
+        fillHandler.onDragUpdate(
+          position: const Offset(369.0, 181.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, hasLength(1));
+        final preview = previewRanges.last;
+        // Vertical wins (dy=80 > dx=20): columns stay as source
+        expect(preview.startColumn, 0);
+        expect(preview.endColumn, 2);
+        expect(preview.endRow, greaterThan(2));
+      });
+
+      test('diagonal drag locks horizontal when dx > dy', () {
+        startFillDrag();
+
+        // Drag diagonally: more horizontal (dx=200) than vertical (dy=30)
+        // From start (349, 101) to (549, 131)
+        fillHandler.onDragUpdate(
+          position: const Offset(549.0, 131.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, hasLength(1));
+        final preview = previewRanges.last;
+        // Horizontal wins: rows stay as source
+        expect(preview.startRow, 0);
+        expect(preview.endRow, 2);
+        expect(preview.endColumn, greaterThan(2));
+      });
+
+      test('axis lock persists across subsequent updates', () {
+        startFillDrag();
+
+        // First update: drag down (locks vertical)
+        fillHandler.onDragUpdate(
+          position: const Offset(200.0, 138.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, hasLength(1));
+        expect(previewRanges.last.endColumn, 2); // Locked to source cols
+
+        // Second update: drag far to the right — should still be vertical
+        fillHandler.onDragUpdate(
+          position: const Offset(600.0, 160.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, hasLength(2));
+        final preview = previewRanges.last;
+        expect(preview.startColumn, 0);
+        expect(preview.endColumn, 2); // Still locked to source cols
+      });
+
+      test('cursor inside source range with no lock triggers no preview', () {
+        startFillDrag();
+
+        // Drag to cell (1,1) which is inside source range (0,0)-(2,2)
+        // Screen: (50 + 100 + 50, 30 + 24 + 12) = (200, 66)
+        fillHandler.onDragUpdate(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, isEmpty);
+      });
+
+      test('axis resets between drags', () {
+        startFillDrag();
+
+        // Lock vertical
+        fillHandler.onDragUpdate(
+          position: const Offset(200.0, 138.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(previewRanges.last.endColumn, 2);
+
+        fillHandler.onDragEnd();
+        previewRanges.clear();
+
+        // New drag — should be able to lock horizontal
+        fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) => previewRanges.add(range),
+          onFillComplete: (source, dest) {},
+          onFillCancel: () {},
+        );
+
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+        fillHandler.onDragStart(
+          position: const Offset(349.0, 101.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag right
+        fillHandler.onDragUpdate(
+          position: const Offset(500.0, 60.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(previewRanges, hasLength(1));
+        final preview = previewRanges.last;
+        expect(preview.endRow, 2); // Locked to source rows
+        expect(preview.endColumn, greaterThan(2));
+      });
+
+      test('single-cell source allows free expansion without axis constraint', () {
+        // Select a single cell
+        selectionController.selectRange(const CellRange(2, 2, 2, 2));
+        final singleCellPreviewRanges = <CellRange>[];
+
+        final singleHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillPreviewUpdate: (range) => singleCellPreviewRanges.add(range),
+          onFillComplete: (source, dest) {},
+          onFillCancel: () {},
+        );
+
+        // Fill handle for single cell (2,2): row 2 ends at 72, col 2 ends at 300
+        // Screen: (350, 102)
+        singleHandler.onDragStart(
+          position: const Offset(349.0, 101.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag diagonally to (5, 4): both row and column outside source
+        // Screen: (50 + 4*100 + 50, 30 + 5*24 + 12) = (500, 162)
+        singleHandler.onDragUpdate(
+          position: const Offset(500.0, 162.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(singleCellPreviewRanges, hasLength(1));
+        final preview = singleCellPreviewRanges.last;
+        // Should expand freely in both dimensions
+        expect(preview.startRow, 2);
+        expect(preview.startColumn, 2);
+        expect(preview.endRow, 5);
+        expect(preview.endColumn, 4);
+      });
+
+      test('fill complete reports constrained destination', () {
+        startFillDrag();
+
+        // Drag down to row 4
+        fillHandler.onDragUpdate(
+          position: const Offset(200.0, 138.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        fillHandler.onDragEnd();
+
+        expect(completedSource, const CellRange(0, 0, 2, 2));
+        expect(completedDest, isNotNull);
+        // Constrained: column pinned to source.endColumn (2)
+        expect(completedDest!.column, 2);
+        expect(completedDest!.row, greaterThanOrEqualTo(3));
       });
     });
 

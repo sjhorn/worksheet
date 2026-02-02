@@ -32,6 +32,12 @@ class SelectionStyle {
   /// The size (side length) of the fill handle square.
   final double fillHandleSize;
 
+  /// The fill color for the fill preview area during drag.
+  final Color fillPreviewColor;
+
+  /// The border color for the fill preview area during drag.
+  final Color fillPreviewBorderColor;
+
   const SelectionStyle({
     this.fillColor = const Color(0x220078D4),
     this.borderColor = const Color(0xFF0078D4),
@@ -41,6 +47,8 @@ class SelectionStyle {
     this.focusBorderWidth = 1.0, // Thin like Excel
     this.fillHandleColor = const Color(0xFF0078D4),
     this.fillHandleSize = 6.0,
+    this.fillPreviewColor = const Color(0x110078D4),
+    this.fillPreviewBorderColor = const Color(0x880078D4),
   });
 
   /// Default Excel-like selection style.
@@ -65,6 +73,8 @@ class SelectionRenderer {
   late final Paint _borderPaint;
   late final Paint _focusBorderPaint;
   late final Paint _fillHandlePaint;
+  late final Paint _fillPreviewPaint;
+  late final Paint _fillPreviewBorderPaint;
 
   /// Creates a selection renderer.
   SelectionRenderer({
@@ -90,6 +100,16 @@ class SelectionRenderer {
     _fillHandlePaint = Paint()
       ..color = style.fillHandleColor
       ..style = PaintingStyle.fill;
+
+    _fillPreviewPaint = Paint()
+      ..color = style.fillPreviewColor
+      ..style = PaintingStyle.fill;
+
+    _fillPreviewBorderPaint = Paint()
+      ..color = style.fillPreviewBorderColor
+      ..strokeWidth = style.borderWidth
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = false;
   }
 
   /// Paints the selection for a cell range.
@@ -264,6 +284,7 @@ class SelectionRenderer {
       (bounds.bottom - viewportOffset.dy) * zoom,
     );
 
-    canvas.drawRect(screenBounds, _borderPaint);
+    canvas.drawRect(screenBounds, _fillPreviewPaint);
+    canvas.drawRect(screenBounds, _fillPreviewBorderPaint);
   }
 }
