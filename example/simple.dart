@@ -25,6 +25,21 @@ class MySpreadsheet extends StatelessWidget {
         (5, 1): Cell.number(0.085, format: CellFormat.percentage),
         (6, 0): 'Date'.cell,
         (6, 1): Cell.date(DateTime.now(), format: CellFormat.dateIso),
+        (7, 1): 1.cell,
+        (7, 2): 2.cell,
+        (7, 3): 3.cell,
+        (8, 1): Cell.date(
+          DateTime(2026, 1, 1),
+          format: CellFormat(formatCode: 'mmm', type: CellFormatType.date),
+        ),
+        (9, 1): Cell.date(
+          DateTime(2026, 2, 1),
+          format: CellFormat(formatCode: 'mmm', type: CellFormatType.date),
+        ),
+        (10, 1): Cell.date(
+          DateTime(2026, 3, 1),
+          format: CellFormat(formatCode: 'mmm', type: CellFormatType.date),
+        ),
       },
     );
 
