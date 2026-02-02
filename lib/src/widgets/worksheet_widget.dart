@@ -13,10 +13,14 @@ import '../core/models/cell_coordinate.dart';
 import '../core/models/cell_range.dart';
 import '../interaction/clipboard/clipboard_handler.dart';
 import '../interaction/clipboard/clipboard_serializer.dart';
+import '../interaction/controllers/selection_controller.dart';
 import '../interaction/gesture_handler.dart';
-import '../interaction/gestures/keyboard_handler.dart';
 import '../interaction/hit_testing/hit_test_result.dart';
 import '../interaction/hit_testing/hit_tester.dart';
+import '../shortcuts/default_worksheet_shortcuts.dart';
+import '../shortcuts/worksheet_action_context.dart';
+import '../shortcuts/worksheet_actions.dart';
+import '../shortcuts/worksheet_intents.dart';
 import '../rendering/layers/header_layer.dart';
 import '../rendering/layers/render_layer.dart';
 import '../rendering/layers/selection_layer.dart';
@@ -114,6 +118,19 @@ class Worksheet extends StatefulWidget {
   /// - Mobile (iOS, Android): scrollbars shown on scroll, then fade out
   final WorksheetScrollbarConfig? scrollbarConfig;
 
+  /// Custom keyboard shortcut bindings.
+  ///
+  /// These are merged on top of [DefaultWorksheetShortcuts.shortcuts].
+  /// Pass an entry with [DoNothingIntent] to disable a default binding.
+  final Map<ShortcutActivator, Intent>? shortcuts;
+
+  /// Custom action overrides.
+  ///
+  /// These are merged on top of the default worksheet actions.
+  /// Each key is an Intent type (e.g., `ClearCellsIntent`) mapped to
+  /// a custom [Action].
+  final Map<Type, Action<Intent>>? actions;
+
   const Worksheet({
     super.key,
     required this.data,
@@ -130,13 +147,16 @@ class Worksheet extends StatefulWidget {
     this.clipboardSerializer = const TsvClipboardSerializer(),
     this.diagonalDragBehavior = DiagonalDragBehavior.free,
     this.scrollbarConfig,
+    this.shortcuts,
+    this.actions,
   });
 
   @override
   State<Worksheet> createState() => _WorksheetState();
 }
 
-class _WorksheetState extends State<Worksheet> {
+class _WorksheetState extends State<Worksheet>
+    implements WorksheetActionContext {
   late WorksheetController _controller;
   bool _ownsController = false;
 
@@ -145,7 +165,6 @@ class _WorksheetState extends State<Worksheet> {
   late TilePainter _tilePainter;
   late WorksheetHitTester _hitTester;
   late WorksheetGestureHandler _gestureHandler;
-  late KeyboardHandler _keyboardHandler;
   late ClipboardHandler _clipboardHandler;
 
   late SelectionRenderer _selectionRenderer;
@@ -165,6 +184,49 @@ class _WorksheetState extends State<Worksheet> {
   Timer? _autoScrollTimer;
   Offset? _lastPointerPosition;
   static const Duration _autoScrollInterval = Duration(milliseconds: 16);
+
+  // WorksheetActionContext implementation
+  @override
+  SelectionController get selectionController =>
+      _controller.selectionController;
+  @override
+  int get maxRow => widget.rowCount;
+  @override
+  int get maxColumn => widget.columnCount;
+  @override
+  WorksheetData get worksheetData => widget.data;
+  @override
+  ClipboardHandler get clipboardHandler => _clipboardHandler;
+  @override
+  bool get readOnly => widget.readOnly;
+  @override
+  void Function(CellCoordinate)? get onEditCell => widget.onEditCell;
+
+  @override
+  void ensureSelectionVisible() => _ensureSelectionVisible();
+
+  @override
+  void invalidateAndRebuild() {
+    _tileManager.invalidateAll();
+    _layoutVersion++;
+    if (mounted) setState(() {});
+  }
+
+  Map<Type, Action<Intent>> get _defaultActions => <Type, Action<Intent>>{
+        MoveSelectionIntent: MoveSelectionAction(this),
+        GoToCellIntent: GoToCellAction(this),
+        GoToLastCellIntent: GoToLastCellAction(this),
+        GoToRowBoundaryIntent: GoToRowBoundaryAction(this),
+        SelectAllCellsIntent: SelectAllCellsAction(this),
+        CancelSelectionIntent: CancelSelectionAction(this),
+        EditCellIntent: EditCellAction(this),
+        CopyCellsIntent: CopyCellsAction(this),
+        CutCellsIntent: CutCellsAction(this),
+        PasteCellsIntent: PasteCellsAction(this),
+        ClearCellsIntent: ClearCellsAction(this),
+        FillDownIntent: FillDownAction(this),
+        FillRightIntent: FillRightAction(this),
+      };
 
   @override
   void initState() {
@@ -295,75 +357,6 @@ class _WorksheetState extends State<Worksheet> {
     _dataSubscription?.cancel();
     _dataSubscription = widget.data.changes.listen(_onDataChanged);
 
-    _keyboardHandler = KeyboardHandler(
-      selectionController: _controller.selectionController,
-      maxRow: widget.rowCount,
-      maxColumn: widget.columnCount,
-      onStartEdit: () {
-        final cell = _controller.focusCell;
-        if (cell != null) {
-          widget.onEditCell?.call(cell);
-        }
-      },
-      onEnsureVisible: _ensureSelectionVisible,
-      onCopy: () => _clipboardHandler.copy(),
-      onCut: widget.readOnly
-          ? null
-          : () async {
-              await _clipboardHandler.cut();
-              _tileManager.invalidateAll();
-              _layoutVersion++;
-              if (mounted) setState(() {});
-            },
-      onPaste: widget.readOnly
-          ? null
-          : () async {
-              await _clipboardHandler.paste();
-              _tileManager.invalidateAll();
-              _layoutVersion++;
-              if (mounted) setState(() {});
-            },
-      onDelete: widget.readOnly
-          ? null
-          : () {
-              final range = _controller.selectionController.selectedRange;
-              if (range == null) return;
-              widget.data.clearRange(range);
-              _tileManager.invalidateAll();
-              _layoutVersion++;
-              setState(() {});
-            },
-      onFillDown: widget.readOnly
-          ? null
-          : () {
-              final range = _controller.selectionController.selectedRange;
-              if (range == null || range.rowCount < 2) return;
-              for (int col = range.startColumn; col <= range.endColumn; col++) {
-                widget.data.fillRange(
-                  CellCoordinate(range.startRow, col),
-                  CellRange(range.startRow + 1, col, range.endRow, col),
-                );
-              }
-              _tileManager.invalidateAll();
-              _layoutVersion++;
-              setState(() {});
-            },
-      onFillRight: widget.readOnly
-          ? null
-          : () {
-              final range = _controller.selectionController.selectedRange;
-              if (range == null || range.columnCount < 2) return;
-              for (int row = range.startRow; row <= range.endRow; row++) {
-                widget.data.fillRange(
-                  CellCoordinate(row, range.startColumn),
-                  CellRange(row, range.startColumn + 1, row, range.endColumn),
-                );
-              }
-              _tileManager.invalidateAll();
-              _layoutVersion++;
-              setState(() {});
-            },
-    );
   }
 
   void _initLayers(WorksheetThemeData theme) {
@@ -672,84 +665,6 @@ class _WorksheetState extends State<Worksheet> {
           selectionController: _controller.selectionController,
           serializer: widget.clipboardSerializer,
         );
-        _keyboardHandler = KeyboardHandler(
-          selectionController: _controller.selectionController,
-          maxRow: widget.rowCount,
-          maxColumn: widget.columnCount,
-          onStartEdit: () {
-            final cell = _controller.focusCell;
-            if (cell != null) {
-              widget.onEditCell?.call(cell);
-            }
-          },
-          onEnsureVisible: _ensureSelectionVisible,
-          onCopy: () => _clipboardHandler.copy(),
-          onCut: widget.readOnly
-              ? null
-              : () async {
-                  await _clipboardHandler.cut();
-                  _tileManager.invalidateAll();
-                  _layoutVersion++;
-                  if (mounted) setState(() {});
-                },
-          onPaste: widget.readOnly
-              ? null
-              : () async {
-                  await _clipboardHandler.paste();
-                  _tileManager.invalidateAll();
-                  _layoutVersion++;
-                  if (mounted) setState(() {});
-                },
-          onDelete: widget.readOnly
-              ? null
-              : () {
-                  final range = _controller.selectionController.selectedRange;
-                  if (range == null) return;
-                  widget.data.clearRange(range);
-                  _tileManager.invalidateAll();
-                  _layoutVersion++;
-                  setState(() {});
-                },
-          onFillDown: widget.readOnly
-              ? null
-              : () {
-                  final range = _controller.selectionController.selectedRange;
-                  if (range == null || range.rowCount < 2) return;
-                  for (
-                    int col = range.startColumn;
-                    col <= range.endColumn;
-                    col++
-                  ) {
-                    widget.data.fillRange(
-                      CellCoordinate(range.startRow, col),
-                      CellRange(range.startRow + 1, col, range.endRow, col),
-                    );
-                  }
-                  _tileManager.invalidateAll();
-                  _layoutVersion++;
-                  setState(() {});
-                },
-          onFillRight: widget.readOnly
-              ? null
-              : () {
-                  final range = _controller.selectionController.selectedRange;
-                  if (range == null || range.columnCount < 2) return;
-                  for (int row = range.startRow; row <= range.endRow; row++) {
-                    widget.data.fillRange(
-                      CellCoordinate(row, range.startColumn),
-                      CellRange(
-                        row,
-                        range.startColumn + 1,
-                        row,
-                        range.endColumn,
-                      ),
-                    );
-                  }
-                  _tileManager.invalidateAll();
-                  _layoutVersion++;
-                  setState(() {});
-                },
-        );
         _selectionLayer.dispose();
         _headerLayer.dispose();
         _initLayers(theme);
@@ -810,17 +725,30 @@ class _WorksheetState extends State<Worksheet> {
     // Use Listener for low-level pointer events to handle:
     // - Left mouse button: tap and drag for selection
     // - Scroll wheel: handled by TwoDimensionalScrollable
-    return Focus(
-      autofocus: true,
-      onKeyEvent: widget.readOnly
-          ? null
-          : (node, event) {
-              if (_keyboardHandler.handleKeyEvent(event)) {
-                return KeyEventResult.handled;
-              }
-              return KeyEventResult.ignored;
-            },
-      child: MouseRegion(
+
+    // Merge default shortcuts with consumer overrides.
+    final effectiveShortcuts = widget.readOnly
+        ? <ShortcutActivator, Intent>{}
+        : <ShortcutActivator, Intent>{
+            ...DefaultWorksheetShortcuts.shortcuts,
+            ...?widget.shortcuts,
+          };
+
+    // Merge default actions with consumer overrides.
+    final effectiveActions = widget.readOnly
+        ? <Type, Action<Intent>>{}
+        : <Type, Action<Intent>>{
+            ..._defaultActions,
+            ...?widget.actions,
+          };
+
+    return Shortcuts(
+      shortcuts: effectiveShortcuts,
+      child: Actions(
+        actions: effectiveActions,
+        child: Focus(
+          autofocus: true,
+          child: MouseRegion(
         cursor: _currentCursor,
         onHover: widget.readOnly
             ? null
@@ -991,6 +919,8 @@ class _WorksheetState extends State<Worksheet> {
           ),
         ),
       ),
+    ),
+    ),
     );
   }
 

@@ -613,8 +613,59 @@ WorksheetTheme(
 | F2 | Edit current cell (via `onEditCell`) |
 | Escape | Collapse range to single cell |
 | Ctrl+A | Select all |
+| Ctrl+C / Ctrl+X / Ctrl+V | Copy / Cut / Paste |
+| Ctrl+D / Ctrl+R | Fill down / Fill right |
+| Delete / Backspace | Clear selected cells |
+
+All Ctrl shortcuts also work with Cmd on macOS.
 
 Keyboard navigation is disabled when `readOnly: true`.
+
+### Customizing Shortcuts
+
+The worksheet uses Flutter's standard `Shortcuts` / `Actions` pattern. You can override any default binding or add new ones:
+
+```dart
+Worksheet(
+  data: data,
+  rowCount: 1000,
+  columnCount: 26,
+  // Override specific shortcut bindings
+  shortcuts: {
+    // Disable Enter navigation
+    const SingleActivator(LogicalKeyboardKey.enter):
+        const DoNothingAndStopPropagationIntent(),
+    // Remap Ctrl+G to go to cell A1
+    const SingleActivator(LogicalKeyboardKey.keyG, control: true):
+        const GoToCellIntent(CellCoordinate(0, 0)),
+  },
+  // Override specific action implementations
+  actions: {
+    // Custom delete behavior
+    ClearCellsIntent: CallbackAction<ClearCellsIntent>(
+      onInvoke: (_) {
+        showDialog(/* confirm before clearing */);
+        return null;
+      },
+    ),
+  },
+)
+```
+
+The full list of default bindings is available in `DefaultWorksheetShortcuts.shortcuts`. Available intents include:
+
+| Intent | Description |
+|--------|-------------|
+| `MoveSelectionIntent` | Arrow keys, Tab, Enter, Page Up/Down |
+| `GoToCellIntent` | Navigate to a specific cell (Ctrl+Home) |
+| `GoToLastCellIntent` | Navigate to last cell (Ctrl+End) |
+| `GoToRowBoundaryIntent` | Home/End navigation |
+| `SelectAllCellsIntent` | Ctrl+A |
+| `CancelSelectionIntent` | Escape |
+| `EditCellIntent` | F2 |
+| `CopyCellsIntent` / `CutCellsIntent` / `PasteCellsIntent` | Clipboard |
+| `ClearCellsIntent` | Delete/Backspace |
+| `FillDownIntent` / `FillRightIntent` | Ctrl+D / Ctrl+R |
 
 ### Programmatic Navigation
 

@@ -181,7 +181,7 @@ for (var row = 0; row < 50000; row++) {
 
 - **Sparse storage**: Memory scales with data, not grid size
 - **Full selection**: Single cell, ranges, entire rows/columns
-- **Keyboard navigation**: Arrow keys, Tab, Enter, Home/End
+- **Keyboard navigation**: Arrow keys, Tab, Enter, Home/End, clipboard, and more — fully customizable via Flutter's Shortcuts/Actions
 - **Resize support**: Drag column/row borders to resize
 - **Theming**: Full control over colors, fonts, headers
 
@@ -226,6 +226,8 @@ flutter pub get
 
 ## Keyboard Shortcuts
 
+All shortcuts work out of the box. You can override or extend them via the `shortcuts` and `actions` parameters.
+
 | Key | Action |
 |-----|--------|
 | Arrow keys | Move selection |
@@ -233,9 +235,34 @@ flutter pub get
 | Tab / Shift+Tab | Move right/left |
 | Enter / Shift+Enter | Move down/up |
 | Home / End | Start/end of row |
-| Ctrl+Home | Go to A1 |
+| Ctrl+Home / Ctrl+End | Go to A1 / last cell |
+| Page Up / Page Down | Move up/down by 10 rows |
 | F2 | Edit current cell |
-| Delete | Clear cell |
+| Escape | Collapse range to single cell |
+| Ctrl+A | Select all |
+| Ctrl+C / Ctrl+X / Ctrl+V | Copy / Cut / Paste |
+| Ctrl+D / Ctrl+R | Fill down / Fill right |
+| Delete / Backspace | Clear selected cells |
+
+### Customizing Shortcuts
+
+```dart
+Worksheet(
+  data: data,
+  // Override: make Enter do nothing
+  shortcuts: {
+    const SingleActivator(LogicalKeyboardKey.enter): const DoNothingAndStopPropagationIntent(),
+  },
+  // Override: custom action for Delete
+  actions: {
+    ClearCellsIntent: CallbackAction<ClearCellsIntent>(
+      onInvoke: (_) { print('Custom delete!'); return null; },
+    ),
+  },
+)
+```
+
+See `DefaultWorksheetShortcuts.shortcuts` for the full list of default bindings.
 
 ---
 

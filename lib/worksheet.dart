@@ -72,6 +72,13 @@ export 'src/widgets/worksheet_scrollbar_config.dart';
 export 'src/widgets/worksheet_theme.dart';
 export 'src/widgets/cell_editor_overlay.dart';
 
+// Shortcuts / Actions
+export 'src/shortcuts/worksheet_intents.dart';
+export 'src/shortcuts/worksheet_action_context.dart';
+export 'src/shortcuts/worksheet_actions.dart';
+export 'src/shortcuts/default_worksheet_shortcuts.dart';
+
 // Gesture Handlers
 export 'src/interaction/gestures/scale_handler.dart';
+@Deprecated('Use the Shortcuts/Actions pattern. See worksheet_intents.dart.')
 export 'src/interaction/gestures/keyboard_handler.dart';

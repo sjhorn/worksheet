@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Flutter `Shortcuts` / `Actions` pattern for keyboard handling — enables consumers to override, extend, or remap any keyboard shortcut
+- `Worksheet.shortcuts` parameter — custom shortcut bindings merged on top of defaults
+- `Worksheet.actions` parameter — custom action overrides merged on top of defaults
+- `DefaultWorksheetShortcuts` — static map of ~44 default shortcut bindings (both `control:` and `meta:` variants for cross-platform)
+- 13 Intent classes (`MoveSelectionIntent`, `GoToCellIntent`, `ClearCellsIntent`, etc.)
+- 13 Action classes with `WorksheetActionContext` interface for dependency injection
+- `WorksheetActionContext` — abstract interface implemented by the widget state, avoiding 6+ constructor params per Action
+- New shortcuts: Ctrl+C/X/V (copy/cut/paste), Ctrl+D (fill down), Ctrl+R (fill right), Delete/Backspace (clear cells)
+
+### Deprecated
+- `KeyboardHandler` class — use the `Shortcuts` / `Actions` pattern instead (see `worksheet_intents.dart`)
+
+### Changed
+- `Worksheet` widget now uses `Shortcuts` -> `Actions` -> `Focus` widget tree instead of `Focus(onKeyEvent:)` with `KeyboardHandler`
+- Destructive actions (`ClearCells`, `Cut`, `Paste`, `FillDown`, `FillRight`) check `readOnly` in `isEnabled()` as defense-in-depth
+
 ## [1.3.0] - 2025-02-02
 
 ### Added

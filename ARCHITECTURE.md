@@ -113,11 +113,17 @@ lib/
     │   │   ├── zoom_controller.dart       # Zoom level + animation
     │   │   └── edit_controller.dart       # Cell editing state
     │   ├── gestures/
-    │   │   ├── keyboard_handler.dart   # Arrow keys, shortcuts
+    │   │   ├── keyboard_handler.dart   # (Deprecated) Arrow keys, shortcuts
     │   │   └── scale_handler.dart      # Pinch-to-zoom
     │   └── hit_testing/
     │       ├── hit_tester.dart         # Screen → element resolver
     │       └── hit_test_result.dart    # Result types enum
+    │
+    ├── shortcuts/              # Keyboard shortcuts (Intent/Action/Shortcuts)
+    │   ├── worksheet_intents.dart          # 13 Intent subclasses
+    │   ├── worksheet_actions.dart          # 13 Action subclasses
+    │   ├── worksheet_action_context.dart   # Dependency interface for Actions
+    │   └── default_worksheet_shortcuts.dart # Default shortcut map (~44 bindings)
     │
     └── widgets/                # Public widget wrappers
         ├── worksheet_widget.dart       # Main Worksheet widget

@@ -199,6 +199,62 @@ typedef OnCommitCallback = void Function(CellCoordinate cell, CellValue? value);
 typedef OnCancelCallback = void Function();
 ```
 
+## Keyboard Shortcuts (Intents / Actions)
+
+The worksheet uses Flutter's `Shortcuts` / `Actions` pattern. All keyboard handling is expressed as Intent + Action pairs, making every shortcut overridable.
+
+### Worksheet Shortcut Parameters
+
+```dart
+Worksheet(
+  // Override or add shortcut bindings (merged on top of defaults)
+  shortcuts: Map<ShortcutActivator, Intent>?,
+
+  // Override action implementations (merged on top of defaults)
+  actions: Map<Type, Action<Intent>>?,
+)
+```
+
+### Intent Classes
+
+| Intent | Parameters | Default Binding |
+|--------|-----------|-----------------|
+| `MoveSelectionIntent` | `rowDelta`, `columnDelta`, `extend` | Arrow keys, Tab, Enter, Page Up/Down |
+| `GoToCellIntent` | `coordinate` | Ctrl+Home (→ A1) |
+| `GoToLastCellIntent` | — | Ctrl+End |
+| `GoToRowBoundaryIntent` | `end`, `extend` | Home, End, Shift+Home, Shift+End |
+| `SelectAllCellsIntent` | — | Ctrl+A |
+| `CancelSelectionIntent` | — | Escape |
+| `EditCellIntent` | — | F2 |
+| `CopyCellsIntent` | — | Ctrl+C |
+| `CutCellsIntent` | — | Ctrl+X |
+| `PasteCellsIntent` | — | Ctrl+V |
+| `ClearCellsIntent` | — | Delete, Backspace |
+| `FillDownIntent` | — | Ctrl+D |
+| `FillRightIntent` | — | Ctrl+R |
+
+### WorksheetActionContext
+
+Actions receive dependencies through `WorksheetActionContext` (implemented by the widget state):
+
+```dart
+abstract class WorksheetActionContext {
+  SelectionController get selectionController;
+  int get maxRow;
+  int get maxColumn;
+  WorksheetData get worksheetData;
+  ClipboardHandler get clipboardHandler;
+  bool get readOnly;
+  void Function(CellCoordinate)? get onEditCell;
+  void ensureSelectionVisible();
+  void invalidateAndRebuild();
+}
+```
+
+### DefaultWorksheetShortcuts
+
+`DefaultWorksheetShortcuts.shortcuts` provides ~44 default bindings. Both `control:` and `meta:` variants are included for cross-platform support.
+
 ### Usage Example
 
 ```dart

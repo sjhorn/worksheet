@@ -21,6 +21,7 @@ typedef OnEnsureVisibleCallback = void Function();
 /// - Enter: move to cell below (or start edit)
 /// - Escape: cancel selection/editing
 /// - F2: enter edit mode
+@Deprecated('Use the Shortcuts/Actions pattern. See worksheet_intents.dart.')
 class KeyboardHandler {
   /// The selection controller to update.
   final SelectionController selectionController;
