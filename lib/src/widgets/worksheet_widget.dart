@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+import '../core/data/data_change_event.dart';
 import '../core/data/worksheet_data.dart';
 import '../core/geometry/layout_solver.dart';
 import '../core/geometry/span_list.dart';
@@ -157,6 +158,9 @@ class _WorksheetState extends State<Worksheet> {
   int _layoutVersion = 0;
   bool _pointerInScrollbarArea = false;
 
+  // Data change subscription for external mutations
+  StreamSubscription<DataChangeEvent>? _dataSubscription;
+
   // Auto-scroll during drag selection
   Timer? _autoScrollTimer;
   Offset? _lastPointerPosition;
@@ -258,8 +262,9 @@ class _WorksheetState extends State<Worksheet> {
           ? null
           : (sourceRange, destination) {
               widget.data.smartFill(sourceRange, destination);
-              _controller.selectionController
-                  .selectRange(sourceRange.expand(destination));
+              _controller.selectionController.selectRange(
+                sourceRange.expand(destination),
+              );
               _selectionLayer.fillPreviewRange = null;
               _tileManager.invalidateAll();
               _layoutVersion++;
@@ -278,6 +283,10 @@ class _WorksheetState extends State<Worksheet> {
       selectionController: _controller.selectionController,
       serializer: widget.clipboardSerializer,
     );
+
+    // Subscribe to data change events for external mutations
+    _dataSubscription?.cancel();
+    _dataSubscription = widget.data.changes.listen(_onDataChanged);
 
     _keyboardHandler = KeyboardHandler(
       selectionController: _controller.selectionController,
@@ -402,7 +411,8 @@ class _WorksheetState extends State<Worksheet> {
     if (selection == null) return;
 
     // Check if the resized row is within the selection
-    if (resizedRow < selection.startRow || resizedRow > selection.endRow) return;
+    if (resizedRow < selection.startRow || resizedRow > selection.endRow)
+      return;
 
     // Check if this is a full-row selection (all columns selected)
     // For simplicity, we apply to all rows in the selection range
@@ -429,7 +439,9 @@ class _WorksheetState extends State<Worksheet> {
     if (selection == null) return;
 
     // Check if the resized column is within the selection
-    if (resizedColumn < selection.startColumn || resizedColumn > selection.endColumn) return;
+    if (resizedColumn < selection.startColumn ||
+        resizedColumn > selection.endColumn)
+      return;
 
     // Check if this is a full-column selection (all rows selected)
     // For simplicity, we apply to all columns in the selection range
@@ -466,8 +478,12 @@ class _WorksheetState extends State<Worksheet> {
       getRowHeight: _layoutSolver.getRowHeight,
       getColumnWidth: _layoutSolver.getColumnWidth,
       viewportSize: size,
-      headerWidth: theme.showHeaders ? theme.rowHeaderWidth * _controller.zoom : 0,
-      headerHeight: theme.showHeaders ? theme.columnHeaderHeight * _controller.zoom : 0,
+      headerWidth: theme.showHeaders
+          ? theme.rowHeaderWidth * _controller.zoom
+          : 0,
+      headerHeight: theme.showHeaders
+          ? theme.columnHeaderHeight * _controller.zoom
+          : 0,
       animate: true,
     );
   }
@@ -493,8 +509,16 @@ class _WorksheetState extends State<Worksheet> {
     final theme = WorksheetTheme.of(context);
     final contentArea = _getContentArea(theme);
 
-    final dx = calcAutoScrollDelta(position.dx, contentArea.left, contentArea.right);
-    final dy = calcAutoScrollDelta(position.dy, contentArea.top, contentArea.bottom);
+    final dx = calcAutoScrollDelta(
+      position.dx,
+      contentArea.left,
+      contentArea.right,
+    );
+    final dy = calcAutoScrollDelta(
+      position.dy,
+      contentArea.top,
+      contentArea.bottom,
+    );
 
     if (dx == 0.0 && dy == 0.0) return;
 
@@ -543,6 +567,35 @@ class _WorksheetState extends State<Worksheet> {
 
   void _onControllerChanged() {
     setState(() {});
+  }
+
+  void _onDataChanged(DataChangeEvent event) {
+    if (!_initialized) return;
+    switch (event.type) {
+      case DataChangeType.cellValue:
+      case DataChangeType.cellStyle:
+      case DataChangeType.cellFormat:
+        if (event.cell != null) {
+          _tileManager.invalidateRange(CellRange(
+            event.cell!.row,
+            event.cell!.column,
+            event.cell!.row,
+            event.cell!.column,
+          ));
+        }
+      case DataChangeType.range:
+        if (event.range != null) {
+          _tileManager.invalidateRange(event.range!);
+        }
+      case DataChangeType.reset:
+      case DataChangeType.rowInserted:
+      case DataChangeType.rowDeleted:
+      case DataChangeType.columnInserted:
+      case DataChangeType.columnDeleted:
+        _tileManager.invalidateAll();
+    }
+    _layoutVersion++;
+    if (mounted) setState(() {});
   }
 
   @override
@@ -597,8 +650,9 @@ class _WorksheetState extends State<Worksheet> {
               ? null
               : (sourceRange, destination) {
                   widget.data.smartFill(sourceRange, destination);
-                  _controller.selectionController
-                      .selectRange(sourceRange.expand(destination));
+                  _controller.selectionController.selectRange(
+                    sourceRange.expand(destination),
+                  );
                   _selectionLayer.fillPreviewRange = null;
                   _tileManager.invalidateAll();
                   _layoutVersion++;
@@ -659,13 +713,14 @@ class _WorksheetState extends State<Worksheet> {
               : () {
                   final range = _controller.selectionController.selectedRange;
                   if (range == null || range.rowCount < 2) return;
-                  for (int col = range.startColumn;
-                      col <= range.endColumn;
-                      col++) {
+                  for (
+                    int col = range.startColumn;
+                    col <= range.endColumn;
+                    col++
+                  ) {
                     widget.data.fillRange(
                       CellCoordinate(range.startRow, col),
-                      CellRange(
-                          range.startRow + 1, col, range.endRow, col),
+                      CellRange(range.startRow + 1, col, range.endRow, col),
                     );
                   }
                   _tileManager.invalidateAll();
@@ -677,13 +732,15 @@ class _WorksheetState extends State<Worksheet> {
               : () {
                   final range = _controller.selectionController.selectedRange;
                   if (range == null || range.columnCount < 2) return;
-                  for (int row = range.startRow;
-                      row <= range.endRow;
-                      row++) {
+                  for (int row = range.startRow; row <= range.endRow; row++) {
                     widget.data.fillRange(
                       CellCoordinate(row, range.startColumn),
-                      CellRange(row, range.startColumn + 1, row,
-                          range.endColumn),
+                      CellRange(
+                        row,
+                        range.startColumn + 1,
+                        row,
+                        range.endColumn,
+                      ),
                     );
                   }
                   _tileManager.invalidateAll();
@@ -699,6 +756,7 @@ class _WorksheetState extends State<Worksheet> {
     }
 
     if (widget.data != oldWidget.data && _initialized) {
+      _dataSubscription?.cancel();
       final theme = WorksheetTheme.of(context);
       _tileManager.dispose();
       _selectionLayer.dispose();
@@ -729,6 +787,7 @@ class _WorksheetState extends State<Worksheet> {
   @override
   void dispose() {
     _stopAutoScroll();
+    _dataSubscription?.cancel();
     _controller.removeListener(_onControllerChanged);
     if (_ownsController) {
       _controller.dispose();
@@ -760,29 +819,33 @@ class _WorksheetState extends State<Worksheet> {
               return KeyEventResult.ignored;
             },
       child: MouseRegion(
-      cursor: _currentCursor,
-      onHover: widget.readOnly
-          ? null
-          : (event) {
-              final hit = _hitTester.hitTest(
-                position: event.localPosition,
-                scrollOffset: Offset(_controller.scrollX, _controller.scrollY),
-                zoom: _controller.zoom,
-                selectionRange: _controller.selectionController.selectedRange,
-              );
-              final newCursor = switch (hit.type) {
-                HitTestType.rowResizeHandle => SystemMouseCursors.resizeRow,
-                HitTestType.columnResizeHandle => SystemMouseCursors.resizeColumn,
-                HitTestType.fillHandle => SystemMouseCursors.precise,
-                _ => SystemMouseCursors.basic,
-              };
-              if (_currentCursor != newCursor) {
-                setState(() {
-                  _currentCursor = newCursor;
-                });
-              }
-            },
-      child: Listener(
+        cursor: _currentCursor,
+        onHover: widget.readOnly
+            ? null
+            : (event) {
+                final hit = _hitTester.hitTest(
+                  position: event.localPosition,
+                  scrollOffset: Offset(
+                    _controller.scrollX,
+                    _controller.scrollY,
+                  ),
+                  zoom: _controller.zoom,
+                  selectionRange: _controller.selectionController.selectedRange,
+                );
+                final newCursor = switch (hit.type) {
+                  HitTestType.rowResizeHandle => SystemMouseCursors.resizeRow,
+                  HitTestType.columnResizeHandle =>
+                    SystemMouseCursors.resizeColumn,
+                  HitTestType.fillHandle => SystemMouseCursors.precise,
+                  _ => SystemMouseCursors.basic,
+                };
+                if (_currentCursor != newCursor) {
+                  setState(() {
+                    _currentCursor = newCursor;
+                  });
+                }
+              },
+        child: Listener(
           onPointerDown: widget.readOnly
               ? null
               : (event) {
@@ -871,8 +934,12 @@ class _WorksheetState extends State<Worksheet> {
 
                 // Content area (offset by headers, scaled by zoom)
                 Positioned(
-                  left: theme.showHeaders ? theme.rowHeaderWidth * _controller.zoom : 0,
-                  top: theme.showHeaders ? theme.columnHeaderHeight * _controller.zoom : 0,
+                  left: theme.showHeaders
+                      ? theme.rowHeaderWidth * _controller.zoom
+                      : 0,
+                  top: theme.showHeaders
+                      ? theme.columnHeaderHeight * _controller.zoom
+                      : 0,
                   right: 0,
                   bottom: 0,
                   child: _buildScrollableContent(theme),
@@ -921,7 +988,7 @@ class _WorksheetState extends State<Worksheet> {
             ),
           ),
         ),
-    ),
+      ),
     );
   }
 
@@ -932,10 +999,12 @@ class _WorksheetState extends State<Worksheet> {
     if (size == null) return false;
 
     final scrollbarThickness = config.thickness ?? 8.0;
-    final headerLeft =
-        theme.showHeaders ? theme.rowHeaderWidth * _controller.zoom : 0.0;
-    final headerTop =
-        theme.showHeaders ? theme.columnHeaderHeight * _controller.zoom : 0.0;
+    final headerLeft = theme.showHeaders
+        ? theme.rowHeaderWidth * _controller.zoom
+        : 0.0;
+    final headerTop = theme.showHeaders
+        ? theme.columnHeaderHeight * _controller.zoom
+        : 0.0;
 
     // Vertical scrollbar area (right edge of content area)
     if (config.verticalVisibility != ScrollbarVisibility.never &&
@@ -1082,14 +1151,23 @@ class _SelectionPainter extends CustomPainter {
     // Offset for headers
     canvas.save();
     canvas.translate(headerOffset.dx, headerOffset.dy);
-    canvas.clipRect(Rect.fromLTWH(0, 0, size.width - headerOffset.dx, size.height - headerOffset.dy));
+    canvas.clipRect(
+      Rect.fromLTWH(
+        0,
+        0,
+        size.width - headerOffset.dx,
+        size.height - headerOffset.dy,
+      ),
+    );
 
-    layer.paint(LayerPaintContext(
-      canvas: canvas,
-      viewportSize: size,
-      scrollOffset: scrollOffset,
-      zoom: zoom,
-    ));
+    layer.paint(
+      LayerPaintContext(
+        canvas: canvas,
+        viewportSize: size,
+        scrollOffset: scrollOffset,
+        zoom: zoom,
+      ),
+    );
 
     canvas.restore();
   }
@@ -1120,12 +1198,14 @@ class _HeaderPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    layer.paint(LayerPaintContext(
-      canvas: canvas,
-      viewportSize: size,
-      scrollOffset: scrollOffset,
-      zoom: zoom,
-    ));
+    layer.paint(
+      LayerPaintContext(
+        canvas: canvas,
+        viewportSize: size,
+        scrollOffset: scrollOffset,
+        zoom: zoom,
+      ),
+    );
   }
 
   @override

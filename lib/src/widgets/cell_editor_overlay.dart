@@ -41,14 +41,19 @@ class CellEditorOverlay extends StatefulWidget {
 class _CellEditorOverlayState extends State<CellEditorOverlay> {
   late TextEditingController _textController;
   late FocusNode _focusNode;
+  FocusNode? _previousFocus;
 
   @override
   void initState() {
     super.initState();
+    // Capture the currently focused node so we can restore it when editing ends.
+    _previousFocus = FocusManager.instance.primaryFocus;
+
     _textController = TextEditingController(
       text: widget.editController.currentText,
     );
     _focusNode = FocusNode();
+    _focusNode.requestFocus();
 
     // Listen for changes from edit controller
     widget.editController.addListener(_onEditControllerChanged);
@@ -68,6 +73,8 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
   void _onEditControllerChanged() {
     if (!widget.editController.isEditing) {
+      // Restore focus to whatever was focused before the editor opened.
+      _previousFocus?.requestFocus();
       setState(() {});
       return;
     }
@@ -76,6 +83,7 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     if (_textController.text != widget.editController.currentText) {
       _textController.text = widget.editController.currentText;
     }
+
     setState(() {});
   }
 
@@ -139,6 +147,7 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
             autofocus: true,
             onChanged: _onTextChanged,
             onSubmitted: (_) => _commit(),
+            cursorHeight: 14.0,
             style: const TextStyle(fontSize: 14),
             decoration: InputDecoration(
               isDense: true,

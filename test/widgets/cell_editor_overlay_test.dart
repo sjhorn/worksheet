@@ -24,11 +24,19 @@ void main() {
     Rect cellBounds = const Rect.fromLTWH(100, 50, 80, 24),
     void Function(CellCoordinate, CellValue?)? onCommit,
     VoidCallback? onCancel,
+    FocusNode? parentFocusNode,
   }) {
     return MaterialApp(
       home: Scaffold(
         body: Stack(
           children: [
+            // Simulates the worksheet's Focus widget
+            if (parentFocusNode != null)
+              Focus(
+                focusNode: parentFocusNode,
+                autofocus: true,
+                child: const SizedBox.expand(),
+              ),
             CellEditorOverlay(
               editController: controller,
               cellBounds: cellBounds,
@@ -228,6 +236,123 @@ void main() {
       // Selection should cover entire text
       expect(controller.selection.start, 0);
       expect(controller.selection.end, 'Select Me'.length);
+    });
+
+    group('focus management', () {
+      // These tests conditionally render the overlay (matching real app usage)
+      // so that initState captures the correct previousFocus.
+      Widget buildConditionalOverlay({
+        required EditController controller,
+        required FocusNode parentFocusNode,
+        void Function(CellCoordinate, CellValue?)? onCommit,
+        VoidCallback? onCancel,
+      }) {
+        return MaterialApp(
+          home: Scaffold(
+            body: ListenableBuilder(
+              listenable: controller,
+              builder: (context, _) {
+                return Stack(
+                  children: [
+                    Focus(
+                      focusNode: parentFocusNode,
+                      autofocus: true,
+                      child: const SizedBox.expand(),
+                    ),
+                    if (controller.isEditing)
+                      CellEditorOverlay(
+                        editController: controller,
+                        cellBounds: const Rect.fromLTWH(100, 50, 80, 24),
+                        onCommit: onCommit ?? (_, _) {},
+                        onCancel: onCancel ?? () {},
+                      ),
+                  ],
+                );
+              },
+            ),
+          ),
+        );
+      }
+
+      testWidgets('TextField receives focus when editing starts',
+          (tester) async {
+        final parentFocus = FocusNode(debugLabel: 'parent');
+        addTearDown(parentFocus.dispose);
+
+        await tester.pumpWidget(buildConditionalOverlay(
+          controller: editController,
+          parentFocusNode: parentFocus,
+        ));
+        await tester.pump();
+        expect(parentFocus.hasFocus, isTrue);
+
+        // Start editing — overlay appears, captures previousFocus, takes focus
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        final textField = tester.widget<TextField>(find.byType(TextField));
+        expect(textField.focusNode!.hasFocus, isTrue);
+        expect(parentFocus.hasFocus, isFalse);
+      });
+
+      testWidgets('focus returns to parent on commit', (tester) async {
+        final parentFocus = FocusNode(debugLabel: 'parent');
+        addTearDown(parentFocus.dispose);
+
+        await tester.pumpWidget(buildConditionalOverlay(
+          controller: editController,
+          parentFocusNode: parentFocus,
+        ));
+        await tester.pump();
+        expect(parentFocus.hasFocus, isTrue);
+
+        // Start editing
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        // Commit the edit
+        await tester.enterText(find.byType(TextField), 'World');
+        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.pump();
+
+        // Parent should have focus again
+        expect(parentFocus.hasFocus, isTrue);
+      });
+
+      testWidgets('focus returns to parent on cancel', (tester) async {
+        final parentFocus = FocusNode(debugLabel: 'parent');
+        addTearDown(parentFocus.dispose);
+
+        await tester.pumpWidget(buildConditionalOverlay(
+          controller: editController,
+          parentFocusNode: parentFocus,
+        ));
+        await tester.pump();
+        expect(parentFocus.hasFocus, isTrue);
+
+        // Start editing
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+        await tester.pump();
+        await tester.pump();
+
+        // Cancel with Escape
+        await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+        await tester.pump();
+
+        // Parent should have focus again
+        expect(parentFocus.hasFocus, isTrue);
+      });
     });
   });
 }

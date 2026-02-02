@@ -36,12 +36,12 @@ class WorksheetController extends ChangeNotifier {
     ZoomController? zoomController,
     ScrollController? horizontalScrollController,
     ScrollController? verticalScrollController,
-  })  : selectionController = selectionController ?? SelectionController(),
-        zoomController = zoomController ?? ZoomController(),
-        horizontalScrollController =
-            horizontalScrollController ?? ScrollController(),
-        verticalScrollController =
-            verticalScrollController ?? ScrollController() {
+  }) : selectionController = selectionController ?? SelectionController(),
+       zoomController = zoomController ?? ZoomController(),
+       horizontalScrollController =
+           horizontalScrollController ?? ScrollController(),
+       verticalScrollController =
+           verticalScrollController ?? ScrollController() {
     this.selectionController.addListener(_onControllerChanged);
     this.zoomController.addListener(_onControllerChanged);
     this.horizontalScrollController.addListener(_onControllerChanged);
@@ -136,12 +136,14 @@ class WorksheetController extends ChangeNotifier {
   // Scroll methods
 
   /// The current horizontal scroll offset.
-  double get scrollX =>
-      horizontalScrollController.hasClients ? horizontalScrollController.offset : 0.0;
+  double get scrollX => horizontalScrollController.hasClients
+      ? horizontalScrollController.offset
+      : 0.0;
 
   /// The current vertical scroll offset.
-  double get scrollY =>
-      verticalScrollController.hasClients ? verticalScrollController.offset : 0.0;
+  double get scrollY => verticalScrollController.hasClients
+      ? verticalScrollController.offset
+      : 0.0;
 
   /// Scrolls to show the given cell.
   ///
@@ -234,7 +236,11 @@ class WorksheetController extends ChangeNotifier {
   }) {
     if (animate) {
       if (x != null && horizontalScrollController.hasClients) {
-        horizontalScrollController.animateTo(x, duration: duration, curve: curve);
+        horizontalScrollController.animateTo(
+          x,
+          duration: duration,
+          curve: curve,
+        );
       }
       if (y != null && verticalScrollController.hasClients) {
         verticalScrollController.animateTo(y, duration: duration, curve: curve);
