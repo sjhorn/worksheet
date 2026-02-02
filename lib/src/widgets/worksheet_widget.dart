@@ -418,8 +418,9 @@ class _WorksheetState extends State<Worksheet> {
     if (selection == null) return;
 
     // Check if the resized row is within the selection
-    if (resizedRow < selection.startRow || resizedRow > selection.endRow)
+    if (resizedRow < selection.startRow || resizedRow > selection.endRow) {
       return;
+    }
 
     // Check if this is a full-row selection (all columns selected)
     // For simplicity, we apply to all rows in the selection range
@@ -447,8 +448,9 @@ class _WorksheetState extends State<Worksheet> {
 
     // Check if the resized column is within the selection
     if (resizedColumn < selection.startColumn ||
-        resizedColumn > selection.endColumn)
+        resizedColumn > selection.endColumn) {
       return;
+    }
 
     // Check if this is a full-column selection (all rows selected)
     // For simplicity, we apply to all columns in the selection range
