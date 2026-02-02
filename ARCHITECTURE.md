@@ -341,10 +341,14 @@ GestureDetector.onDoubleTap
 onEditCell callback
         │
         ▼
+controller.getCellScreenBounds(cell) → Rect
+  (accounts for zoom, scroll, and header offsets)
+        │
+        ▼
 EditController.startEditing(cell, initialValue)
         │
         ▼
-CellEditorOverlay appears (TextField positioned over cell)
+CellEditorOverlay appears (TextField positioned at Rect)
         │
         ▼
 User types and presses Enter
@@ -419,7 +423,8 @@ Worksheet → Screen:
 
 ### WorksheetController
 
-Central controller aggregating sub-controllers:
+Central controller aggregating sub-controllers, with access to the widget's
+internal layout state:
 
 ```dart
 WorksheetController {
@@ -427,6 +432,11 @@ WorksheetController {
   ZoomController zoomController;            // Zoom level 0.1-4.0
   ScrollController horizontalScrollController;
   ScrollController verticalScrollController;
+
+  // Attached by the Worksheet widget after initialization:
+  LayoutSolver? layoutSolver;    // Authoritative cell geometry
+  double headerWidth;            // Header width in worksheet coords
+  double headerHeight;           // Header height in worksheet coords
 }
 ```
 
@@ -435,6 +445,18 @@ WorksheetController {
 controller.selectCell(CellCoordinate(5, 3));
 controller.setZoom(1.5);
 controller.scrollTo(x: 500, y: 1000, animate: true);
+
+// Get screen-space bounds of a cell (accounts for zoom, scroll, headers)
+final bounds = controller.getCellScreenBounds(CellCoordinate(5, 3));
+
+// Scroll to make a cell visible (uses attached layout)
+controller.ensureCellVisible(cell, viewportSize: size);
+
+// Access layout for custom calculations
+final solver = controller.layoutSolver;
+if (solver != null) {
+  final width = solver.getColumnWidth(3);
+}
 ```
 
 ### WorksheetGestureHandler

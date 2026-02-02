@@ -1,5 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:worksheet/src/core/geometry/layout_solver.dart';
+import 'package:worksheet/src/core/geometry/span_list.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/interaction/controllers/selection_controller.dart';
@@ -396,6 +398,229 @@ void main() {
         // Should have scrolled back toward origin
         expect(controller.scrollX, lessThan(5000));
         expect(controller.scrollY, lessThan(5000));
+      });
+    });
+
+    group('layout attachment', () {
+      late LayoutSolver solver;
+
+      setUp(() {
+        solver = LayoutSolver(
+          rows: SpanList(count: 100, defaultSize: 20.0),
+          columns: SpanList(count: 26, defaultSize: 80.0),
+        );
+      });
+
+      test('hasLayout is false before attach', () {
+        expect(controller.hasLayout, isFalse);
+        expect(controller.layoutSolver, isNull);
+      });
+
+      test('hasLayout is true after attach', () {
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+
+        expect(controller.hasLayout, isTrue);
+        expect(controller.layoutSolver, same(solver));
+        expect(controller.headerWidth, 40.0);
+        expect(controller.headerHeight, 20.0);
+      });
+
+      test('detachLayout resets hasLayout to false', () {
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+        expect(controller.hasLayout, isTrue);
+
+        controller.detachLayout();
+        expect(controller.hasLayout, isFalse);
+        expect(controller.layoutSolver, isNull);
+      });
+
+      test('getCellScreenBounds returns null before attach', () {
+        expect(
+          controller.getCellScreenBounds(const CellCoordinate(0, 0)),
+          isNull,
+        );
+      });
+
+      test('getCellScreenBounds returns correct Rect at zoom=1 no scroll', () {
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+
+        // Cell (0,0): left=0, top=0, width=80, height=20
+        // With headers: left = 0 - 0 + 40 = 40, top = 0 - 0 + 20 = 20
+        final bounds = controller.getCellScreenBounds(
+          const CellCoordinate(0, 0),
+        );
+        expect(bounds, isNotNull);
+        expect(bounds!.left, 40.0);
+        expect(bounds.top, 20.0);
+        expect(bounds.width, 80.0);
+        expect(bounds.height, 20.0);
+      });
+
+      test('getCellScreenBounds for non-origin cell', () {
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+
+        // Cell (2,3): left=3*80=240, top=2*20=40, width=80, height=20
+        // With headers: left = 240 + 40 = 280, top = 40 + 20 = 60
+        final bounds = controller.getCellScreenBounds(
+          const CellCoordinate(2, 3),
+        );
+        expect(bounds, isNotNull);
+        expect(bounds!.left, 280.0);
+        expect(bounds.top, 60.0);
+        expect(bounds.width, 80.0);
+        expect(bounds.height, 20.0);
+      });
+
+      test('getCellScreenBounds accounts for zoom', () {
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+        controller.setZoom(2.0);
+
+        // Cell (0,0) at zoom 2.0:
+        // cellLeft = 0 * 2 = 0, cellTop = 0 * 2 = 0
+        // width = 80 * 2 = 160, height = 20 * 2 = 40
+        // header offset: 40 * 2 = 80, 20 * 2 = 40
+        // left = 0 - 0 + 80 = 80, top = 0 - 0 + 40 = 40
+        final bounds = controller.getCellScreenBounds(
+          const CellCoordinate(0, 0),
+        );
+        expect(bounds, isNotNull);
+        expect(bounds!.left, 80.0);
+        expect(bounds.top, 40.0);
+        expect(bounds.width, 160.0);
+        expect(bounds.height, 40.0);
+      });
+
+      test('getCellScreenBounds accounts for header dimensions', () {
+        controller.attachLayout(
+          solver,
+          headerWidth: 0.0,
+          headerHeight: 0.0,
+        );
+
+        // Cell (0,0) with no headers:
+        // left = 0 - 0 + 0 = 0, top = 0 - 0 + 0 = 0
+        final bounds = controller.getCellScreenBounds(
+          const CellCoordinate(0, 0),
+        );
+        expect(bounds, isNotNull);
+        expect(bounds!.left, 0.0);
+        expect(bounds.top, 0.0);
+      });
+
+      testWidgets('getCellScreenBounds accounts for scroll offset',
+          (tester) async {
+        // Need scroll controllers with clients to have non-zero offsets
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: Stack(
+              children: [
+                SingleChildScrollView(
+                  controller: controller.horizontalScrollController,
+                  scrollDirection: Axis.horizontal,
+                  child: const SizedBox(width: 10000, height: 100),
+                ),
+                SingleChildScrollView(
+                  controller: controller.verticalScrollController,
+                  child: const SizedBox(width: 100, height: 10000),
+                ),
+              ],
+            ),
+          ),
+        );
+
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+
+        // Scroll to (100, 50)
+        controller.scrollTo(x: 100, y: 50);
+        await tester.pump();
+
+        // Cell (0,0) with scroll offset:
+        // left = 0 - 100 + 40 = -60, top = 0 - 50 + 20 = -30
+        final bounds = controller.getCellScreenBounds(
+          const CellCoordinate(0, 0),
+        );
+        expect(bounds, isNotNull);
+        expect(bounds!.left, -60.0);
+        expect(bounds.top, -30.0);
+      });
+
+      testWidgets('ensureCellVisible works with attached layout',
+          (tester) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 800,
+              height: 600,
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    controller: controller.horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: const SizedBox(width: 10000, height: 100),
+                  ),
+                  SingleChildScrollView(
+                    controller: controller.verticalScrollController,
+                    child: const SizedBox(width: 100, height: 10000),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+
+        controller.ensureCellVisible(
+          const CellCoordinate(50, 20),
+          viewportSize: const Size(800, 600),
+          animate: false,
+        );
+        await tester.pump();
+
+        // Should have scrolled to show the cell
+        expect(controller.scrollX, greaterThan(0));
+        expect(controller.scrollY, greaterThan(0));
+      });
+
+      test('ensureCellVisible does nothing without layout', () {
+        // Should not throw
+        expect(
+          () => controller.ensureCellVisible(
+            const CellCoordinate(10, 10),
+            viewportSize: const Size(800, 600),
+          ),
+          returnsNormally,
+        );
       });
     });
 

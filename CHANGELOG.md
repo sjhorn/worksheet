@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- `WorksheetController.getCellScreenBounds()` — returns screen-space `Rect` for a cell, accounting for zoom, scroll offset, and headers
+- `WorksheetController.ensureCellVisible()` — simplified scroll-to-cell that uses the attached layout
+- `WorksheetController.hasLayout` / `layoutSolver` / `headerWidth` / `headerHeight` — public read access to the widget's internal layout state
+- `WorksheetController.attachLayout()` / `detachLayout()` — called by the `Worksheet` widget to share its internal `LayoutSolver`
+
+### Changed
+- `Worksheet` widget now attaches its `LayoutSolver` and header dimensions to the controller after initialization
+- Simplified `_ensureSelectionVisible` in `Worksheet` to use `ensureCellVisible`
+- Example app no longer creates a duplicate `LayoutSolver`; uses `controller.getCellScreenBounds()` instead
+- Updated GETTING_STARTED.md, COOKBOOK.md, API.md, and ARCHITECTURE.md to reflect the new API
+
 ## [1.2.0] - 2025-01-30
 
 ### Added

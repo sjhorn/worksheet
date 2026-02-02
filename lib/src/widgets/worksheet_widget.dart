@@ -202,6 +202,13 @@ class _WorksheetState extends State<Worksheet> {
       headerWidth: theme.rowHeaderWidth,
       headerHeight: theme.columnHeaderHeight,
     );
+
+    // Attach layout to controller for public API access
+    _controller.attachLayout(
+      _layoutSolver,
+      headerWidth: theme.showHeaders ? theme.rowHeaderWidth : 0.0,
+      headerHeight: theme.showHeaders ? theme.columnHeaderHeight : 0.0,
+    );
   }
 
   void _initRendering(WorksheetThemeData theme) {
@@ -467,25 +474,10 @@ class _WorksheetState extends State<Worksheet> {
     final cell = _controller.selectionController.focus;
     if (cell == null) return;
 
-    final theme = WorksheetTheme.of(context);
     final size = context.size;
     if (size == null) return;
 
-    _controller.scrollToCell(
-      cell,
-      getRowTop: _layoutSolver.getRowTop,
-      getColumnLeft: _layoutSolver.getColumnLeft,
-      getRowHeight: _layoutSolver.getRowHeight,
-      getColumnWidth: _layoutSolver.getColumnWidth,
-      viewportSize: size,
-      headerWidth: theme.showHeaders
-          ? theme.rowHeaderWidth * _controller.zoom
-          : 0,
-      headerHeight: theme.showHeaders
-          ? theme.columnHeaderHeight * _controller.zoom
-          : 0,
-      animate: true,
-    );
+    _controller.ensureCellVisible(cell, viewportSize: size);
   }
 
   // Auto-scroll helpers
@@ -603,6 +595,7 @@ class _WorksheetState extends State<Worksheet> {
     super.didUpdateWidget(oldWidget);
 
     if (widget.controller != oldWidget.controller) {
+      _controller.detachLayout();
       if (_ownsController) {
         _controller.removeListener(_onControllerChanged);
         _controller.dispose();
@@ -612,6 +605,13 @@ class _WorksheetState extends State<Worksheet> {
 
       _initController();
       if (_initialized) {
+        // Re-attach layout to the new controller
+        final theme = WorksheetTheme.of(context);
+        _controller.attachLayout(
+          _layoutSolver,
+          headerWidth: theme.showHeaders ? theme.rowHeaderWidth : 0.0,
+          headerHeight: theme.showHeaders ? theme.columnHeaderHeight : 0.0,
+        );
         _gestureHandler = WorksheetGestureHandler(
           hitTester: _hitTester,
           selectionController: _controller.selectionController,
@@ -748,7 +748,6 @@ class _WorksheetState extends State<Worksheet> {
                   setState(() {});
                 },
         );
-        final theme = WorksheetTheme.of(context);
         _selectionLayer.dispose();
         _headerLayer.dispose();
         _initLayers(theme);
@@ -788,6 +787,7 @@ class _WorksheetState extends State<Worksheet> {
   void dispose() {
     _stopAutoScroll();
     _dataSubscription?.cancel();
+    _controller.detachLayout();
     _controller.removeListener(_onControllerChanged);
     if (_ownsController) {
       _controller.dispose();

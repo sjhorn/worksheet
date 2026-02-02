@@ -220,14 +220,13 @@ Worksheet(
 
 ## Enabling Cell Editing
 
-Cell editing requires an `EditController` and `CellEditorOverlay`:
+Cell editing requires an `EditController` and `CellEditorOverlay`. The `WorksheetController` provides `getCellScreenBounds()` to position the editor overlay — no need to create your own `LayoutSolver`:
 
 ```dart
 class _MyWidgetState extends State<MyWidget> {
   late final SparseWorksheetData _data;
   late final WorksheetController _controller;
   late final EditController _editController;
-  late final LayoutSolver _layoutSolver;
   Rect? _editingCellBounds;
 
   @override
@@ -236,34 +235,15 @@ class _MyWidgetState extends State<MyWidget> {
     _data = SparseWorksheetData(rowCount: 1000, columnCount: 26);
     _controller = WorksheetController();
     _editController = EditController();
-
-    // LayoutSolver needed to calculate cell bounds for editor positioning
-    _layoutSolver = LayoutSolver(
-      rows: SpanList(count: 1000, defaultSize: 24.0),
-      columns: SpanList(count: 26, defaultSize: 100.0),
-    );
   }
 
   void _onEditCell(CellCoordinate cell) {
-    // Calculate where to position the editor overlay
-    final cellLeft = _layoutSolver.getColumnLeft(cell.column) * _controller.zoom;
-    final cellTop = _layoutSolver.getRowTop(cell.row) * _controller.zoom;
-    final cellWidth = _layoutSolver.getColumnWidth(cell.column) * _controller.zoom;
-    final cellHeight = _layoutSolver.getRowHeight(cell.row) * _controller.zoom;
+    // getCellScreenBounds accounts for zoom, scroll, and headers
+    final bounds = _controller.getCellScreenBounds(cell);
+    if (bounds == null) return;
 
-    // Adjust for scroll and headers
-    const headerWidth = 50.0;
-    const headerHeight = 24.0;
-    final adjustedLeft = cellLeft - _controller.scrollX + headerWidth;
-    final adjustedTop = cellTop - _controller.scrollY + headerHeight;
+    setState(() => _editingCellBounds = bounds);
 
-    setState(() {
-      _editingCellBounds = Rect.fromLTWH(
-        adjustedLeft, adjustedTop, cellWidth, cellHeight,
-      );
-    });
-
-    // Start editing
     _editController.startEdit(
       cell: cell,
       currentValue: _data.getCell(cell),

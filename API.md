@@ -46,6 +46,10 @@ WorksheetController({
 | `zoom` | `double` | Current zoom level (1.0 = 100%) |
 | `scrollX` | `double` | Horizontal scroll offset |
 | `scrollY` | `double` | Vertical scroll offset |
+| `hasLayout` | `bool` | Whether layout info is attached (true after widget builds) |
+| `layoutSolver` | `LayoutSolver?` | The authoritative layout solver, or null before attach |
+| `headerWidth` | `double` | Header width in worksheet coordinates |
+| `headerHeight` | `double` | Header height in worksheet coordinates |
 
 ### Selection Methods
 
@@ -117,6 +121,45 @@ void scrollTo({
   Duration duration = const Duration(milliseconds: 200),
   Curve curve = Curves.easeInOut,
 })
+```
+
+### Layout Methods
+
+Once the `Worksheet` widget has built, it attaches its internal `LayoutSolver`
+to the controller. These methods use that attached layout:
+
+```dart
+/// Returns the screen-space bounds of a cell, accounting for
+/// zoom, scroll offset, and headers. Returns null if layout
+/// is not yet attached.
+Rect? getCellScreenBounds(CellCoordinate cell)
+
+/// Scrolls to ensure a cell is visible (simplified version of
+/// scrollToCell that uses the attached layout).
+/// Does nothing if layout is not attached.
+void ensureCellVisible(
+  CellCoordinate cell, {
+  required Size viewportSize,
+  bool animate = true,
+  Duration duration = const Duration(milliseconds: 200),
+  Curve curve = Curves.easeInOut,
+})
+```
+
+**Example — positioning a cell editor overlay:**
+```dart
+void _onEditCell(CellCoordinate cell) {
+  final bounds = _controller.getCellScreenBounds(cell);
+  if (bounds == null) return;
+
+  setState(() => _editingCellBounds = bounds);
+
+  _editController.startEdit(
+    cell: cell,
+    currentValue: _data.getCell(cell),
+    trigger: EditTrigger.doubleTap,
+  );
+}
 ```
 
 ### Lifecycle

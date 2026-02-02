@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 
+import '../core/geometry/layout_solver.dart';
 import '../core/models/cell_coordinate.dart';
 import '../core/models/cell_range.dart';
 import '../interaction/controllers/selection_controller.dart';
@@ -27,6 +28,30 @@ class WorksheetController extends ChangeNotifier {
 
   /// The vertical scroll controller.
   final ScrollController verticalScrollController;
+
+  // Layout state — set by the Worksheet widget via attachLayout/detachLayout.
+  LayoutSolver? _layoutSolver;
+  double _headerWidth = 0.0;
+  double _headerHeight = 0.0;
+
+  /// Whether layout information is available.
+  ///
+  /// Returns true after the [Worksheet] widget has attached its internal
+  /// layout solver. Methods like [getCellScreenBounds] and
+  /// [ensureCellVisible] require this to be true.
+  bool get hasLayout => _layoutSolver != null;
+
+  /// The layout solver, or null if not yet attached.
+  ///
+  /// Provides read access to cell geometry (positions, sizes, visible ranges).
+  /// This is the authoritative layout solver owned by the [Worksheet] widget.
+  LayoutSolver? get layoutSolver => _layoutSolver;
+
+  /// Header width in worksheet coordinates.
+  double get headerWidth => _headerWidth;
+
+  /// Header height in worksheet coordinates.
+  double get headerHeight => _headerHeight;
 
   /// Creates a worksheet controller.
   ///
@@ -253,6 +278,81 @@ class WorksheetController extends ChangeNotifier {
         verticalScrollController.jumpTo(y);
       }
     }
+  }
+
+  // Layout attachment
+
+  /// Attaches the layout solver and header dimensions from the [Worksheet]
+  /// widget.
+  ///
+  /// This is called internally by the widget after initialization. External
+  /// code should not call this directly.
+  void attachLayout(
+    LayoutSolver solver, {
+    required double headerWidth,
+    required double headerHeight,
+  }) {
+    _layoutSolver = solver;
+    _headerWidth = headerWidth;
+    _headerHeight = headerHeight;
+  }
+
+  /// Detaches the layout solver.
+  ///
+  /// Called internally by the [Worksheet] widget on dispose.
+  void detachLayout() {
+    _layoutSolver = null;
+  }
+
+  /// Returns the screen-space bounds of [cell], accounting for zoom,
+  /// scroll offset, and headers.
+  ///
+  /// Returns null if layout is not attached (i.e. [hasLayout] is false).
+  Rect? getCellScreenBounds(CellCoordinate cell) {
+    final solver = _layoutSolver;
+    if (solver == null) return null;
+
+    final cellLeft = solver.getColumnLeft(cell.column) * zoom;
+    final cellTop = solver.getRowTop(cell.row) * zoom;
+    final cellWidth = solver.getColumnWidth(cell.column) * zoom;
+    final cellHeight = solver.getRowHeight(cell.row) * zoom;
+
+    return Rect.fromLTWH(
+      cellLeft - scrollX + _headerWidth * zoom,
+      cellTop - scrollY + _headerHeight * zoom,
+      cellWidth,
+      cellHeight,
+    );
+  }
+
+  /// Scrolls to ensure [cell] is visible.
+  ///
+  /// Requires layout to be attached (via the [Worksheet] widget).
+  /// Returns without effect if layout is not attached.
+  ///
+  /// [viewportSize] is the visible area size.
+  void ensureCellVisible(
+    CellCoordinate cell, {
+    required Size viewportSize,
+    bool animate = true,
+    Duration duration = const Duration(milliseconds: 200),
+    Curve curve = Curves.easeInOut,
+  }) {
+    final solver = _layoutSolver;
+    if (solver == null) return;
+    scrollToCell(
+      cell,
+      getRowTop: solver.getRowTop,
+      getColumnLeft: solver.getColumnLeft,
+      getRowHeight: solver.getRowHeight,
+      getColumnWidth: solver.getColumnWidth,
+      viewportSize: viewportSize,
+      headerWidth: _headerWidth * zoom,
+      headerHeight: _headerHeight * zoom,
+      animate: animate,
+      duration: duration,
+      curve: curve,
+    );
   }
 
   @override

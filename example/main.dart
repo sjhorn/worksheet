@@ -75,7 +75,6 @@ class _WorksheetExampleState extends State<WorksheetExample> {
   late final SparseWorksheetData _data;
   late final WorksheetController _controller;
   late final EditController _editController;
-  late final LayoutSolver _layoutSolver;
 
   // For positioning the editor overlay
   Rect? _editingCellBounds;
@@ -89,12 +88,6 @@ class _WorksheetExampleState extends State<WorksheetExample> {
 
     _controller = WorksheetController();
     _editController = EditController();
-
-    // Layout solver for cell bounds calculation
-    _layoutSolver = LayoutSolver(
-      rows: SpanList(count: _rowCount, defaultSize: _defaultRowHeight),
-      columns: SpanList(count: _columnCount, defaultSize: _defaultColumnWidth),
-    );
   }
 
   void _populateSampleData() {
@@ -347,29 +340,13 @@ class _WorksheetExampleState extends State<WorksheetExample> {
   }
 
   void _onEditCell(CellCoordinate cell) {
-    // Calculate cell bounds for the editor overlay
-    const headerWidth = 40.0; // Narrower for Excel-like appearance
-    const headerHeight = 20.0;
-
-    final cellLeft = _layoutSolver.getColumnLeft(cell.column) * _controller.zoom;
-    final cellTop = _layoutSolver.getRowTop(cell.row) * _controller.zoom;
-    final cellWidth = _layoutSolver.getColumnWidth(cell.column) * _controller.zoom;
-    final cellHeight = _layoutSolver.getRowHeight(cell.row) * _controller.zoom;
-
-    // Adjust for scroll offset and headers
-    final adjustedLeft = cellLeft - _controller.scrollX + headerWidth;
-    final adjustedTop = cellTop - _controller.scrollY + headerHeight;
+    final bounds = _controller.getCellScreenBounds(cell);
+    if (bounds == null) return;
 
     setState(() {
-      _editingCellBounds = Rect.fromLTWH(
-        adjustedLeft,
-        adjustedTop,
-        cellWidth,
-        cellHeight,
-      );
+      _editingCellBounds = bounds;
     });
 
-    // Start editing
     final currentValue = _data.getCell(cell);
     _editController.startEdit(
       cell: cell,

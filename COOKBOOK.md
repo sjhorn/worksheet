@@ -98,7 +98,6 @@ class _EditableDataGridState extends State<EditableDataGrid> {
   late final SparseWorksheetData _data;
   late final WorksheetController _controller;
   late final EditController _editController;
-  late final LayoutSolver _layoutSolver;
 
   Rect? _editingCellBounds;
   bool _hasUnsavedChanges = false;
@@ -112,10 +111,6 @@ class _EditableDataGridState extends State<EditableDataGrid> {
     _data = SparseWorksheetData(rowCount: _rowCount, columnCount: _columnCount);
     _controller = WorksheetController();
     _editController = EditController();
-    _layoutSolver = LayoutSolver(
-      rows: SpanList(count: _rowCount, defaultSize: 24.0),
-      columns: SpanList(count: _columnCount, defaultSize: 100.0),
-    );
 
     _loadData();
   }
@@ -154,32 +149,17 @@ class _EditableDataGridState extends State<EditableDataGrid> {
   }
 
   void _onEditCell(CellCoordinate cell) {
-    final cellBounds = _calculateCellBounds(cell);
-    setState(() {
-      _editingCellBounds = cellBounds;
-    });
+    // getCellScreenBounds uses the Worksheet's internal LayoutSolver,
+    // so it stays in sync with column/row resizes automatically.
+    final bounds = _controller.getCellScreenBounds(cell);
+    if (bounds == null) return;
+
+    setState(() => _editingCellBounds = bounds);
 
     _editController.startEdit(
       cell: cell,
       currentValue: _data.getCell(cell),
       trigger: EditTrigger.doubleTap,
-    );
-  }
-
-  Rect _calculateCellBounds(CellCoordinate cell) {
-    const headerWidth = 50.0;
-    const headerHeight = 24.0;
-
-    final cellLeft = _layoutSolver.getColumnLeft(cell.column) * _controller.zoom;
-    final cellTop = _layoutSolver.getRowTop(cell.row) * _controller.zoom;
-    final cellWidth = _layoutSolver.getColumnWidth(cell.column) * _controller.zoom;
-    final cellHeight = _layoutSolver.getRowHeight(cell.row) * _controller.zoom;
-
-    return Rect.fromLTWH(
-      cellLeft - _controller.scrollX + headerWidth,
-      cellTop - _controller.scrollY + headerHeight,
-      cellWidth,
-      cellHeight,
     );
   }
 
@@ -663,7 +643,6 @@ class ScrollingExample extends StatefulWidget {
 class _ScrollingExampleState extends State<ScrollingExample> {
   late final SparseWorksheetData _data;
   late final WorksheetController _controller;
-  late final LayoutSolver _layoutSolver;
 
   static const int _rowCount = 100000;
   static const int _columnCount = 100;
@@ -673,23 +652,18 @@ class _ScrollingExampleState extends State<ScrollingExample> {
     super.initState();
     _data = SparseWorksheetData(rowCount: _rowCount, columnCount: _columnCount);
     _controller = WorksheetController();
-    _layoutSolver = LayoutSolver(
-      rows: SpanList(count: _rowCount, defaultSize: 24.0),
-      columns: SpanList(count: _columnCount, defaultSize: 100.0),
-    );
   }
 
   /// Scrolls to make a cell visible.
+  ///
+  /// Uses ensureCellVisible which reads layout and header dimensions
+  /// from the Worksheet's internal LayoutSolver automatically.
   void scrollToCell(CellCoordinate cell, {bool animate = true}) {
-    _controller.scrollToCell(
+    final size = context.size;
+    if (size == null) return;
+    _controller.ensureCellVisible(
       cell,
-      getRowTop: (row) => _layoutSolver.getRowTop(row),
-      getColumnLeft: (col) => _layoutSolver.getColumnLeft(col),
-      getRowHeight: (row) => _layoutSolver.getRowHeight(row),
-      getColumnWidth: (col) => _layoutSolver.getColumnWidth(col),
-      viewportSize: MediaQuery.of(context).size,
-      headerWidth: 50.0,
-      headerHeight: 24.0,
+      viewportSize: size,
       animate: animate,
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
@@ -994,11 +968,14 @@ class ColumnWidthManager {
   }
 }
 
-// Usage:
+// Usage (controller.layoutSolver is the Worksheet's internal solver):
 void _autoFitColumn(int column) {
+  final solver = _controller.layoutSolver;
+  if (solver == null) return;
+
   final manager = ColumnWidthManager(
     data: _data,
-    layoutSolver: _layoutSolver,
+    layoutSolver: solver,
   );
 
   final optimalWidth = manager.calculateOptimalWidth(
@@ -1116,13 +1093,15 @@ Worksheet(
   },
 )
 
-// To resize multiple rows/columns programmatically:
+// To resize multiple rows/columns programmatically, use the
+// controller's layoutSolver (attached by the Worksheet widget):
 void resizeSelectedRows(double newHeight) {
   final selection = _controller.selectedRange;
-  if (selection == null) return;
+  final solver = _controller.layoutSolver;
+  if (selection == null || solver == null) return;
 
   for (var row = selection.startRow; row <= selection.endRow; row++) {
-    _layoutSolver.setRowHeight(row, newHeight);
+    solver.setRowHeight(row, newHeight);
   }
 
   // Rebuild widget to apply changes
@@ -1131,10 +1110,11 @@ void resizeSelectedRows(double newHeight) {
 
 void resizeSelectedColumns(double newWidth) {
   final selection = _controller.selectedRange;
-  if (selection == null) return;
+  final solver = _controller.layoutSolver;
+  if (selection == null || solver == null) return;
 
   for (var col = selection.startColumn; col <= selection.endColumn; col++) {
-    _layoutSolver.setColumnWidth(col, newWidth);
+    solver.setColumnWidth(col, newWidth);
   }
 
   setState(() {});
