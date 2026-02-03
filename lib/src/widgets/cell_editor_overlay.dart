@@ -76,7 +76,6 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   late TextEditingController _textController;
   late FocusNode _focusNode;
   FocusNode? _previousFocus;
-  final GlobalKey<EditableTextState> _editableKey = GlobalKey();
 
   /// When true, a controller listener guards against select-all that the
   /// platform may apply on focus gain, reversing it to cursor-at-end.
@@ -278,21 +277,13 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
             alignment: Alignment.centerLeft,
             child: Padding(
               padding: EdgeInsets.only(left: scaledPadding),
-              child: TextSelectionGestureDetectorBuilder(
-                delegate: _EditableTextSelectionDelegate(_editableKey),
-              ).buildGestureDetector(
-                behavior: HitTestBehavior.translucent,
-                child: EditableText(
-                  key: _editableKey,
-                  rendererIgnoresPointer: true,
-                  controller: _textController,
-                  focusNode: _focusNode,
-                  style: textStyle,
-                  cursorColor: widget.textColor,
-                  selectionColor: const Color(0x660078D7),
-                  backgroundCursorColor: Colors.transparent,
-                  onChanged: _onTextChanged,
-                ),
+              child: TextField(
+                controller: _textController,
+                focusNode: _focusNode,
+                style: textStyle,
+                decoration: const InputDecoration.collapsed(hintText: ''),
+                cursorColor: widget.textColor,
+                onChanged: _onTextChanged,
               ),
             ),
           ),
@@ -300,20 +291,4 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       ),
     );
   }
-}
-
-/// Delegate for [TextSelectionGestureDetectorBuilder] that connects to the
-/// [EditableTextState] via a [GlobalKey].
-class _EditableTextSelectionDelegate
-    extends TextSelectionGestureDetectorBuilderDelegate {
-  @override
-  final GlobalKey<EditableTextState> editableTextKey;
-
-  _EditableTextSelectionDelegate(this.editableTextKey);
-
-  @override
-  bool get forcePressEnabled => true;
-
-  @override
-  bool get selectionEnabled => true;
 }

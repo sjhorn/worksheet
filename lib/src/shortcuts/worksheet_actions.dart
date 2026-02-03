@@ -88,6 +88,10 @@ class SelectAllCellsAction extends Action<SelectAllCellsIntent> {
   SelectAllCellsAction(this._context);
 
   @override
+  bool isEnabled(SelectAllCellsIntent intent) =>
+      _context.editController?.isEditing != true;
+
+  @override
   Object? invoke(SelectAllCellsIntent intent) {
     _context.selectionController.selectRange(
       CellRange(0, 0, _context.maxRow - 1, _context.maxColumn - 1),
@@ -135,6 +139,10 @@ class CopyCellsAction extends Action<CopyCellsIntent> {
   CopyCellsAction(this._context);
 
   @override
+  bool isEnabled(CopyCellsIntent intent) =>
+      _context.editController?.isEditing != true;
+
+  @override
   Object? invoke(CopyCellsIntent intent) {
     _context.clipboardHandler.copy();
     return null;
@@ -148,7 +156,8 @@ class CutCellsAction extends Action<CutCellsIntent> {
   CutCellsAction(this._context);
 
   @override
-  bool isEnabled(CutCellsIntent intent) => !_context.readOnly;
+  bool isEnabled(CutCellsIntent intent) =>
+      !_context.readOnly && _context.editController?.isEditing != true;
 
   @override
   Object? invoke(CutCellsIntent intent) {
@@ -166,7 +175,8 @@ class PasteCellsAction extends Action<PasteCellsIntent> {
   PasteCellsAction(this._context);
 
   @override
-  bool isEnabled(PasteCellsIntent intent) => !_context.readOnly;
+  bool isEnabled(PasteCellsIntent intent) =>
+      !_context.readOnly && _context.editController?.isEditing != true;
 
   @override
   Object? invoke(PasteCellsIntent intent) {
@@ -184,7 +194,8 @@ class ClearCellsAction extends Action<ClearCellsIntent> {
   ClearCellsAction(this._context);
 
   @override
-  bool isEnabled(ClearCellsIntent intent) => !_context.readOnly;
+  bool isEnabled(ClearCellsIntent intent) =>
+      !_context.readOnly && _context.editController?.isEditing != true;
 
   @override
   Object? invoke(ClearCellsIntent intent) {

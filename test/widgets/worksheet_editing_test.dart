@@ -377,6 +377,85 @@ void main() {
     });
   });
 
+  group('Backspace/Delete behavior', () {
+    testWidgets('Backspace clears cell when not editing', (tester) async {
+      await tester.pumpWidget(buildWorksheet(ec: editController));
+      selectCell(0, 0);
+      await tester.pump();
+
+      // Cell has value 'A1'
+      expect(data.getCell(const CellCoordinate(0, 0))?.displayValue, 'A1');
+
+      // Press Backspace — should clear the cell
+      await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+      await tester.pump();
+
+      expect(data.getCell(const CellCoordinate(0, 0)), isNull);
+      expect(editController.isEditing, isFalse);
+    });
+
+    testWidgets('Delete clears cell when not editing', (tester) async {
+      await tester.pumpWidget(buildWorksheet(ec: editController));
+      selectCell(0, 1);
+      await tester.pump();
+
+      expect(data.getCell(const CellCoordinate(0, 1))?.displayValue, 'B1');
+
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pump();
+
+      expect(data.getCell(const CellCoordinate(0, 1)), isNull);
+      expect(editController.isEditing, isFalse);
+    });
+
+    testWidgets('Backspace does not clear cell when editing', (tester) async {
+      await tester.pumpWidget(buildWorksheet(ec: editController));
+      selectCell(0, 0);
+      await tester.pump();
+
+      // Start editing via type-to-edit
+      await tester.sendKeyEvent(LogicalKeyboardKey.keyH);
+      await tester.pump();
+      await tester.pump();
+
+      expect(editController.isEditing, isTrue);
+
+      // The original cell value should still be in the data
+      // (editing hasn't committed yet, type-to-edit replaces)
+      final valueBefore = data.getCell(const CellCoordinate(0, 0));
+
+      // Press Backspace — should NOT clear the cell, should edit text
+      await tester.sendKeyEvent(LogicalKeyboardKey.backspace);
+      await tester.pump();
+
+      // Should still be editing
+      expect(editController.isEditing, isTrue);
+      // Cell data should not have been cleared by ClearCellsAction
+      expect(data.getCell(const CellCoordinate(0, 0)), valueBefore);
+    });
+
+    testWidgets('Delete does not clear cell when editing', (tester) async {
+      await tester.pumpWidget(buildWorksheet(ec: editController));
+      selectCell(0, 0);
+      await tester.pump();
+
+      // Start editing via F2
+      await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+      await tester.pump();
+      await tester.pump();
+
+      expect(editController.isEditing, isTrue);
+      final valueBefore = data.getCell(const CellCoordinate(0, 0));
+
+      // Press Delete — should NOT clear the cell
+      await tester.sendKeyEvent(LogicalKeyboardKey.delete);
+      await tester.pump();
+
+      expect(editController.isEditing, isTrue);
+      expect(data.getCell(const CellCoordinate(0, 0)), valueBefore);
+    });
+  });
+
   group('Integration', () {
     testWidgets(
         'type character starts editing, Enter commits and moves down',

@@ -582,11 +582,14 @@ class _WorksheetState extends State<Worksheet>
 
     if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
-    // Only intercept printable characters (codeUnit >= 0x20).
+    // Only intercept printable characters (0x20–0x7E and above 0x7F).
+    // Exclude C0 control chars (0x00–0x1F) and DEL (0x7F, sent by
+    // Backspace on macOS) so they propagate to the Shortcuts widget.
     // Ignore if Ctrl, Meta, or Alt are held (those are shortcuts).
     final char = event.character;
     if (char == null || char.isEmpty) return KeyEventResult.ignored;
-    if (char.codeUnitAt(0) < 0x20) return KeyEventResult.ignored;
+    final code = char.codeUnitAt(0);
+    if (code < 0x20 || code == 0x7F) return KeyEventResult.ignored;
 
     if (HardwareKeyboard.instance.isControlPressed ||
         HardwareKeyboard.instance.isMetaPressed ||
@@ -919,9 +922,21 @@ class _WorksheetState extends State<Worksheet>
                     }
                     _pointerInScrollbarArea = false;
 
-                    // Commit current edit if tapping while editing
+                    // If editing, check whether the tap is inside the
+                    // editing cell.  If so, let it reach the TextField
+                    // for cursor positioning / text selection.  If outside,
+                    // commit the edit and proceed with normal selection.
                     final ec = widget.editController;
                     if (ec != null && ec.isEditing) {
+                      final editingCell = ec.editingCell;
+                      if (editingCell != null) {
+                        final cellBounds =
+                            _controller.getCellScreenBounds(editingCell);
+                        if (cellBounds != null &&
+                            cellBounds.contains(event.localPosition)) {
+                          return; // tap inside editing cell — hand off to TextField
+                        }
+                      }
                       ec.commitEdit(onCommit: _onInternalCommit);
                     }
 
@@ -988,19 +1003,24 @@ class _WorksheetState extends State<Worksheet>
                 ? null
                 : (widget.onEditCell == null && widget.editController == null)
                     ? null
-                    : () {
-                        final cell = _controller.focusCell;
-                        if (cell == null) return;
-                        // Fire external callback
-                        widget.onEditCell?.call(cell);
-                        // Also start integrated editing if available
-                        if (widget.editController != null) {
-                          _startIntegratedEdit(
-                            cell: cell,
-                            trigger: EditTrigger.doubleTap,
-                          );
-                        }
-                      },
+                    // When already editing, don't register a double-tap
+                    // handler so the TextField's double-tap (word select)
+                    // wins the gesture arena.
+                    : (widget.editController?.isEditing == true)
+                        ? null
+                        : () {
+                            final cell = _controller.focusCell;
+                            if (cell == null) return;
+                            // Fire external callback
+                            widget.onEditCell?.call(cell);
+                            // Also start integrated editing if available
+                            if (widget.editController != null) {
+                              _startIntegratedEdit(
+                                cell: cell,
+                                trigger: EditTrigger.doubleTap,
+                              );
+                            }
+                          },
             child: Stack(
               children: [
                 // Transparent hit target for the entire area (including headers)
