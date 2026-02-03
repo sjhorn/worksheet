@@ -6,6 +6,7 @@ import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/interaction/clipboard/clipboard_handler.dart';
 import 'package:worksheet/src/interaction/clipboard/clipboard_serializer.dart';
+import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
 import 'package:worksheet/src/interaction/controllers/selection_controller.dart';
 import 'package:worksheet/src/shortcuts/worksheet_action_context.dart';
 import 'package:worksheet/src/shortcuts/worksheet_actions.dart';
@@ -26,6 +27,8 @@ class MockWorksheetActionContext implements WorksheetActionContext {
   final bool readOnly;
   @override
   final void Function(CellCoordinate)? onEditCell;
+  @override
+  final EditController? editController;
 
   int ensureSelectionVisibleCount = 0;
   int invalidateAndRebuildCount = 0;
@@ -38,6 +41,7 @@ class MockWorksheetActionContext implements WorksheetActionContext {
     required this.clipboardHandler,
     this.readOnly = false,
     this.onEditCell,
+    this.editController,
   });
 
   @override

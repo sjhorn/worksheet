@@ -25,6 +25,7 @@ void main() {
     void Function(CellCoordinate, CellValue?)? onCommit,
     VoidCallback? onCancel,
     FocusNode? parentFocusNode,
+    void Function(CellCoordinate, CellValue?, int, int)? onCommitAndNavigate,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -42,6 +43,7 @@ void main() {
               cellBounds: cellBounds,
               onCommit: onCommit ?? (_, _) {},
               onCancel: onCancel ?? () {},
+              onCommitAndNavigate: onCommitAndNavigate,
             ),
           ],
         ),
@@ -53,7 +55,7 @@ void main() {
     testWidgets('shows nothing when not editing', (tester) async {
       await tester.pumpWidget(buildTestWidget(controller: editController));
 
-      expect(find.byType(TextField), findsNothing);
+      expect(find.byType(EditableText), findsNothing);
     });
 
     testWidgets('shows TextField when editing', (tester) async {
@@ -64,7 +66,7 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget(controller: editController));
 
-      expect(find.byType(TextField), findsOneWidget);
+      expect(find.byType(EditableText), findsOneWidget);
     });
 
     testWidgets('displays current text in TextField', (tester) async {
@@ -75,8 +77,8 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget(controller: editController));
 
-      final textField = tester.widget<TextField>(find.byType(TextField));
-      expect(textField.controller?.text, 'Test Value');
+      final textField = tester.widget<EditableText>(find.byType(EditableText));
+      expect(textField.controller.text, 'Test Value');
     });
 
     testWidgets('updates controller when text changes', (tester) async {
@@ -84,7 +86,7 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget(controller: editController));
 
-      await tester.enterText(find.byType(TextField), 'New Text');
+      await tester.enterText(find.byType(EditableText), 'New Text');
 
       expect(editController.currentText, 'New Text');
     });
@@ -103,8 +105,8 @@ void main() {
         },
       ));
 
-      await tester.enterText(find.byType(TextField), 'Committed');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.enterText(find.byType(EditableText), 'Committed');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
 
       expect(committedCell, const CellCoordinate(2, 3));
@@ -130,14 +132,14 @@ void main() {
       expect(cancelCalled, isTrue);
     });
 
-    testWidgets('auto-focuses TextField when editing starts', (tester) async {
+    testWidgets('auto-focuses when editing starts', (tester) async {
       editController.startEdit(cell: const CellCoordinate(0, 0));
 
       await tester.pumpWidget(buildTestWidget(controller: editController));
       await tester.pump(); // Allow focus to settle
 
-      final textField = tester.widget<TextField>(find.byType(TextField));
-      expect(textField.autofocus, isTrue);
+      final textField = tester.widget<EditableText>(find.byType(EditableText));
+      expect(textField.focusNode.hasFocus, isTrue);
     });
 
     testWidgets('positions at cell bounds', (tester) async {
@@ -176,12 +178,12 @@ void main() {
       editController.startEdit(cell: const CellCoordinate(0, 0));
 
       await tester.pumpWidget(buildTestWidget(controller: editController));
-      expect(find.byType(TextField), findsOneWidget);
+      expect(find.byType(EditableText), findsOneWidget);
 
       editController.commitEdit(onCommit: (_, _) {});
       await tester.pump();
 
-      expect(find.byType(TextField), findsNothing);
+      expect(find.byType(EditableText), findsNothing);
     });
 
     testWidgets('commits number value', (tester) async {
@@ -194,8 +196,8 @@ void main() {
         onCommit: (_, value) => committedValue = value,
       ));
 
-      await tester.enterText(find.byType(TextField), '42.5');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.enterText(find.byType(EditableText), '42.5');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
 
       expect(committedValue?.type, CellValueType.number);
@@ -212,8 +214,8 @@ void main() {
         onCommit: (_, value) => committedValue = value,
       ));
 
-      await tester.enterText(find.byType(TextField), '=SUM(A1:A10)');
-      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.enterText(find.byType(EditableText), '=SUM(A1:A10)');
+      await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
 
       expect(committedValue?.type, CellValueType.formula);
@@ -230,8 +232,8 @@ void main() {
       await tester.pump();
 
       // The text should be selected - verify through controller
-      final textField = tester.widget<TextField>(find.byType(TextField));
-      final controller = textField.controller!;
+      final textField = tester.widget<EditableText>(find.byType(EditableText));
+      final controller = textField.controller;
 
       // Selection should cover entire text
       expect(controller.selection.start, 0);
@@ -294,8 +296,8 @@ void main() {
         await tester.pump();
         await tester.pump();
 
-        final textField = tester.widget<TextField>(find.byType(TextField));
-        expect(textField.focusNode!.hasFocus, isTrue);
+        final textField = tester.widget<EditableText>(find.byType(EditableText));
+        expect(textField.focusNode.hasFocus, isTrue);
         expect(parentFocus.hasFocus, isFalse);
       });
 
@@ -319,8 +321,8 @@ void main() {
         await tester.pump();
 
         // Commit the edit
-        await tester.enterText(find.byType(TextField), 'World');
-        await tester.testTextInput.receiveAction(TextInputAction.done);
+        await tester.enterText(find.byType(EditableText), 'World');
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.pump();
 
         // Parent should have focus again
@@ -352,6 +354,317 @@ void main() {
 
         // Parent should have focus again
         expect(parentFocus.hasFocus, isTrue);
+      });
+    });
+
+    group('onCommitAndNavigate', () {
+      testWidgets('Enter calls onCommitAndNavigate with rowDelta=1',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(3, 4),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        CellCoordinate? navCell;
+        int? navRowDelta;
+        int? navColDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navCell = cell;
+            navRowDelta = rowDelta;
+            navColDelta = colDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        expect(navCell, const CellCoordinate(3, 4));
+        expect(navRowDelta, 1);
+        expect(navColDelta, 0);
+      });
+
+      testWidgets('Shift+Enter calls onCommitAndNavigate with rowDelta=-1',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(5, 2),
+        );
+
+        int? navRowDelta;
+        int? navColDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navRowDelta = rowDelta;
+            navColDelta = colDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+
+        expect(navRowDelta, -1);
+        expect(navColDelta, 0);
+      });
+
+      testWidgets('Tab calls onCommitAndNavigate with columnDelta=1',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(2, 3),
+        );
+
+        int? navRowDelta;
+        int? navColDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navRowDelta = rowDelta;
+            navColDelta = colDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+
+        expect(navRowDelta, 0);
+        expect(navColDelta, 1);
+      });
+
+      testWidgets('Shift+Tab calls onCommitAndNavigate with columnDelta=-1',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(2, 5),
+        );
+
+        int? navRowDelta;
+        int? navColDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navRowDelta = rowDelta;
+            navColDelta = colDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+
+        expect(navRowDelta, 0);
+        expect(navColDelta, -1);
+      });
+
+      testWidgets(
+          'Enter falls back to onCommit when onCommitAndNavigate is null',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(1, 1),
+        );
+
+        CellCoordinate? committedCell;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommit: (cell, value) {
+            committedCell = cell;
+          },
+          // onCommitAndNavigate is null
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        expect(committedCell, const CellCoordinate(1, 1));
+      });
+
+      testWidgets('Tab does not cause focus traversal', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+        );
+
+        var navigateCalled = false;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navigateCalled = true;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+        await tester.pump();
+
+        // Tab should have been handled (commit+navigate), not passed through
+        expect(navigateCalled, isTrue);
+      });
+
+      testWidgets('numpadEnter commits and navigates down', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(1, 1),
+        );
+
+        int? navRowDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navRowDelta = rowDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.numpadEnter);
+        await tester.pump();
+
+        expect(navRowDelta, 1);
+      });
+
+      testWidgets('ArrowDown commits and navigates down', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(3, 2),
+        );
+
+        int? navRowDelta;
+        int? navColDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navRowDelta = rowDelta;
+            navColDelta = colDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+        await tester.pump();
+
+        expect(navRowDelta, 1);
+        expect(navColDelta, 0);
+      });
+
+      testWidgets('ArrowUp commits and navigates up', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(3, 2),
+        );
+
+        int? navRowDelta;
+        int? navColDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navRowDelta = rowDelta;
+            navColDelta = colDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
+        await tester.pump();
+
+        expect(navRowDelta, -1);
+        expect(navColDelta, 0);
+      });
+
+      testWidgets('ArrowRight commits and navigates right', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(3, 2),
+        );
+
+        int? navRowDelta;
+        int? navColDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navRowDelta = rowDelta;
+            navColDelta = colDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump();
+
+        expect(navRowDelta, 0);
+        expect(navColDelta, 1);
+      });
+
+      testWidgets('ArrowLeft commits and navigates left', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(3, 2),
+        );
+
+        int? navRowDelta;
+        int? navColDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+            navRowDelta = rowDelta;
+            navColDelta = colDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+        await tester.pump();
+
+        expect(navRowDelta, 0);
+        expect(navColDelta, -1);
+      });
+    });
+
+    group('cursor position based on trigger', () {
+      testWidgets('typing trigger places cursor at end', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          trigger: EditTrigger.typing,
+          initialText: 'x',
+        );
+
+        await tester.pumpWidget(buildTestWidget(controller: editController));
+        await tester.pump();
+
+        final textField = tester.widget<EditableText>(find.byType(EditableText));
+        final tc = textField.controller;
+
+        // For typing trigger, cursor should be at end (collapsed)
+        expect(tc.selection.isCollapsed, isTrue);
+        expect(tc.selection.baseOffset, 'x'.length);
+      });
+
+      testWidgets('F2 trigger selects all text', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+          trigger: EditTrigger.f2Key,
+        );
+
+        await tester.pumpWidget(buildTestWidget(controller: editController));
+        await tester.pump();
+
+        final textField = tester.widget<EditableText>(find.byType(EditableText));
+        final tc = textField.controller;
+
+        // For F2 trigger, all text should be selected
+        expect(tc.selection.start, 0);
+        expect(tc.selection.end, 'Hello'.length);
       });
     });
   });

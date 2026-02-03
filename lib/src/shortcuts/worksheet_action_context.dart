@@ -1,6 +1,7 @@
 import '../core/data/worksheet_data.dart';
 import '../core/models/cell_coordinate.dart';
 import '../interaction/clipboard/clipboard_handler.dart';
+import '../interaction/controllers/edit_controller.dart';
 import '../interaction/controllers/selection_controller.dart';
 
 /// Interface providing the dependencies that worksheet [Action] classes need.
@@ -34,4 +35,7 @@ abstract class WorksheetActionContext {
 
   /// Invalidates tiles and triggers a rebuild of the widget.
   void invalidateAndRebuild();
+
+  /// The edit controller, or null if editing is managed externally.
+  EditController? get editController => null;
 }

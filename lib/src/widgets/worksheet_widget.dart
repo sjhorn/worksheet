@@ -4,6 +4,7 @@ import 'dart:ui' show lerpDouble;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/data/data_change_event.dart';
 import '../core/data/worksheet_data.dart';
@@ -11,8 +12,10 @@ import '../core/geometry/layout_solver.dart';
 import '../core/geometry/span_list.dart';
 import '../core/models/cell_coordinate.dart';
 import '../core/models/cell_range.dart';
+import '../core/models/cell_value.dart';
 import '../interaction/clipboard/clipboard_handler.dart';
 import '../interaction/clipboard/clipboard_serializer.dart';
+import '../interaction/controllers/edit_controller.dart';
 import '../interaction/controllers/selection_controller.dart';
 import '../interaction/gesture_handler.dart';
 import '../interaction/hit_testing/hit_test_result.dart';
@@ -30,6 +33,7 @@ import '../rendering/tile/tile_config.dart';
 import '../rendering/tile/tile_manager.dart';
 import '../rendering/tile/tile_painter.dart';
 import '../scrolling/worksheet_viewport.dart';
+import 'cell_editor_overlay.dart';
 import 'worksheet_controller.dart';
 import 'worksheet_scrollbar_config.dart';
 import 'worksheet_theme.dart';
@@ -80,6 +84,18 @@ class Worksheet extends StatefulWidget {
 
   /// Called when a cell should enter edit mode (double-tap).
   final OnEditCellCallback? onEditCell;
+
+  /// Optional edit controller for integrated editing support.
+  ///
+  /// When provided, the Worksheet:
+  /// - Renders [CellEditorOverlay] internally (no manual Stack needed)
+  /// - Intercepts printable characters for type-to-edit
+  /// - Handles post-commit navigation (Enter→down, Tab→right, etc.)
+  /// - Starts editing on F2 and double-tap via the controller
+  ///
+  /// When null, behavior is identical to before. The existing external
+  /// management approach continues to work.
+  final EditController? editController;
 
   /// Called when a cell is tapped.
   final OnCellTapCallback? onCellTap;
@@ -138,6 +154,7 @@ class Worksheet extends StatefulWidget {
     this.rowCount = 1000,
     this.columnCount = 26,
     this.onEditCell,
+    this.editController,
     this.onCellTap,
     this.onResizeRow,
     this.onResizeColumn,
@@ -203,6 +220,9 @@ class _WorksheetState extends State<Worksheet>
   void Function(CellCoordinate)? get onEditCell => widget.onEditCell;
 
   @override
+  EditController? get editController => widget.editController;
+
+  @override
   void ensureSelectionVisible() => _ensureSelectionVisible();
 
   @override
@@ -219,7 +239,7 @@ class _WorksheetState extends State<Worksheet>
         GoToRowBoundaryIntent: GoToRowBoundaryAction(this),
         SelectAllCellsIntent: SelectAllCellsAction(this),
         CancelSelectionIntent: CancelSelectionAction(this),
-        EditCellIntent: EditCellAction(this),
+        EditCellIntent: _IntegratedEditCellAction(this),
         CopyCellsIntent: CopyCellsAction(this),
         CutCellsIntent: CutCellsAction(this),
         PasteCellsIntent: PasteCellsAction(this),
@@ -473,6 +493,116 @@ class _WorksheetState extends State<Worksheet>
     if (size == null) return;
 
     _controller.ensureCellVisible(cell, viewportSize: size);
+  }
+
+  // --- Integrated editing support ---
+
+  /// Starts editing via the integrated editController.
+  void _startIntegratedEdit({
+    required CellCoordinate cell,
+    required EditTrigger trigger,
+    String? initialText,
+  }) {
+    final ec = widget.editController;
+    if (ec == null) return;
+
+    final currentValue = widget.data.getCell(cell);
+    ec.startEdit(
+      cell: cell,
+      currentValue: currentValue,
+      trigger: trigger,
+      initialText: initialText,
+    );
+
+    // Tell the tile painter to skip rendering text for this cell
+    // (the overlay TextField renders it instead) and re-render the tile.
+    _tilePainter.editingCell = cell;
+    _tileManager.invalidateRange(
+      CellRange(cell.row, cell.column, cell.row, cell.column),
+    );
+    _layoutVersion++;
+    setState(() {});
+  }
+
+  /// Clears the editing cell from the tile painter so tile text re-appears.
+  void _clearEditingCell() {
+    final prev = _tilePainter.editingCell;
+    if (prev != null) {
+      _tilePainter.editingCell = null;
+      _tileManager.invalidateRange(
+        CellRange(prev.row, prev.column, prev.row, prev.column),
+      );
+      _layoutVersion++;
+    }
+  }
+
+  /// Handles commit from the internal CellEditorOverlay.
+  void _onInternalCommit(CellCoordinate cell, CellValue? value) {
+    _clearEditingCell();
+    widget.data.setCell(cell, value);
+    invalidateAndRebuild();
+  }
+
+  /// Handles cancel from the internal CellEditorOverlay.
+  void _onInternalCancel() {
+    _clearEditingCell();
+    // Focus restores automatically via CellEditorOverlay._previousFocus
+  }
+
+  /// Handles commit-and-navigate from the internal CellEditorOverlay.
+  void _onInternalCommitAndNavigate(
+    CellCoordinate cell,
+    CellValue? value,
+    int rowDelta,
+    int colDelta,
+  ) {
+    _clearEditingCell();
+    widget.data.setCell(cell, value);
+    selectionController.moveFocus(
+      rowDelta: rowDelta,
+      columnDelta: colDelta,
+      extend: false,
+      maxRow: widget.rowCount,
+      maxColumn: widget.columnCount,
+    );
+    invalidateAndRebuild();
+    _ensureSelectionVisible();
+  }
+
+  /// Handles printable key events for type-to-edit.
+  ///
+  /// Placed on the inner Focus widget so it fires before the Shortcuts widget.
+  /// Returns [KeyEventResult.handled] to prevent the character from also
+  /// triggering a shortcut.
+  KeyEventResult _handleTypeToEdit(FocusNode node, KeyEvent event) {
+    final ec = widget.editController;
+    if (ec == null || widget.readOnly || ec.isEditing) {
+      return KeyEventResult.ignored;
+    }
+
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    // Only intercept printable characters (codeUnit >= 0x20).
+    // Ignore if Ctrl, Meta, or Alt are held (those are shortcuts).
+    final char = event.character;
+    if (char == null || char.isEmpty) return KeyEventResult.ignored;
+    if (char.codeUnitAt(0) < 0x20) return KeyEventResult.ignored;
+
+    if (HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed ||
+        HardwareKeyboard.instance.isAltPressed) {
+      return KeyEventResult.ignored;
+    }
+
+    final focus = _controller.selectionController.focus;
+    if (focus == null) return KeyEventResult.ignored;
+
+    _startIntegratedEdit(
+      cell: focus,
+      trigger: EditTrigger.typing,
+      initialText: char,
+    );
+    return KeyEventResult.handled;
   }
 
   // Auto-scroll helpers
@@ -748,6 +878,7 @@ class _WorksheetState extends State<Worksheet>
         actions: effectiveActions,
         child: Focus(
           autofocus: true,
+          onKeyEvent: widget.editController != null ? _handleTypeToEdit : null,
           child: MouseRegion(
         cursor: _currentCursor,
         onHover: widget.readOnly
@@ -787,6 +918,13 @@ class _WorksheetState extends State<Worksheet>
                       return;
                     }
                     _pointerInScrollbarArea = false;
+
+                    // Commit current edit if tapping while editing
+                    final ec = widget.editController;
+                    if (ec != null && ec.isEditing) {
+                      ec.commitEdit(onCommit: _onInternalCommit);
+                    }
+
                     _gestureHandler.onTapDown(
                       position: event.localPosition,
                       scrollOffset: Offset(
@@ -846,14 +984,23 @@ class _WorksheetState extends State<Worksheet>
                   _gestureHandler.onDragEnd();
                 },
           child: GestureDetector(
-            onDoubleTap: widget.readOnly || widget.onEditCell == null
+            onDoubleTap: widget.readOnly
                 ? null
-                : () {
-                    // Use last tap position for double-tap edit
-                    if (_controller.focusCell != null) {
-                      widget.onEditCell?.call(_controller.focusCell!);
-                    }
-                  },
+                : (widget.onEditCell == null && widget.editController == null)
+                    ? null
+                    : () {
+                        final cell = _controller.focusCell;
+                        if (cell == null) return;
+                        // Fire external callback
+                        widget.onEditCell?.call(cell);
+                        // Also start integrated editing if available
+                        if (widget.editController != null) {
+                          _startIntegratedEdit(
+                            cell: cell,
+                            trigger: EditTrigger.doubleTap,
+                          );
+                        }
+                      },
             child: Stack(
               children: [
                 // Transparent hit target for the entire area (including headers)
@@ -913,6 +1060,51 @@ class _WorksheetState extends State<Worksheet>
                         ),
                       ),
                     ),
+                  ),
+
+                // Internal cell editor overlay (when editController is provided)
+                // All return paths must be Positioned to avoid introducing a
+                // non-positioned child that would collapse the Stack to 0x0.
+                if (widget.editController != null)
+                  ListenableBuilder(
+                    listenable: widget.editController!,
+                    builder: (context, _) {
+                      if (!widget.editController!.isEditing) {
+                        return const Positioned(
+                          left: 0,
+                          top: 0,
+                          child: SizedBox.shrink(),
+                        );
+                      }
+                      final cell = widget.editController!.editingCell;
+                      if (cell == null) {
+                        return const Positioned(
+                          left: 0,
+                          top: 0,
+                          child: SizedBox.shrink(),
+                        );
+                      }
+                      final bounds = _controller.getCellScreenBounds(cell);
+                      if (bounds == null) {
+                        return const Positioned(
+                          left: 0,
+                          top: 0,
+                          child: SizedBox.shrink(),
+                        );
+                      }
+                      return CellEditorOverlay(
+                        editController: widget.editController!,
+                        cellBounds: bounds,
+                        onCommit: _onInternalCommit,
+                        onCancel: _onInternalCancel,
+                        onCommitAndNavigate: _onInternalCommitAndNavigate,
+                        zoom: _controller.zoom,
+                        fontSize: theme.fontSize,
+                        fontFamily: theme.fontFamily,
+                        textColor: theme.textColor,
+                        cellPadding: theme.cellPadding,
+                      );
+                    },
                   ),
               ],
             ),
@@ -1031,6 +1223,36 @@ class _WorksheetState extends State<Worksheet>
     }
 
     return content;
+  }
+}
+
+/// Enters edit mode on the currently focused cell.
+///
+/// When an integrated [EditController] is available, starts editing
+/// via the controller (F2 trigger). Also fires the external [onEditCell]
+/// callback for backward compatibility.
+class _IntegratedEditCellAction extends Action<EditCellIntent> {
+  final _WorksheetState _state;
+
+  _IntegratedEditCellAction(this._state);
+
+  @override
+  Object? invoke(EditCellIntent intent) {
+    final focus = _state.selectionController.focus;
+    if (focus == null) return null;
+
+    // Fire external callback
+    _state.onEditCell?.call(focus);
+
+    // Also start integrated editing if available
+    final ec = _state.widget.editController;
+    if (ec != null) {
+      _state._startIntegratedEdit(
+        cell: focus,
+        trigger: EditTrigger.f2Key,
+      );
+    }
+    return null;
   }
 }
 

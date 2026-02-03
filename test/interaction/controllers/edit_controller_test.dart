@@ -4,6 +4,43 @@ import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
 
 void main() {
+  group('EditCommitResult', () {
+    test('stores cell, value, and deltas', () {
+      const result = EditCommitResult(
+        cell: CellCoordinate(3, 5),
+        value: CellValue.text('Hello'),
+        rowDelta: 1,
+        columnDelta: 0,
+      );
+
+      expect(result.cell, const CellCoordinate(3, 5));
+      expect(result.value, const CellValue.text('Hello'));
+      expect(result.rowDelta, 1);
+      expect(result.columnDelta, 0);
+    });
+
+    test('defaults to zero deltas', () {
+      const result = EditCommitResult(
+        cell: CellCoordinate(0, 0),
+        value: null,
+      );
+
+      expect(result.rowDelta, 0);
+      expect(result.columnDelta, 0);
+    });
+
+    test('supports null value', () {
+      const result = EditCommitResult(
+        cell: CellCoordinate(1, 1),
+        value: null,
+        rowDelta: -1,
+        columnDelta: 0,
+      );
+
+      expect(result.value, isNull);
+    });
+  });
+
   late EditController controller;
 
   setUp(() {

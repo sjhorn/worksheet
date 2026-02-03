@@ -5,7 +5,7 @@ import '../core/models/cell_coordinate.dart';
 import '../core/models/cell_value.dart';
 import '../interaction/controllers/edit_controller.dart';
 
-/// Overlay widget that displays a TextField over the cell being edited.
+/// Overlay widget that displays an EditableText over the cell being edited.
 ///
 /// Positions itself at [cellBounds] and handles commit/cancel via
 /// keyboard (Enter/Escape) and callbacks.
@@ -22,6 +22,34 @@ class CellEditorOverlay extends StatefulWidget {
   /// Called when the edit is cancelled.
   final VoidCallback onCancel;
 
+  /// Called when the edit is committed with a navigation direction.
+  ///
+  /// Receives the cell, committed value, row delta, and column delta.
+  /// Used for Enter (down), Shift+Enter (up), Tab (right), Shift+Tab (left).
+  /// When null, Enter/Tab fall back to plain commit via [onCommit].
+  final void Function(
+    CellCoordinate cell,
+    CellValue? value,
+    int rowDelta,
+    int columnDelta,
+  )? onCommitAndNavigate;
+
+  /// The current zoom level, used to scale font size, padding, and cursor
+  /// so the editor text aligns with the tile-rendered cell text.
+  final double zoom;
+
+  /// The font size used by the tile painter (in worksheet coordinates).
+  final double fontSize;
+
+  /// The font family used by the tile painter.
+  final String fontFamily;
+
+  /// The text color.
+  final Color textColor;
+
+  /// The cell padding used by the tile painter (in worksheet coordinates).
+  final double cellPadding;
+
   /// Minimum width for the editor.
   static const double minWidth = 60.0;
 
@@ -32,6 +60,12 @@ class CellEditorOverlay extends StatefulWidget {
     required this.cellBounds,
     required this.onCommit,
     required this.onCancel,
+    this.onCommitAndNavigate,
+    this.zoom = 1.0,
+    this.fontSize = 14.0,
+    this.fontFamily = 'Roboto',
+    this.textColor = const Color(0xFF000000),
+    this.cellPadding = 4.0,
   });
 
   @override
@@ -42,6 +76,11 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   late TextEditingController _textController;
   late FocusNode _focusNode;
   FocusNode? _previousFocus;
+  final GlobalKey<EditableTextState> _editableKey = GlobalKey();
+
+  /// When true, a controller listener guards against select-all that the
+  /// platform may apply on focus gain, reversing it to cursor-at-end.
+  bool _guardSelectAll = false;
 
   @override
   void initState() {
@@ -58,17 +97,51 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     // Listen for changes from edit controller
     widget.editController.addListener(_onEditControllerChanged);
 
-    // Select all text when first focused
+    // Handle initial selection based on trigger
     _focusNode.addListener(_onFocusChanged);
+
+    // For type-to-edit, the platform text input connection may select all
+    // text when focus is gained. Guard against this by listening for
+    // select-all and reversing it to cursor-at-end.
+    if (widget.editController.trigger == EditTrigger.typing) {
+      _guardSelectAll = true;
+      _textController.addListener(_onSelectionGuard);
+    }
   }
 
   @override
   void dispose() {
     widget.editController.removeListener(_onEditControllerChanged);
     _focusNode.removeListener(_onFocusChanged);
+    _textController.removeListener(_onSelectionGuard);
     _textController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  /// Detects if the platform applied a select-all after focus gain and
+  /// reverses it to a collapsed cursor at the end. Removes itself after
+  /// the first correction or when the selection is already correct.
+  void _onSelectionGuard() {
+    if (!_guardSelectAll) return;
+    final sel = _textController.selection;
+    final text = _textController.text;
+    if (text.isEmpty) return;
+
+    if (!sel.isCollapsed &&
+        sel.baseOffset == 0 &&
+        sel.extentOffset == text.length) {
+      // Select-all detected — reverse it.
+      _guardSelectAll = false;
+      _textController.removeListener(_onSelectionGuard);
+      _textController.selection = TextSelection.collapsed(
+        offset: text.length,
+      );
+    } else if (sel.isCollapsed && sel.isValid) {
+      // Selection is already fine — stop guarding.
+      _guardSelectAll = false;
+      _textController.removeListener(_onSelectionGuard);
+    }
   }
 
   void _onEditControllerChanged() {
@@ -89,11 +162,13 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
   void _onFocusChanged() {
     if (_focusNode.hasFocus && _textController.text.isNotEmpty) {
-      // Select all text when focused
-      _textController.selection = TextSelection(
-        baseOffset: 0,
-        extentOffset: _textController.text.length,
-      );
+      if (widget.editController.trigger != EditTrigger.typing) {
+        // For F2, double-tap, etc., select all text
+        _textController.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _textController.text.length,
+        );
+      }
     }
   }
 
@@ -103,6 +178,21 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
   void _commit() {
     widget.editController.commitEdit(onCommit: widget.onCommit);
+  }
+
+  void _commitAndNavigate({required int rowDelta, required int columnDelta}) {
+    if (widget.onCommitAndNavigate != null) {
+      final cell = widget.editController.editingCell;
+      if (cell == null) return;
+      widget.editController.commitEdit(
+        onCommit: (commitCell, value) {
+          widget.onCommitAndNavigate!(commitCell, value, rowDelta, columnDelta);
+        },
+      );
+    } else {
+      // Fall back to plain commit when no navigate callback is provided
+      _commit();
+    }
   }
 
   void _cancel() {
@@ -120,6 +210,39 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       return KeyEventResult.handled;
     }
 
+    if (event.logicalKey == LogicalKeyboardKey.enter ||
+        event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      final shift = HardwareKeyboard.instance.isShiftPressed;
+      _commitAndNavigate(rowDelta: shift ? -1 : 1, columnDelta: 0);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.tab) {
+      final shift = HardwareKeyboard.instance.isShiftPressed;
+      _commitAndNavigate(rowDelta: 0, columnDelta: shift ? -1 : 1);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+      _commitAndNavigate(rowDelta: 1, columnDelta: 0);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+      _commitAndNavigate(rowDelta: -1, columnDelta: 0);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+      _commitAndNavigate(rowDelta: 0, columnDelta: 1);
+      return KeyEventResult.handled;
+    }
+
+    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
+      _commitAndNavigate(rowDelta: 0, columnDelta: -1);
+      return KeyEventResult.handled;
+    }
+
     return KeyEventResult.ignored;
   }
 
@@ -133,6 +256,16 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         ? CellEditorOverlay.minWidth
         : widget.cellBounds.width;
 
+    final zoom = widget.zoom;
+    final scaledFontSize = widget.fontSize * zoom;
+    final scaledPadding = widget.cellPadding * zoom;
+
+    final textStyle = TextStyle(
+      fontSize: scaledFontSize,
+      fontFamily: widget.fontFamily,
+      color: widget.textColor,
+    );
+
     return Positioned(
       left: widget.cellBounds.left,
       top: widget.cellBounds.top,
@@ -141,34 +274,24 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         height: widget.cellBounds.height,
         child: Focus(
           onKeyEvent: _handleKeyEvent,
-          child: TextField(
-            controller: _textController,
-            focusNode: _focusNode,
-            autofocus: true,
-            onChanged: _onTextChanged,
-            onSubmitted: (_) => _commit(),
-            cursorHeight: 14.0,
-            style: const TextStyle(fontSize: 14),
-            decoration: InputDecoration(
-              isDense: true,
-              filled: true,
-              fillColor: Colors.white,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 4,
-                vertical: 2,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.zero,
-                borderSide: BorderSide(
-                  color: Theme.of(context).primaryColor,
-                  width: 2,
-                ),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.zero,
-                borderSide: BorderSide(
-                  color: Theme.of(context).primaryColor,
-                  width: 2,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Padding(
+              padding: EdgeInsets.only(left: scaledPadding),
+              child: TextSelectionGestureDetectorBuilder(
+                delegate: _EditableTextSelectionDelegate(_editableKey),
+              ).buildGestureDetector(
+                behavior: HitTestBehavior.translucent,
+                child: EditableText(
+                  key: _editableKey,
+                  rendererIgnoresPointer: true,
+                  controller: _textController,
+                  focusNode: _focusNode,
+                  style: textStyle,
+                  cursorColor: widget.textColor,
+                  selectionColor: const Color(0x660078D7),
+                  backgroundCursorColor: Colors.transparent,
+                  onChanged: _onTextChanged,
                 ),
               ),
             ),
@@ -177,4 +300,20 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       ),
     );
   }
+}
+
+/// Delegate for [TextSelectionGestureDetectorBuilder] that connects to the
+/// [EditableTextState] via a [GlobalKey].
+class _EditableTextSelectionDelegate
+    extends TextSelectionGestureDetectorBuilderDelegate {
+  @override
+  final GlobalKey<EditableTextState> editableTextKey;
+
+  _EditableTextSelectionDelegate(this.editableTextKey);
+
+  @override
+  bool get forcePressEnabled => true;
+
+  @override
+  bool get selectionEnabled => true;
 }

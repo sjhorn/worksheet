@@ -3,12 +3,21 @@ import 'package:worksheet/worksheet.dart';
 
 void main() => runApp(MaterialApp(home: MySpreadsheet()));
 
-class MySpreadsheet extends StatelessWidget {
+class MySpreadsheet extends StatefulWidget {
   const MySpreadsheet({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final data = SparseWorksheetData(
+  State<MySpreadsheet> createState() => _MySpreadsheetState();
+}
+
+class _MySpreadsheetState extends State<MySpreadsheet> {
+  late final SparseWorksheetData _data;
+  late final EditController _editController;
+
+  @override
+  void initState() {
+    super.initState();
+    _data = SparseWorksheetData(
       rowCount: 100,
       columnCount: 10,
       cells: {
@@ -42,14 +51,26 @@ class MySpreadsheet extends StatelessWidget {
         ),
       },
     );
+    _editController = EditController();
+  }
 
+  @override
+  void dispose() {
+    _editController.dispose();
+    _data.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return Scaffold(
       body: WorksheetTheme(
         data: const WorksheetThemeData(),
         child: Worksheet(
-          data: data,
-          rowCount: data.rowCount,
-          columnCount: data.columnCount,
+          data: _data,
+          editController: _editController,
+          rowCount: _data.rowCount,
+          columnCount: _data.columnCount,
         ),
       ),
     );

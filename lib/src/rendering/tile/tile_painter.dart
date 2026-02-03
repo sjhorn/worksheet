@@ -46,6 +46,10 @@ class TilePainter implements TileRenderer {
   /// Cell padding in pixels.
   final double cellPadding;
 
+  /// Cell currently being edited, whose text should be skipped during
+  /// tile rendering (the overlay TextField renders it instead).
+  CellCoordinate? editingCell;
+
   // Pre-allocated paint objects for performance
   late final Paint _backgroundPaint;
   late final Paint _cellBackgroundPaint;
@@ -153,8 +157,9 @@ class TilePainter implements TileRenderer {
         final style = data.getStyle(coord);
         _renderCellBackground(canvas, localBounds, style);
 
-        // Render cell content
-        if (shouldRenderText) {
+        // Render cell content (skip the cell being edited — the overlay
+        // TextField renders its text instead).
+        if (shouldRenderText && coord != editingCell) {
           final value = data.getCell(coord);
           if (value != null) {
             final format = data.getFormat(coord);

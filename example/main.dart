@@ -76,9 +76,6 @@ class _WorksheetExampleState extends State<WorksheetExample> {
   late final WorksheetController _controller;
   late final EditController _editController;
 
-  // For positioning the editor overlay
-  Rect? _editingCellBounds;
-
   @override
   void initState() {
     super.initState();
@@ -339,42 +336,6 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     ));
   }
 
-  void _onEditCell(CellCoordinate cell) {
-    final bounds = _controller.getCellScreenBounds(cell);
-    if (bounds == null) return;
-
-    setState(() {
-      _editingCellBounds = bounds;
-    });
-
-    final currentValue = _data.getCell(cell);
-    _editController.startEdit(
-      cell: cell,
-      currentValue: currentValue,
-      trigger: EditTrigger.doubleTap,
-    );
-  }
-
-  void _onCommit(CellCoordinate cell, CellValue? value) {
-    setState(() {
-      _data.setCell(cell, value);
-      _editingCellBounds = null;
-    });
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Saved ${cell.toNotation()}: ${value?.displayValue ?? "(empty)"}'),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
-
-  void _onCancel() {
-    setState(() {
-      _editingCellBounds = null;
-    });
-  }
-
   @override
   void dispose() {
     _controller.dispose();
@@ -435,44 +396,23 @@ class _WorksheetExampleState extends State<WorksheetExample> {
           _buildSelectionInfo(),
           _buildInstructions(),
           Expanded(
-            child: Stack(
-              children: [
-                // The worksheet widget
-                WorksheetTheme(
-                  data: WorksheetThemeData(
-                    showHeaders: true,
-                    showGridlines: true,
-                    defaultRowHeight: _defaultRowHeight,
-                    defaultColumnWidth: _defaultColumnWidth,
-                    rowHeaderWidth: 40.0, // Narrower like Excel
-                    columnHeaderHeight: 20.0, // Shorter like Excel
-                    fontSize: 11.0, // Smaller font like Excel
-                  ),
-                  child: Worksheet(
-                    data: _data,
-                    controller: _controller,
-                    rowCount: _rowCount,
-                    columnCount: _columnCount,
-                    onEditCell: _onEditCell,
-                    onCellTap: (cell) {
-                      // Close any open editor when tapping a different cell
-                      if (_editController.isEditing &&
-                          _editController.editingCell != cell) {
-                        _editController.commitEdit(onCommit: _onCommit);
-                      }
-                    },
-                  ),
-                ),
-
-                // Cell editor overlay
-                if (_editController.isEditing && _editingCellBounds != null)
-                  CellEditorOverlay(
-                    editController: _editController,
-                    cellBounds: _editingCellBounds!,
-                    onCommit: _onCommit,
-                    onCancel: _onCancel,
-                  ),
-              ],
+            child: WorksheetTheme(
+              data: WorksheetThemeData(
+                showHeaders: true,
+                showGridlines: true,
+                defaultRowHeight: _defaultRowHeight,
+                defaultColumnWidth: _defaultColumnWidth,
+                rowHeaderWidth: 40.0, // Narrower like Excel
+                columnHeaderHeight: 20.0, // Shorter like Excel
+                fontSize: 11.0, // Smaller font like Excel
+              ),
+              child: Worksheet(
+                data: _data,
+                controller: _controller,
+                editController: _editController,
+                rowCount: _rowCount,
+                columnCount: _columnCount,
+              ),
             ),
           ),
         ],
@@ -520,7 +460,7 @@ class _WorksheetExampleState extends State<WorksheetExample> {
       color: Colors.blue[50],
       width: double.infinity,
       child: const Text(
-        'Drag column/row header borders to resize | Double-click or F2 to edit | Scroll to column Q for product catalog',
+        'Type to edit | Enter/Tab to commit & navigate | Escape to cancel | Double-click or F2 to edit | Drag headers to resize',
         style: TextStyle(fontSize: 11, color: Colors.blueGrey),
       ),
     );

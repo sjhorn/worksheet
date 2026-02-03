@@ -3,6 +3,32 @@ import 'package:flutter/foundation.dart';
 import '../../core/models/cell_coordinate.dart';
 import '../../core/models/cell_value.dart';
 
+/// The result of committing a cell edit, including navigation direction.
+///
+/// Used by [CellEditorOverlay] to communicate both the committed value
+/// and the desired post-commit navigation to the [Worksheet] widget.
+@immutable
+class EditCommitResult {
+  /// The cell that was edited.
+  final CellCoordinate cell;
+
+  /// The committed value, or null if the cell was cleared.
+  final CellValue? value;
+
+  /// Row offset to move after commit (e.g. 1 for Enter, -1 for Shift+Enter).
+  final int rowDelta;
+
+  /// Column offset to move after commit (e.g. 1 for Tab, -1 for Shift+Tab).
+  final int columnDelta;
+
+  const EditCommitResult({
+    required this.cell,
+    required this.value,
+    this.rowDelta = 0,
+    this.columnDelta = 0,
+  });
+}
+
 /// The current state of cell editing.
 enum EditState {
   /// No editing is in progress.
