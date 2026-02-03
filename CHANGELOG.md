@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2025-02-02
+
 ### Added
 - Flutter `Shortcuts` / `Actions` pattern for keyboard handling — enables consumers to override, extend, or remap any keyboard shortcut
 - `Worksheet.shortcuts` parameter — custom shortcut bindings merged on top of defaults
@@ -16,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - 13 Action classes with `WorksheetActionContext` interface for dependency injection
 - `WorksheetActionContext` — abstract interface implemented by the widget state, avoiding 6+ constructor params per Action
 - New shortcuts: Ctrl+C/X/V (copy/cut/paste), Ctrl+D (fill down), Ctrl+R (fill right), Delete/Backspace (clear cells)
+- `Worksheet.editController` parameter for integrated cell editing — renders `CellEditorOverlay` internally, handles type-to-edit, commit-and-navigate, and F2/double-tap editing
+- Type-to-edit: printable characters start editing the focused cell with that character as initial content
+- Commit-and-navigate: Enter (down), Shift+Enter (up), Tab (right), Shift+Tab (left) commit the edit and move selection
+- `CellEditorOverlay.onCommitAndNavigate` callback for directional commit with row/column delta
+- Arrow keys commit the edit and navigate when editing (via `CellEditorOverlay`)
+- Tap outside the editing cell commits the current edit
+- `EditCommitResult` value class on `EditController`
+- Backspace/Delete tests for editing vs navigation mode
 
 ### Deprecated
 - `KeyboardHandler` class — use the `Shortcuts` / `Actions` pattern instead (see `worksheet_intents.dart`)
@@ -23,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - `Worksheet` widget now uses `Shortcuts` -> `Actions` -> `Focus` widget tree instead of `Focus(onKeyEvent:)` with `KeyboardHandler`
 - Destructive actions (`ClearCells`, `Cut`, `Paste`, `FillDown`, `FillRight`) check `readOnly` in `isEnabled()` as defense-in-depth
+- Cell-level actions (copy, cut, paste, clear, select-all) are disabled while the `editController` is editing, so Ctrl+C/X/V/A and Backspace/Delete reach the text field for in-cell editing
+- `CellEditorOverlay` uses `TextField` with `InputDecoration.collapsed` for proper cursor rendering, text selection, and double-click word selection
+- Parent double-tap handler suppressed while editing so the TextField's word-select gesture wins the gesture arena
+- Pointer-down within the editing cell is passed through to the TextField for cursor repositioning instead of committing the edit
+- `TilePainter.editingCell` field hides tile-rendered text for the cell being edited (avoids double rendering)
 
 ## [1.3.0] - 2025-02-02
 
