@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-02-03
+
 ### Added
 - `CellValue.parse()` — unified static factory that detects type from text input (formula, boolean, number, date, text) with consistent behavior across editing and clipboard paste
 - `Worksheet.dateParser` parameter — configures date format detection via `AnyDate` from the [`any_date`](https://pub.dev/packages/any_date) package; supports locale-based parsing (e.g., `AnyDate.fromLocale('en-US')` for month/day/year)
