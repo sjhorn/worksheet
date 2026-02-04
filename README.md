@@ -121,6 +121,25 @@ final data = SparseWorksheetData(rowCount: 100, columnCount: 10, cells: {
 const custom = CellFormat(type: CellFormatType.number, formatCode: '#,##0.000');
 ```
 
+## Automatic Date Detection
+
+Type a date into a cell and it's stored as a `CellValue.date()`, not plain text:
+
+```dart
+// These are detected automatically during editing and paste:
+// "2025-01-15"      → CellValue.date(DateTime(2025, 1, 15))
+// "Jan 15, 2025"    → CellValue.date(DateTime(2025, 1, 15))
+// "42"              → CellValue.number(42)  (numbers are not treated as dates)
+
+// Configure date format preferences for ambiguous dates:
+Worksheet(
+  data: data,
+  dateParser: AnyDate.fromLocale('en-US'),  // month/day/year
+)
+```
+
+`AnyDate` and `DateParserInfo` are re-exported from `package:worksheet/worksheet.dart`.
+
 ## Style Your Data
 
 Add colors, bold text, and conditional formatting:
@@ -182,6 +201,7 @@ for (var row = 0; row < 50000; row++) {
 - **Sparse storage**: Memory scales with data, not grid size
 - **Full selection**: Single cell, ranges, entire rows/columns
 - **Keyboard navigation**: Arrow keys, Tab, Enter, Home/End, clipboard, and more — fully customizable via Flutter's Shortcuts/Actions
+- **Automatic type detection**: Numbers, booleans, dates, and formulas detected from text input via `CellValue.parse()`
 - **Resize support**: Drag column/row borders to resize
 - **Theming**: Full control over colors, fonts, headers
 

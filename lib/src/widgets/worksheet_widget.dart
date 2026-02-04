@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui' show lerpDouble;
 
+import 'package:any_date/any_date.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -115,11 +116,20 @@ class Worksheet extends StatefulWidget {
   /// Whether the worksheet is read-only (no selection or editing).
   final bool readOnly;
 
+  /// Date format parser for type detection during editing and clipboard paste.
+  ///
+  /// Controls how text input is detected as dates. Uses [AnyDate] from the
+  /// `any_date` package. When null, uses `const AnyDate()` (system defaults).
+  ///
+  /// Example: `AnyDate.fromLocale('en-US')` for US date format (month/day/year).
+  final AnyDate? dateParser;
+
   /// The clipboard serializer for copy/cut/paste operations.
   ///
   /// Defaults to [TsvClipboardSerializer], which uses tab-separated values
-  /// compatible with Excel and Google Sheets.
-  final ClipboardSerializer clipboardSerializer;
+  /// compatible with Excel and Google Sheets. When null, a default
+  /// [TsvClipboardSerializer] is created using the [dateParser] configuration.
+  final ClipboardSerializer? clipboardSerializer;
 
   /// Controls how diagonal drags are handled by the scroll view.
   ///
@@ -161,7 +171,8 @@ class Worksheet extends StatefulWidget {
     this.customRowHeights,
     this.customColumnWidths,
     this.readOnly = false,
-    this.clipboardSerializer = const TsvClipboardSerializer(),
+    this.dateParser,
+    this.clipboardSerializer,
     this.diagonalDragBehavior = DiagonalDragBehavior.free,
     this.scrollbarConfig,
     this.shortcuts,
@@ -370,8 +381,12 @@ class _WorksheetState extends State<Worksheet>
     _clipboardHandler = ClipboardHandler(
       data: widget.data,
       selectionController: _controller.selectionController,
-      serializer: widget.clipboardSerializer,
+      serializer: widget.clipboardSerializer ??
+          TsvClipboardSerializer(dateParser: widget.dateParser),
     );
+
+    // Set dateParser on editController
+    widget.editController?.dateParser = widget.dateParser;
 
     // Subscribe to data change events for external mutations
     _dataSubscription?.cancel();
@@ -796,8 +811,10 @@ class _WorksheetState extends State<Worksheet>
         _clipboardHandler = ClipboardHandler(
           data: widget.data,
           selectionController: _controller.selectionController,
-          serializer: widget.clipboardSerializer,
+          serializer: widget.clipboardSerializer ??
+              TsvClipboardSerializer(dateParser: widget.dateParser),
         );
+        widget.editController?.dateParser = widget.dateParser;
         _selectionLayer.dispose();
         _headerLayer.dispose();
         _initLayers(theme);

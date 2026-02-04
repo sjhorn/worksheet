@@ -1,3 +1,4 @@
+import 'package:any_date/any_date.dart';
 import 'package:flutter/foundation.dart';
 
 /// The type of value stored in a cell.
@@ -48,6 +49,49 @@ class CellValue {
 
   /// Creates a date value.
   const CellValue.date(DateTime date) : this._(CellValueType.date, date);
+
+  /// Parses text into a [CellValue], detecting the type automatically.
+  ///
+  /// Detection order: empty → formula → boolean → number → date → text.
+  ///
+  /// [allowFormulas]: set to false for clipboard paste (prevents `=` prefix
+  /// being treated as a formula).
+  ///
+  /// [dateParser]: configures date format detection. Defaults to [AnyDate()]
+  /// which handles ISO 8601 and common locale formats. Use
+  /// [AnyDate.fromLocale] or [DateParserInfo] for custom format preferences.
+  ///
+  /// Returns null for empty or whitespace-only input.
+  static CellValue? parse(
+    String text, {
+    bool allowFormulas = true,
+    AnyDate? dateParser,
+  }) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return null;
+
+    // Formula
+    if (allowFormulas && trimmed.startsWith('=')) {
+      return CellValue.formula(trimmed);
+    }
+
+    // Boolean (case-insensitive)
+    final upper = trimmed.toUpperCase();
+    if (upper == 'TRUE') return const CellValue.boolean(true);
+    if (upper == 'FALSE') return const CellValue.boolean(false);
+
+    // Number (before date — any_date treats plain numbers as UNIX timestamps)
+    final number = double.tryParse(trimmed);
+    if (number != null) return CellValue.number(number);
+
+    // Date
+    final parser = dateParser ?? const AnyDate();
+    final date = parser.tryParse(trimmed);
+    if (date != null) return CellValue.date(date);
+
+    // Text fallback
+    return CellValue.text(trimmed);
+  }
 
   /// Returns the display string for this value.
   String get displayValue {

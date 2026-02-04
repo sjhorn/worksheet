@@ -1,3 +1,4 @@
+import 'package:any_date/any_date.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/models/cell_coordinate.dart';
@@ -65,6 +66,9 @@ enum EditTrigger {
 ///
 /// Notifies listeners when edit state changes.
 class EditController extends ChangeNotifier {
+  /// Date parser for type detection. Set by [Worksheet] when provided.
+  AnyDate? dateParser;
+
   EditState _state = EditState.idle;
   CellCoordinate? _editingCell;
   CellValue? _originalValue;
@@ -180,42 +184,9 @@ class EditController extends ChangeNotifier {
 
   /// Parses text into a cell value.
   ///
-  /// Automatically detects:
-  /// - Numbers (integers and decimals)
-  /// - Booleans (TRUE/FALSE)
-  /// - Formulas (starting with =)
-  /// - Text (everything else)
-  CellValue? _parseText(String text) {
-    final trimmed = text.trim();
-
-    // Empty text -> null value
-    if (trimmed.isEmpty) {
-      return null;
-    }
-
-    // Check for formula
-    if (trimmed.startsWith('=')) {
-      return CellValue.formula(trimmed);
-    }
-
-    // Check for boolean
-    final upper = trimmed.toUpperCase();
-    if (upper == 'TRUE') {
-      return const CellValue.boolean(true);
-    }
-    if (upper == 'FALSE') {
-      return const CellValue.boolean(false);
-    }
-
-    // Check for number
-    final number = double.tryParse(trimmed);
-    if (number != null) {
-      return CellValue.number(number);
-    }
-
-    // Default to text
-    return CellValue.text(trimmed);
-  }
+  /// Delegates to [CellValue.parse] for unified type detection.
+  CellValue? _parseText(String text) =>
+      CellValue.parse(text, dateParser: dateParser);
 
   /// Checks if the current value has changed from the original.
   bool get hasChanges {

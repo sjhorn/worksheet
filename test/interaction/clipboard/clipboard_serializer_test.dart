@@ -1,3 +1,4 @@
+import 'package:any_date/any_date.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/models/cell.dart';
@@ -132,6 +133,56 @@ void main() {
       final grid = serializer.deserialize('');
 
       expect(grid, isEmpty);
+    });
+  });
+
+  group('TsvClipboardSerializer.deserialize (unified parsing)', () {
+    test('pasting =SUM(A1) stays as text, not formula', () {
+      final grid = serializer.deserialize('=SUM(A1)');
+
+      expect(grid[0][0], const CellValue.text('=SUM(A1)'));
+      expect(grid[0][0]!.isFormula, isFalse);
+    });
+
+    test('pasting =IMPORTRANGE(...) stays as text', () {
+      final grid = serializer.deserialize('=IMPORTRANGE("url","A1")');
+
+      expect(grid[0][0]!.isText, isTrue);
+    });
+
+    test('pasting 2025-01-15 becomes a date', () {
+      final grid = serializer.deserialize('2025-01-15');
+
+      expect(grid[0][0]!.isDate, isTrue);
+      expect(grid[0][0]!.asDateTime, DateTime(2025, 1, 15));
+    });
+
+    test('pasting " 42 " (whitespace-padded number) becomes number 42', () {
+      final grid = serializer.deserialize(' 42 ');
+
+      expect(grid[0][0], CellValue.number(42));
+    });
+
+    test('pasting TRUE (uppercase) becomes boolean', () {
+      final grid = serializer.deserialize('TRUE');
+
+      expect(grid[0][0], const CellValue.boolean(true));
+    });
+
+    test('pasting True (mixed case) becomes boolean', () {
+      final grid = serializer.deserialize('True');
+
+      expect(grid[0][0], const CellValue.boolean(true));
+    });
+
+    test('dateParser is passed through to CellValue.parse', () {
+      final dayFirstSerializer = TsvClipboardSerializer(
+        dateParser: AnyDate(info: const DateParserInfo(dayFirst: true)),
+      );
+      final grid = dayFirstSerializer.deserialize('15/01/2025');
+
+      expect(grid[0][0]!.isDate, isTrue);
+      expect(grid[0][0]!.asDateTime, DateTime(2025, 1, 15));
     });
   });
 

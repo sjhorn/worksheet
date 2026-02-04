@@ -199,6 +199,34 @@ typedef OnCommitCallback = void Function(CellCoordinate cell, CellValue? value);
 typedef OnCancelCallback = void Function();
 ```
 
+### Worksheet Date Parsing
+
+The `Worksheet` widget accepts a `dateParser` parameter that configures date
+detection for both cell editing and clipboard paste:
+
+```dart
+Worksheet(
+  data: data,
+  // System defaults — handles ISO 8601 and common formats
+  dateParser: const AnyDate(),
+
+  // US format — month/day/year for ambiguous dates
+  dateParser: AnyDate.fromLocale('en-US'),
+
+  // Day-first format
+  dateParser: AnyDate(info: DateParserInfo(dayFirst: true)),
+)
+```
+
+`AnyDate` and `DateParserInfo` are re-exported from `worksheet.dart`, so no
+direct `any_date` dependency is needed.
+
+When `dateParser` is null (the default), `const AnyDate()` is used. When a
+custom `clipboardSerializer` is provided, it is used as-is and `dateParser`
+only affects editing.
+
+---
+
 ## Keyboard Shortcuts (Intents / Actions)
 
 The worksheet uses Flutter's `Shortcuts` / `Actions` pattern. All keyboard handling is expressed as Intent + Action pairs, making every shortcut overridable.
@@ -340,6 +368,56 @@ CellValue.date(DateTime date)
 int get asInt        // For number types
 double get asDouble  // For number types
 DateTime get asDateTime  // For date types
+```
+
+### Parsing Text into CellValue
+
+`CellValue.parse()` detects the type from a text string. Used internally by
+`EditController` and `TsvClipboardSerializer`, but also available for direct use.
+
+```dart
+static CellValue? parse(
+  String text, {
+  bool allowFormulas = true,
+  AnyDate? dateParser,
+})
+```
+
+**Detection order**: empty → formula → boolean → number → date → text.
+
+Numbers are checked before dates because `any_date` interprets plain numbers
+as UNIX timestamps (e.g. `"42"` would become 1970-01-01).
+
+| Input | Result |
+|-------|--------|
+| `''` / `'   '` | `null` |
+| `'=SUM(A1:A5)'` | `CellValue.formula('=SUM(A1:A5)')` |
+| `'TRUE'` / `'true'` | `CellValue.boolean(true)` |
+| `'42'` | `CellValue.number(42)` |
+| `'3.14'` | `CellValue.number(3.14)` |
+| `'2025-01-15'` | `CellValue.date(DateTime(2025, 1, 15))` |
+| `'Jan 15, 2025'` | `CellValue.date(DateTime(2025, 1, 15))` |
+| `'hello'` | `CellValue.text('hello')` |
+
+**Parameters:**
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `allowFormulas` | `true` | Set to `false` for clipboard paste to prevent `=` prefix being treated as a formula |
+| `dateParser` | `const AnyDate()` | Configures date format detection. Use `AnyDate.fromLocale('en-US')` for US dates, or `AnyDate(info: DateParserInfo(dayFirst: true))` for day-first formats |
+
+```dart
+// Default parsing
+CellValue.parse('2025-01-15')  // → date
+CellValue.parse('42')          // → number (not a date)
+CellValue.parse('TRUE')        // → boolean
+
+// Clipboard mode (no formulas)
+CellValue.parse('=SUM(A1)', allowFormulas: false)  // → text
+
+// Custom date format
+final parser = AnyDate(info: DateParserInfo(dayFirst: true));
+CellValue.parse('15/01/2025', dateParser: parser)  // → date (Jan 15)
 ```
 
 ### Examples

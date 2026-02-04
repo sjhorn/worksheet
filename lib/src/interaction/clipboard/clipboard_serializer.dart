@@ -1,3 +1,5 @@
+import 'package:any_date/any_date.dart';
+
 import '../../core/data/worksheet_data.dart';
 import '../../core/models/cell.dart';
 import '../../core/models/cell_coordinate.dart';
@@ -23,7 +25,10 @@ abstract class ClipboardSerializer {
 /// - Columns separated by tab (`\t`)
 /// - Rows separated by newline (`\n`)
 class TsvClipboardSerializer implements ClipboardSerializer {
-  const TsvClipboardSerializer();
+  /// Date parser for type detection during clipboard paste.
+  final AnyDate? dateParser;
+
+  const TsvClipboardSerializer({this.dateParser});
 
   @override
   String serialize(CellRange range, WorksheetData data) {
@@ -55,19 +60,6 @@ class TsvClipboardSerializer implements ClipboardSerializer {
     }).toList();
   }
 
-  CellValue? _parseValue(String text) {
-    if (text.isEmpty) return null;
-
-    // Try boolean
-    final lower = text.toLowerCase();
-    if (lower == 'true') return const CellValue.boolean(true);
-    if (lower == 'false') return const CellValue.boolean(false);
-
-    // Try number
-    final number = num.tryParse(text);
-    if (number != null) return CellValue.number(number);
-
-    // Default to text
-    return CellValue.text(text);
-  }
+  CellValue? _parseValue(String text) =>
+      CellValue.parse(text, allowFormulas: false, dateParser: dateParser);
 }

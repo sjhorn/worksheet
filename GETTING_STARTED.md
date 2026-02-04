@@ -137,7 +137,18 @@ CellValue.formula('=SUM(A1:A10)')
 
 // Error values
 CellValue.error('#DIV/0!')
+
+// Parse text into the appropriate type automatically
+CellValue.parse('42')           // → CellValue.number(42)
+CellValue.parse('TRUE')         // → CellValue.boolean(true)
+CellValue.parse('2025-01-15')   // → CellValue.date(DateTime(2025, 1, 15))
+CellValue.parse('hello')        // → CellValue.text('hello')
+CellValue.parse('=SUM(A1:A5)')  // → CellValue.formula('=SUM(A1:A5)')
 ```
+
+`CellValue.parse()` is used internally when editing cells and pasting from
+the clipboard. It detects types in this order: formula → boolean → number →
+date → text.
 
 ### Cell Formatting
 

@@ -3,6 +3,9 @@
 /// Supports 10%-400% zoom with GPU-optimized tile-based rendering.
 library;
 
+// Date parsing (re-exported so consumers don't need a direct any_date dependency)
+export 'package:any_date/any_date.dart' show AnyDate, DateParserInfo;
+
 // Core Models
 export 'src/core/models/cell.dart';
 export 'src/core/models/cell_coordinate.dart';

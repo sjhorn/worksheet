@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- `CellValue.parse()` — unified static factory that detects type from text input (formula, boolean, number, date, text) with consistent behavior across editing and clipboard paste
+- `Worksheet.dateParser` parameter — configures date format detection via `AnyDate` from the [`any_date`](https://pub.dev/packages/any_date) package; supports locale-based parsing (e.g., `AnyDate.fromLocale('en-US')` for month/day/year)
+- Date detection during editing and clipboard paste — typing `2025-01-15` or `Jan 15, 2025` now commits as `CellValue.date()` instead of text
+- Re-exported `AnyDate` and `DateParserInfo` from `worksheet.dart` so consumers don't need a direct `any_date` dependency
+
+### Changed
+- `EditController._parseText` now delegates to `CellValue.parse()` for consistent type detection
+- `TsvClipboardSerializer._parseValue` now delegates to `CellValue.parse(allowFormulas: false)` — clipboard paste no longer interprets `=` prefix as a formula, trims whitespace, and uses case-insensitive boolean detection
+- `TsvClipboardSerializer` constructor accepts optional `dateParser` parameter
+- `Worksheet.clipboardSerializer` is now nullable (defaults to `TsvClipboardSerializer` with the widget's `dateParser`)
+
+### Fixed
+- Clipboard paste boolean detection was case-sensitive (`true` worked but `TRUE` did not) — now case-insensitive
+- Clipboard paste did not trim whitespace — now trims consistently
+- Clipboard paste used `num.tryParse` while editing used `double.tryParse` — both now use `double.tryParse`
+
 ## [1.4.0] - 2025-02-02
 
 ### Added

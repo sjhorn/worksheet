@@ -1,3 +1,4 @@
+import 'package:any_date/any_date.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 
@@ -261,6 +262,185 @@ void main() {
       test('isDate', () {
         expect(CellValue.date(DateTime.now()).isDate, isTrue);
         expect(CellValue.text('2024-01-15').isDate, isFalse);
+      });
+    });
+
+    group('parse', () {
+      group('empty / whitespace', () {
+        test('empty string returns null', () {
+          expect(CellValue.parse(''), isNull);
+        });
+
+        test('whitespace-only returns null', () {
+          expect(CellValue.parse('   '), isNull);
+        });
+
+        test('tab-only returns null', () {
+          expect(CellValue.parse('\t'), isNull);
+        });
+      });
+
+      group('formulas', () {
+        test('=SUM(A1:A5) is parsed as formula', () {
+          final result = CellValue.parse('=SUM(A1:A5)');
+          expect(result, const CellValue.formula('=SUM(A1:A5)'));
+        });
+
+        test('=A1+B1 is parsed as formula', () {
+          final result = CellValue.parse('=A1+B1');
+          expect(result, const CellValue.formula('=A1+B1'));
+        });
+
+        test('formula with leading whitespace is trimmed', () {
+          final result = CellValue.parse('  =SUM(A1)  ');
+          expect(result, const CellValue.formula('=SUM(A1)'));
+        });
+
+        test('=SUM(A1:A5) with allowFormulas:false becomes text', () {
+          final result =
+              CellValue.parse('=SUM(A1:A5)', allowFormulas: false);
+          expect(result, const CellValue.text('=SUM(A1:A5)'));
+        });
+
+        test('=IMPORTRANGE(...) with allowFormulas:false becomes text', () {
+          final result = CellValue.parse('=IMPORTRANGE("url","A1")',
+              allowFormulas: false);
+          expect(
+            result,
+            const CellValue.text('=IMPORTRANGE("url","A1")'),
+          );
+        });
+      });
+
+      group('booleans', () {
+        test('TRUE is parsed as boolean true', () {
+          expect(CellValue.parse('TRUE'), const CellValue.boolean(true));
+        });
+
+        test('FALSE is parsed as boolean false', () {
+          expect(CellValue.parse('FALSE'), const CellValue.boolean(false));
+        });
+
+        test('true (lowercase) is parsed as boolean', () {
+          expect(CellValue.parse('true'), const CellValue.boolean(true));
+        });
+
+        test('false (lowercase) is parsed as boolean', () {
+          expect(CellValue.parse('false'), const CellValue.boolean(false));
+        });
+
+        test('True (mixed case) is parsed as boolean', () {
+          expect(CellValue.parse('True'), const CellValue.boolean(true));
+        });
+
+        test('boolean with surrounding whitespace is trimmed', () {
+          expect(CellValue.parse(' true '), const CellValue.boolean(true));
+        });
+      });
+
+      group('numbers', () {
+        test('integer string is parsed as number', () {
+          final result = CellValue.parse('42');
+          expect(result, CellValue.number(42));
+          expect(result!.isNumber, isTrue);
+        });
+
+        test('decimal string is parsed as number', () {
+          expect(CellValue.parse('3.14'), CellValue.number(3.14));
+        });
+
+        test('negative number is parsed', () {
+          expect(CellValue.parse('-7'), CellValue.number(-7));
+        });
+
+        test('scientific notation is parsed as number', () {
+          expect(CellValue.parse('1e10'), CellValue.number(1e10));
+        });
+
+        test('number with whitespace is trimmed', () {
+          expect(CellValue.parse(' 42 '), CellValue.number(42));
+        });
+
+        test('zero is parsed as number', () {
+          expect(CellValue.parse('0'), CellValue.number(0));
+        });
+
+        test('Infinity is parsed as number', () {
+          final result = CellValue.parse('Infinity');
+          expect(result!.isNumber, isTrue);
+          expect(result.asDouble, double.infinity);
+        });
+
+        test('NaN is parsed as number', () {
+          final result = CellValue.parse('NaN');
+          expect(result!.isNumber, isTrue);
+          expect(result.asDouble.isNaN, isTrue);
+        });
+
+        test('42 is number, NOT a date', () {
+          final result = CellValue.parse('42');
+          expect(result!.isNumber, isTrue);
+          expect(result.isDate, isFalse);
+        });
+
+        test('20250115 (bare digits) is number, not date', () {
+          final result = CellValue.parse('20250115');
+          expect(result!.isNumber, isTrue);
+        });
+      });
+
+      group('dates', () {
+        test('ISO date 2025-01-15 is parsed as date', () {
+          final result = CellValue.parse('2025-01-15');
+          expect(result!.isDate, isTrue);
+          expect(result.asDateTime, DateTime(2025, 1, 15));
+        });
+
+        test('ISO datetime 2025-01-15T10:30:00 is parsed as date', () {
+          final result = CellValue.parse('2025-01-15T10:30:00');
+          expect(result!.isDate, isTrue);
+          expect(result.asDateTime, DateTime(2025, 1, 15, 10, 30));
+        });
+
+        test('Jan 15, 2025 is parsed as date', () {
+          final result = CellValue.parse('Jan 15, 2025');
+          expect(result!.isDate, isTrue);
+          expect(result.asDateTime.year, 2025);
+          expect(result.asDateTime.month, 1);
+          expect(result.asDateTime.day, 15);
+        });
+
+        test('15/01/2025 with dayFirst parser is Jan 15', () {
+          final parser =
+              AnyDate(info: const DateParserInfo(dayFirst: true));
+          final result =
+              CellValue.parse('15/01/2025', dateParser: parser);
+          expect(result!.isDate, isTrue);
+          expect(result.asDateTime, DateTime(2025, 1, 15));
+        });
+
+        test('null dateParser uses default AnyDate', () {
+          // ISO format should work with default parser
+          final result = CellValue.parse('2025-06-30');
+          expect(result!.isDate, isTrue);
+          expect(result.asDateTime, DateTime(2025, 6, 30));
+        });
+      });
+
+      group('text fallback', () {
+        test('plain text is parsed as text', () {
+          expect(CellValue.parse('hello'), const CellValue.text('hello'));
+        });
+
+        test('text with whitespace is trimmed', () {
+          expect(
+              CellValue.parse(' hello '), const CellValue.text('hello'));
+        });
+
+        test('non-date non-number string is text', () {
+          expect(CellValue.parse('abc123xyz'),
+              const CellValue.text('abc123xyz'));
+        });
       });
     });
   });

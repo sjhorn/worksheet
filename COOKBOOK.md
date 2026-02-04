@@ -14,7 +14,8 @@ Practical recipes for common worksheet tasks.
 8. [Export Data to CSV](#export-data-to-csv)
 9. [Custom Column Widths](#custom-column-widths)
 10. [Cell Value Validation](#cell-value-validation)
-11. [Multi-Select Resize](#multi-select-resize)
+11. [Automatic Date Detection](#automatic-date-detection)
+12. [Multi-Select Resize](#multi-select-resize)
 
 ---
 
@@ -1116,6 +1117,87 @@ final validatingData = ValidatingWorksheetData(_data);
 validatingData.addColumnValidator(0, requiredValidator);
 validatingData.addColumnValidator(1, numberValidator);
 validatingData.addColumnValidator(2, rangeValidator(0, 100));
+```
+
+---
+
+## Automatic Date Detection
+
+When users type dates into cells, the worksheet automatically detects and stores them as `CellValue.date()` rather than plain text. This works during both editing and clipboard paste.
+
+### Default Behavior
+
+With no configuration, the worksheet recognizes common date formats:
+
+```dart
+// These all commit as CellValue.date(), not text
+// 2025-01-15          → ISO format
+// Jan 15, 2025        → Natural language
+// 2025-01-15T10:30:00 → ISO with time
+```
+
+### Configuring Date Format Preferences
+
+For locale-specific date parsing (e.g., day/month vs month/day for ambiguous dates like `01/02/2025`), pass a `dateParser`:
+
+```dart
+// US format: 01/02/2025 → February 1
+Worksheet(
+  data: data,
+  dateParser: AnyDate.fromLocale('en-US'),
+)
+
+// Day-first format: 01/02/2025 → January 2
+Worksheet(
+  data: data,
+  dateParser: AnyDate(info: DateParserInfo(dayFirst: true)),
+)
+
+// Default (system locale)
+Worksheet(
+  data: data,
+  dateParser: const AnyDate(),
+)
+```
+
+`AnyDate` and `DateParserInfo` are re-exported from `package:worksheet/worksheet.dart` — no need for a direct dependency on `any_date`.
+
+### Number vs Date Priority
+
+Numbers are detected before dates. This prevents plain numbers like `42` from being interpreted as UNIX timestamps:
+
+```dart
+CellValue.parse('42')         // → number, not a date
+CellValue.parse('3.14')       // → number
+CellValue.parse('20250115')   // → number (bare digits without separators)
+CellValue.parse('2025-01-15') // → date (has separators)
+```
+
+### Clipboard Paste Behavior
+
+When pasting from the clipboard, formulas are **not** detected — `=SUM(A1)` is stored as text, not a formula. This prevents accidental formula injection. Dates and other types are still detected normally:
+
+```dart
+// Paste "=SUM(A1)"     → text (not formula)
+// Paste "2025-01-15"   → date
+// Paste "42"           → number
+// Paste "TRUE"         → boolean
+```
+
+### Using CellValue.parse() Directly
+
+You can use the same parsing logic in your own code:
+
+```dart
+// Default parsing
+final value = CellValue.parse(userInput);
+
+// No formula detection (like clipboard paste)
+final safe = CellValue.parse(userInput, allowFormulas: false);
+
+// Custom date parser
+final parser = AnyDate(info: DateParserInfo(dayFirst: true));
+final parsed = CellValue.parse(userInput, dateParser: parser);
 ```
 
 ---
