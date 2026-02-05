@@ -37,6 +37,9 @@ class FrozenLayer extends RenderLayer {
   final String defaultFontFamily;
   final double cellPadding;
 
+  /// Device pixel ratio for crisp 1-physical-pixel lines on Retina displays.
+  final double? devicePixelRatio;
+
   // Pre-allocated paints
   late final Paint _backgroundPaint;
   late final Paint _gridlinePaint;
@@ -57,6 +60,7 @@ class FrozenLayer extends RenderLayer {
     this.defaultFontSize = 14.0,
     this.defaultFontFamily = 'Roboto',
     this.cellPadding = 4.0,
+    this.devicePixelRatio,
   })  : _freezeConfig = freezeConfig,
         super(enabled: freezeConfig.hasFrozenPanes) {
     _initPaints();
@@ -67,10 +71,15 @@ class FrozenLayer extends RenderLayer {
       ..color = backgroundColor
       ..style = PaintingStyle.fill;
 
+    final gridlineWidth = devicePixelRatio != null && devicePixelRatio! > 1.0
+        ? 1.0 / devicePixelRatio!
+        : 1.0;
+
     _gridlinePaint = Paint()
       ..color = gridlineColor
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
+      ..strokeWidth = gridlineWidth
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = false;
 
     _separatorPaint = Paint()
       ..color = separatorColor
@@ -449,7 +458,7 @@ class FrozenLayer extends RenderLayer {
 
     // Vertical gridlines
     for (int col = startCol; col <= endCol + 1; col++) {
-      final x = (layoutSolver.getColumnLeft(col) - scrollX) * zoom + offsetX;
+      final x = ((layoutSolver.getColumnLeft(col) - scrollX) * zoom + offsetX).roundToDouble();
       if (x >= bounds.left && x <= bounds.right) {
         path.moveTo(x, bounds.top);
         path.lineTo(x, bounds.bottom);
@@ -458,7 +467,7 @@ class FrozenLayer extends RenderLayer {
 
     // Horizontal gridlines
     for (int row = startRow; row <= endRow + 1; row++) {
-      final y = (layoutSolver.getRowTop(row) - scrollY) * zoom + offsetY;
+      final y = ((layoutSolver.getRowTop(row) - scrollY) * zoom + offsetY).roundToDouble();
       if (y >= bounds.top && y <= bounds.bottom) {
         path.moveTo(bounds.left, y);
         path.lineTo(bounds.right, y);
@@ -476,18 +485,20 @@ class FrozenLayer extends RenderLayer {
   ) {
     // Horizontal separator below frozen rows
     if (_freezeConfig.hasFrozenRows) {
+      final y = frozenRowsH.roundToDouble();
       canvas.drawLine(
-        Offset(0, frozenRowsH),
-        Offset(viewportSize.width, frozenRowsH),
+        Offset(0, y),
+        Offset(viewportSize.width, y),
         _separatorPaint,
       );
     }
 
     // Vertical separator to the right of frozen columns
     if (_freezeConfig.hasFrozenColumns) {
+      final x = frozenColsW.roundToDouble();
       canvas.drawLine(
-        Offset(frozenColsW, 0),
-        Offset(frozenColsW, viewportSize.height),
+        Offset(x, 0),
+        Offset(x, viewportSize.height),
         _separatorPaint,
       );
     }

@@ -46,6 +46,11 @@ class TilePainter implements TileRenderer {
   /// Cell padding in pixels.
   final double cellPadding;
 
+  /// Device pixel ratio for true 1-physical-pixel gridlines on Retina displays.
+  /// When null, uses logical pixels (strokeWidth = 1.0).
+  /// When provided, adjusts strokeWidth to 1.0 / devicePixelRatio for crisp lines.
+  final double? devicePixelRatio;
+
   /// Cell currently being edited, whose text should be skipped during
   /// tile rendering (the overlay TextField renders it instead).
   CellCoordinate? editingCell;
@@ -59,12 +64,13 @@ class TilePainter implements TileRenderer {
     required this.data,
     required this.layoutSolver,
     this.showGridlines = true,
-    this.gridlineColor = const Color(0xFFD0D0D0), // Light gray like Excel
+    this.gridlineColor = const Color(0xFFCCCCCC), // Light gray, darkened to compensate for 0.5px dilution on Retina
     this.backgroundColor = const Color(0xFFFFFFFF),
     this.defaultTextColor = const Color(0xFF000000),
     this.defaultFontSize = 14.0,
     this.defaultFontFamily = 'Roboto',
     this.cellPadding = 4.0,
+    this.devicePixelRatio,
   }) {
     _backgroundPaint = Paint()
       ..color = backgroundColor
@@ -280,26 +286,32 @@ class TilePainter implements TileRenderer {
   ) {
     final path = Path();
 
-    // Clamp to valid bounds (columns can go to count for the trailing edge)
+    // Clamp to valid bounds
     final maxRow = layoutSolver.rowCount;
     final maxCol = layoutSolver.columnCount;
     final startRow = cellRange.startRow.clamp(0, maxRow);
-    final endRow = (cellRange.endRow + 1).clamp(0, maxRow);
+    final endRow = cellRange.endRow.clamp(0, maxRow - 1);
     final startCol = cellRange.startColumn.clamp(0, maxCol);
-    final endCol = (cellRange.endColumn + 1).clamp(0, maxCol);
+    final endCol = cellRange.endColumn.clamp(0, maxCol - 1);
 
-    // Vertical gridlines (column separators)
+    // Vertical gridlines - draw ONLY the left edge of each column
+    // Do NOT draw trailing edges (they belong to the next tile's leading edge)
+    // Skip col 0: its left edge is the worksheet's outer boundary, not a cell separator
     for (var col = startCol; col <= endCol; col++) {
-      final x = layoutSolver.getColumnLeft(col) - tileBounds.left;
+      if (col == 0) continue;
+      final x = (layoutSolver.getColumnLeft(col) - tileBounds.left).roundToDouble();
       if (x >= 0 && x <= tileBounds.width) {
         path.moveTo(x, 0);
         path.lineTo(x, tileBounds.height);
       }
     }
 
-    // Horizontal gridlines (row separators)
+    // Horizontal gridlines - draw ONLY the top edge of each row
+    // Do NOT draw trailing edges (they belong to the next tile's leading edge)
+    // Skip row 0: its top edge is the worksheet's outer boundary, not a cell separator
     for (var row = startRow; row <= endRow; row++) {
-      final y = layoutSolver.getRowTop(row) - tileBounds.top;
+      if (row == 0) continue;
+      final y = (layoutSolver.getRowTop(row) - tileBounds.top).roundToDouble();
       if (y >= 0 && y <= tileBounds.height) {
         path.moveTo(0, y);
         path.lineTo(tileBounds.width, y);
@@ -309,7 +321,13 @@ class TilePainter implements TileRenderer {
     // Adjust stroke width based on zoom to keep gridlines visible
     // At low zoom levels, increase worksheet stroke width so it remains
     // visible when scaled down
-    final strokeWidth = _getGridlineStrokeWidth(zoomBucket);
+    var strokeWidth = _getGridlineStrokeWidth(zoomBucket);
+
+    // Adjust for device pixel ratio to get true 1-physical-pixel lines on Retina
+    if (devicePixelRatio != null && devicePixelRatio! > 1.0) {
+      strokeWidth = strokeWidth / devicePixelRatio!;
+    }
+
     final paint = Paint()
       ..color = gridlineColor
       ..strokeWidth = strokeWidth

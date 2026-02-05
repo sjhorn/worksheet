@@ -68,6 +68,9 @@ class HeaderRenderer {
   /// Height of the column header area.
   final double columnHeaderHeight;
 
+  /// Device pixel ratio for crisp 1-physical-pixel lines on Retina displays.
+  final double? devicePixelRatio;
+
   // Pre-allocated paint objects for performance
   late final Paint _backgroundPaint;
   late final Paint _selectedBackgroundPaint;
@@ -79,6 +82,7 @@ class HeaderRenderer {
     this.style = HeaderStyle.defaultStyle,
     this.rowHeaderWidth = 50.0,
     this.columnHeaderHeight = 24.0,
+    this.devicePixelRatio,
   }) {
     _backgroundPaint = Paint()
       ..color = style.backgroundColor
@@ -88,9 +92,13 @@ class HeaderRenderer {
       ..color = style.selectedBackgroundColor
       ..style = PaintingStyle.fill;
 
+    final strokeWidth = devicePixelRatio != null && devicePixelRatio! > 1.0
+        ? style.borderWidth / devicePixelRatio!
+        : style.borderWidth;
+
     _borderPaint = Paint()
       ..color = style.borderColor
-      ..strokeWidth = style.borderWidth
+      ..strokeWidth = strokeWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false; // Crisp 1px lines
   }
@@ -153,10 +161,16 @@ class HeaderRenderer {
         canvas.drawRect(cellRect, _selectedBackgroundPaint);
       }
 
-      // Draw right border
+      // Draw right border - match tile gridline calculation exactly
+      // Simulate: (tileBounds.left - scrollX + (colLeft - tileBounds.left).round()) * zoom + headerOffset
+      final colLeft = layoutSolver.getColumnLeft(col + 1);
+      final tileSize = 256.0; // TileConfig default
+      final tileBoundsLeft = (colLeft ~/ tileSize) * tileSize;
+      final tileLocalX = (colLeft - tileBoundsLeft).roundToDouble();
+      final borderX = (tileBoundsLeft - viewportOffset.dx + tileLocalX) * zoom + scaledRowHeaderWidth;
       canvas.drawLine(
-        Offset(screenLeft + screenWidth, 0),
-        Offset(screenLeft + screenWidth, scaledColumnHeaderHeight),
+        Offset(borderX, 0),
+        Offset(borderX, scaledColumnHeaderHeight),
         _borderPaint,
       );
 
@@ -230,10 +244,18 @@ class HeaderRenderer {
         canvas.drawRect(cellRect, _selectedBackgroundPaint);
       }
 
-      // Draw bottom border
+      // Draw bottom border - match tile gridline calculation exactly
+      // The issue: tiles round in tile-local coords, then the rounded value gets scaled
+      // We need to simulate: (tileBounds.top - scrollY + (rowTop - tileBounds.top).round()) * zoom + headerOffset
+      // For a row, we need to find which tile it belongs to and calculate accordingly
+      final rowTop = layoutSolver.getRowTop(row + 1);
+      final tileSize = 256.0; // TileConfig default
+      final tileBoundsTop = (rowTop ~/ tileSize) * tileSize;
+      final tileLocalY = (rowTop - tileBoundsTop).roundToDouble();
+      final borderY = (tileBoundsTop - viewportOffset.dy + tileLocalY) * zoom + scaledColumnHeaderHeight;
       canvas.drawLine(
-        Offset(0, screenTop + screenHeight),
-        Offset(scaledRowHeaderWidth, screenTop + screenHeight),
+        Offset(0, borderY),
+        Offset(scaledRowHeaderWidth, borderY),
         _borderPaint,
       );
 
@@ -276,40 +298,43 @@ class HeaderRenderer {
     final scaledRowHeaderWidth = rowHeaderWidth * zoom;
     final scaledColumnHeaderHeight = columnHeaderHeight * zoom;
 
-    // Draw bottom border of column header (spans full width) — fixed
+    // Draw bottom border of column header (spans full width)
+    // Position so the stroke's bottom edge aligns with the header/content
+    // boundary, keeping the border entirely inside the header area.
+    final halfStroke = _borderPaint.strokeWidth / 2;
+    final borderY = scaledColumnHeaderHeight - halfStroke;
     canvas.drawLine(
-      Offset(0, scaledColumnHeaderHeight - style.borderWidth / 2),
-      Offset(viewportSize.width, scaledColumnHeaderHeight - style.borderWidth / 2),
+      Offset(0, borderY),
+      Offset(viewportSize.width, borderY),
       _borderPaint,
     );
 
-    // Draw right border of row header (spans full height) — fixed
+    // Draw right border of row header (spans full height)
+    // Position so the stroke's right edge aligns with the header/content
+    // boundary, keeping the border entirely inside the header area.
+    final borderX = scaledRowHeaderWidth - halfStroke;
     canvas.drawLine(
-      Offset(scaledRowHeaderWidth - style.borderWidth / 2, 0),
-      Offset(scaledRowHeaderWidth - style.borderWidth / 2, viewportSize.height),
+      Offset(borderX, 0),
+      Offset(borderX, viewportSize.height),
       _borderPaint,
     );
 
-    // During elastic overscroll past the start, draw additional lines
-    // only in the header region (the content area already has its own
-    // gridlines). This avoids double-drawing which causes thicker lines.
-    // Positions match the content gridline convention: line center at
-    // the exact coordinate, no borderWidth/2 offset, no rounding — the
-    // GPU handles pixel alignment the same way it does for tile gridlines.
+    // During elastic overscroll past the start, draw the worksheet outer
+    // boundary line across the full viewport (headers + content).
     if (scrollOffset.dy < 0) {
-      final shiftedY = scaledColumnHeaderHeight - scrollOffset.dy * zoom;
+      final shiftedY = (scaledColumnHeaderHeight - scrollOffset.dy * zoom).roundToDouble();
       canvas.drawLine(
         Offset(0, shiftedY),
-        Offset(scaledRowHeaderWidth, shiftedY),
+        Offset(viewportSize.width, shiftedY),
         _borderPaint,
       );
     }
 
     if (scrollOffset.dx < 0) {
-      final shiftedX = scaledRowHeaderWidth - scrollOffset.dx * zoom;
+      final shiftedX = (scaledRowHeaderWidth - scrollOffset.dx * zoom).roundToDouble();
       canvas.drawLine(
         Offset(shiftedX, 0),
-        Offset(shiftedX, scaledColumnHeaderHeight),
+        Offset(shiftedX, viewportSize.height),
         _borderPaint,
       );
     }

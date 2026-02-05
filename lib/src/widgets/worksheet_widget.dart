@@ -304,7 +304,7 @@ class _WorksheetState extends State<Worksheet>
     );
   }
 
-  void _initRendering(WorksheetThemeData theme) {
+  void _initRendering(WorksheetThemeData theme, double devicePixelRatio) {
     _tilePainter = TilePainter(
       data: widget.data,
       layoutSolver: _layoutSolver,
@@ -315,6 +315,7 @@ class _WorksheetState extends State<Worksheet>
       defaultFontSize: theme.fontSize,
       defaultFontFamily: theme.fontFamily,
       cellPadding: theme.cellPadding,
+      devicePixelRatio: devicePixelRatio,
     );
 
     _tileManager = TileManager(
@@ -394,10 +395,11 @@ class _WorksheetState extends State<Worksheet>
 
   }
 
-  void _initLayers(WorksheetThemeData theme) {
+  void _initLayers(WorksheetThemeData theme, double devicePixelRatio) {
     _selectionRenderer = SelectionRenderer(
       layoutSolver: _layoutSolver,
       style: theme.selectionStyle,
+      devicePixelRatio: devicePixelRatio,
     );
 
     _headerRenderer = HeaderRenderer(
@@ -405,6 +407,7 @@ class _WorksheetState extends State<Worksheet>
       style: theme.headerStyle,
       rowHeaderWidth: theme.rowHeaderWidth,
       columnHeaderHeight: theme.columnHeaderHeight,
+      devicePixelRatio: devicePixelRatio,
     );
 
     _selectionLayer = SelectionLayer(
@@ -431,11 +434,11 @@ class _WorksheetState extends State<Worksheet>
     );
   }
 
-  void _ensureInitialized(WorksheetThemeData theme) {
+  void _ensureInitialized(WorksheetThemeData theme, double devicePixelRatio) {
     if (!_initialized) {
       _initLayout(theme);
-      _initRendering(theme);
-      _initLayers(theme);
+      _initRendering(theme, devicePixelRatio);
+      _initLayers(theme, devicePixelRatio);
       _initialized = true;
     }
   }
@@ -815,20 +818,22 @@ class _WorksheetState extends State<Worksheet>
               TsvClipboardSerializer(dateParser: widget.dateParser),
         );
         widget.editController?.dateParser = widget.dateParser;
+        final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
         _selectionLayer.dispose();
         _headerLayer.dispose();
-        _initLayers(theme);
+        _initLayers(theme, devicePixelRatio);
       }
     }
 
     if (widget.data != oldWidget.data && _initialized) {
       _dataSubscription?.cancel();
       final theme = WorksheetTheme.of(context);
+      final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
       _tileManager.dispose();
       _selectionLayer.dispose();
       _headerLayer.dispose();
-      _initRendering(theme);
-      _initLayers(theme);
+      _initRendering(theme, devicePixelRatio);
+      _initLayers(theme, devicePixelRatio);
     }
   }
 
@@ -836,7 +841,8 @@ class _WorksheetState extends State<Worksheet>
   void didChangeDependencies() {
     super.didChangeDependencies();
     final theme = WorksheetTheme.of(context);
-    _ensureInitialized(theme);
+    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    _ensureInitialized(theme, devicePixelRatio);
   }
 
   @override
@@ -870,7 +876,8 @@ class _WorksheetState extends State<Worksheet>
   @override
   Widget build(BuildContext context) {
     final theme = WorksheetTheme.of(context);
-    _ensureInitialized(theme);
+    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    _ensureInitialized(theme, devicePixelRatio);
 
     // Use Listener for low-level pointer events to handle:
     // - Left mouse button: tap and drag for selection
@@ -1047,12 +1054,14 @@ class _WorksheetState extends State<Worksheet>
                 ),
 
                 // Content area (offset by headers, scaled by zoom)
+                // Shift content 1px into the header area so the header border
+                // visually serves as row 0's top gridline (equalising row heights).
                 Positioned(
                   left: theme.showHeaders
-                      ? theme.rowHeaderWidth * _controller.zoom
+                      ? theme.rowHeaderWidth * _controller.zoom - 1
                       : 0,
                   top: theme.showHeaders
-                      ? theme.columnHeaderHeight * _controller.zoom
+                      ? theme.columnHeaderHeight * _controller.zoom - 1
                       : 0,
                   right: 0,
                   bottom: 0,
@@ -1072,8 +1081,8 @@ class _WorksheetState extends State<Worksheet>
                           ),
                           zoom: _controller.zoom,
                           headerOffset: Offset(
-                            theme.rowHeaderWidth * _controller.zoom,
-                            theme.columnHeaderHeight * _controller.zoom,
+                            theme.rowHeaderWidth * _controller.zoom - 1,
+                            theme.columnHeaderHeight * _controller.zoom - 1,
                           ),
                           layoutVersion: _layoutVersion,
                         ),

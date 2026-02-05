@@ -68,6 +68,9 @@ class SelectionRenderer {
   /// The selection style configuration.
   final SelectionStyle style;
 
+  /// Device pixel ratio for crisp 1-physical-pixel lines on Retina displays.
+  final double? devicePixelRatio;
+
   // Pre-allocated paint objects for performance
   late final Paint _fillPaint;
   late final Paint _borderPaint;
@@ -80,20 +83,28 @@ class SelectionRenderer {
   SelectionRenderer({
     required this.layoutSolver,
     this.style = SelectionStyle.defaultStyle,
+    this.devicePixelRatio,
   }) {
+    final borderStrokeWidth = devicePixelRatio != null && devicePixelRatio! > 1.0
+        ? style.borderWidth / devicePixelRatio!
+        : style.borderWidth;
+    final focusStrokeWidth = devicePixelRatio != null && devicePixelRatio! > 1.0
+        ? style.focusBorderWidth / devicePixelRatio!
+        : style.focusBorderWidth;
+
     _fillPaint = Paint()
       ..color = style.fillColor
       ..style = PaintingStyle.fill;
 
     _borderPaint = Paint()
       ..color = style.borderColor
-      ..strokeWidth = style.borderWidth
+      ..strokeWidth = borderStrokeWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false; // Crisp 1px lines
 
     _focusBorderPaint = Paint()
       ..color = style.focusBorderColor
-      ..strokeWidth = style.focusBorderWidth
+      ..strokeWidth = focusStrokeWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false; // Crisp 1px lines
 
@@ -107,7 +118,7 @@ class SelectionRenderer {
 
     _fillPreviewBorderPaint = Paint()
       ..color = style.fillPreviewBorderColor
-      ..strokeWidth = style.borderWidth
+      ..strokeWidth = borderStrokeWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false;
   }
