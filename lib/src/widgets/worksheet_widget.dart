@@ -1054,14 +1054,12 @@ class _WorksheetState extends State<Worksheet>
                 ),
 
                 // Content area (offset by headers, scaled by zoom)
-                // Shift content 1px into the header area so the header border
-                // visually serves as row 0's top gridline (equalising row heights).
                 Positioned(
                   left: theme.showHeaders
-                      ? theme.rowHeaderWidth * _controller.zoom - 1
+                      ? theme.rowHeaderWidth * _controller.zoom
                       : 0,
                   top: theme.showHeaders
-                      ? theme.columnHeaderHeight * _controller.zoom - 1
+                      ? theme.columnHeaderHeight * _controller.zoom
                       : 0,
                   right: 0,
                   bottom: 0,
@@ -1081,8 +1079,8 @@ class _WorksheetState extends State<Worksheet>
                           ),
                           zoom: _controller.zoom,
                           headerOffset: Offset(
-                            theme.rowHeaderWidth * _controller.zoom - 1,
-                            theme.columnHeaderHeight * _controller.zoom - 1,
+                            theme.rowHeaderWidth * _controller.zoom,
+                            theme.columnHeaderHeight * _controller.zoom,
                           ),
                           layoutVersion: _layoutVersion,
                         ),

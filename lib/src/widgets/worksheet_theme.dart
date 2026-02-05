@@ -58,7 +58,7 @@ class WorksheetThemeData {
   const WorksheetThemeData({
     this.selectionStyle = SelectionStyle.defaultStyle,
     this.headerStyle = HeaderStyle.defaultStyle,
-    this.gridlineColor = const Color(0xFFE0E0E0),
+    this.gridlineColor = const Color(0xFFD4D4D4),
     this.gridlineWidth = 1.0,
     this.cellBackgroundColor = const Color(0xFFFFFFFF),
     this.textColor = const Color(0xFF000000),

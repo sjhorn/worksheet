@@ -53,7 +53,7 @@ class FrozenLayer extends RenderLayer {
     required this.layoutSolver,
     this.onNeedsPaint,
     this.backgroundColor = const Color(0xFFF5F5F5),
-    this.gridlineColor = const Color(0xFFE0E0E0),
+    this.gridlineColor = const Color(0xFFD4D4D4),
     this.separatorColor = const Color(0xFF9E9E9E),
     this.separatorWidth = 2.0,
     this.defaultTextColor = const Color(0xFF000000),
@@ -71,13 +71,9 @@ class FrozenLayer extends RenderLayer {
       ..color = backgroundColor
       ..style = PaintingStyle.fill;
 
-    final gridlineWidth = devicePixelRatio != null && devicePixelRatio! > 1.0
-        ? 1.0 / devicePixelRatio!
-        : 1.0;
-
     _gridlinePaint = Paint()
       ..color = gridlineColor
-      ..strokeWidth = gridlineWidth
+      ..strokeWidth = 1.0
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false;
 
@@ -458,7 +454,7 @@ class FrozenLayer extends RenderLayer {
 
     // Vertical gridlines
     for (int col = startCol; col <= endCol + 1; col++) {
-      final x = ((layoutSolver.getColumnLeft(col) - scrollX) * zoom + offsetX).roundToDouble();
+      final x = ((layoutSolver.getColumnLeft(col) - scrollX) * zoom + offsetX).roundToDouble() + 0.5;
       if (x >= bounds.left && x <= bounds.right) {
         path.moveTo(x, bounds.top);
         path.lineTo(x, bounds.bottom);
@@ -467,7 +463,7 @@ class FrozenLayer extends RenderLayer {
 
     // Horizontal gridlines
     for (int row = startRow; row <= endRow + 1; row++) {
-      final y = ((layoutSolver.getRowTop(row) - scrollY) * zoom + offsetY).roundToDouble();
+      final y = ((layoutSolver.getRowTop(row) - scrollY) * zoom + offsetY).roundToDouble() + 0.5;
       if (y >= bounds.top && y <= bounds.bottom) {
         path.moveTo(bounds.left, y);
         path.lineTo(bounds.right, y);

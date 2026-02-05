@@ -85,26 +85,19 @@ class SelectionRenderer {
     this.style = SelectionStyle.defaultStyle,
     this.devicePixelRatio,
   }) {
-    final borderStrokeWidth = devicePixelRatio != null && devicePixelRatio! > 1.0
-        ? style.borderWidth / devicePixelRatio!
-        : style.borderWidth;
-    final focusStrokeWidth = devicePixelRatio != null && devicePixelRatio! > 1.0
-        ? style.focusBorderWidth / devicePixelRatio!
-        : style.focusBorderWidth;
-
     _fillPaint = Paint()
       ..color = style.fillColor
       ..style = PaintingStyle.fill;
 
     _borderPaint = Paint()
       ..color = style.borderColor
-      ..strokeWidth = borderStrokeWidth
+      ..strokeWidth = style.borderWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false; // Crisp 1px lines
 
     _focusBorderPaint = Paint()
       ..color = style.focusBorderColor
-      ..strokeWidth = focusStrokeWidth
+      ..strokeWidth = style.focusBorderWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false; // Crisp 1px lines
 
@@ -118,7 +111,7 @@ class SelectionRenderer {
 
     _fillPreviewBorderPaint = Paint()
       ..color = style.fillPreviewBorderColor
-      ..strokeWidth = borderStrokeWidth
+      ..strokeWidth = style.borderWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false;
   }
@@ -145,8 +138,9 @@ class SelectionRenderer {
       endColumn: range.endColumn,
     );
 
-    // Convert to screen coordinates
-    final screenBounds = Rect.fromLTRB(
+    // Convert to screen coordinates, snapping edges to half-pixel positions
+    // so 1px strokes land on exact pixel boundaries (not straddling two).
+    final screenBounds = _snapRect(
       (bounds.left - viewportOffset.dx) * zoom,
       (bounds.top - viewportOffset.dy) * zoom,
       (bounds.right - viewportOffset.dx) * zoom,
@@ -183,8 +177,8 @@ class SelectionRenderer {
   ) {
     final cellBounds = layoutSolver.getCellBounds(cell);
 
-    // Convert to screen coordinates
-    final screenBounds = Rect.fromLTRB(
+    // Convert to screen coordinates, snapping to half-pixel positions.
+    final screenBounds = _snapRect(
       (cellBounds.left - viewportOffset.dx) * zoom,
       (cellBounds.top - viewportOffset.dy) * zoom,
       (cellBounds.right - viewportOffset.dx) * zoom,
@@ -288,7 +282,7 @@ class SelectionRenderer {
       endColumn: range.endColumn,
     );
 
-    final screenBounds = Rect.fromLTRB(
+    final screenBounds = _snapRect(
       (bounds.left - viewportOffset.dx) * zoom,
       (bounds.top - viewportOffset.dy) * zoom,
       (bounds.right - viewportOffset.dx) * zoom,
@@ -297,5 +291,16 @@ class SelectionRenderer {
 
     canvas.drawRect(screenBounds, _fillPreviewPaint);
     canvas.drawRect(screenBounds, _fillPreviewBorderPaint);
+  }
+
+  /// Snaps rect edges to half-pixel positions so 1px strokes land on exact
+  /// pixel boundaries instead of straddling two pixels.
+  static Rect _snapRect(double l, double t, double r, double b) {
+    return Rect.fromLTRB(
+      l.roundToDouble() + 0.5,
+      t.roundToDouble() + 0.5,
+      r.roundToDouble() + 0.5,
+      b.roundToDouble() + 0.5,
+    );
   }
 }

@@ -92,13 +92,9 @@ class HeaderRenderer {
       ..color = style.selectedBackgroundColor
       ..style = PaintingStyle.fill;
 
-    final strokeWidth = devicePixelRatio != null && devicePixelRatio! > 1.0
-        ? style.borderWidth / devicePixelRatio!
-        : style.borderWidth;
-
     _borderPaint = Paint()
       ..color = style.borderColor
-      ..strokeWidth = strokeWidth
+      ..strokeWidth = style.borderWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false; // Crisp 1px lines
   }
@@ -166,7 +162,7 @@ class HeaderRenderer {
       final colLeft = layoutSolver.getColumnLeft(col + 1);
       final tileSize = 256.0; // TileConfig default
       final tileBoundsLeft = (colLeft ~/ tileSize) * tileSize;
-      final tileLocalX = (colLeft - tileBoundsLeft).roundToDouble();
+      final tileLocalX = (colLeft - tileBoundsLeft).roundToDouble() + 0.5;
       final borderX = (tileBoundsLeft - viewportOffset.dx + tileLocalX) * zoom + scaledRowHeaderWidth;
       canvas.drawLine(
         Offset(borderX, 0),
@@ -251,7 +247,7 @@ class HeaderRenderer {
       final rowTop = layoutSolver.getRowTop(row + 1);
       final tileSize = 256.0; // TileConfig default
       final tileBoundsTop = (rowTop ~/ tileSize) * tileSize;
-      final tileLocalY = (rowTop - tileBoundsTop).roundToDouble();
+      final tileLocalY = (rowTop - tileBoundsTop).roundToDouble() + 0.5;
       final borderY = (tileBoundsTop - viewportOffset.dy + tileLocalY) * zoom + scaledColumnHeaderHeight;
       canvas.drawLine(
         Offset(0, borderY),
@@ -322,7 +318,7 @@ class HeaderRenderer {
     // During elastic overscroll past the start, draw the worksheet outer
     // boundary line across the full viewport (headers + content).
     if (scrollOffset.dy < 0) {
-      final shiftedY = (scaledColumnHeaderHeight - scrollOffset.dy * zoom).roundToDouble();
+      final shiftedY = (scaledColumnHeaderHeight - scrollOffset.dy * zoom).roundToDouble() + 0.5;
       canvas.drawLine(
         Offset(0, shiftedY),
         Offset(viewportSize.width, shiftedY),
@@ -331,7 +327,7 @@ class HeaderRenderer {
     }
 
     if (scrollOffset.dx < 0) {
-      final shiftedX = (scaledRowHeaderWidth - scrollOffset.dx * zoom).roundToDouble();
+      final shiftedX = (scaledRowHeaderWidth - scrollOffset.dx * zoom).roundToDouble() + 0.5;
       canvas.drawLine(
         Offset(shiftedX, 0),
         Offset(shiftedX, viewportSize.height),

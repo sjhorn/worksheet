@@ -64,7 +64,7 @@ class TilePainter implements TileRenderer {
     required this.data,
     required this.layoutSolver,
     this.showGridlines = true,
-    this.gridlineColor = const Color(0xFFCCCCCC), // Light gray, darkened to compensate for 0.5px dilution on Retina
+    this.gridlineColor = const Color(0xFFD4D4D4),
     this.backgroundColor = const Color(0xFFFFFFFF),
     this.defaultTextColor = const Color(0xFF000000),
     this.defaultFontSize = 14.0,
@@ -299,7 +299,9 @@ class TilePainter implements TileRenderer {
     // Skip col 0: its left edge is the worksheet's outer boundary, not a cell separator
     for (var col = startCol; col <= endCol; col++) {
       if (col == 0) continue;
-      final x = (layoutSolver.getColumnLeft(col) - tileBounds.left).roundToDouble();
+      // +0.5 centers the 1px stroke on a pixel boundary so it covers exactly
+      // one pixel row instead of straddling two (which Impeller renders as gray).
+      final x = (layoutSolver.getColumnLeft(col) - tileBounds.left).roundToDouble() + 0.5;
       if (x >= 0 && x <= tileBounds.width) {
         path.moveTo(x, 0);
         path.lineTo(x, tileBounds.height);
@@ -311,7 +313,7 @@ class TilePainter implements TileRenderer {
     // Skip row 0: its top edge is the worksheet's outer boundary, not a cell separator
     for (var row = startRow; row <= endRow; row++) {
       if (row == 0) continue;
-      final y = (layoutSolver.getRowTop(row) - tileBounds.top).roundToDouble();
+      final y = (layoutSolver.getRowTop(row) - tileBounds.top).roundToDouble() + 0.5;
       if (y >= 0 && y <= tileBounds.height) {
         path.moveTo(0, y);
         path.lineTo(tileBounds.width, y);
@@ -321,12 +323,7 @@ class TilePainter implements TileRenderer {
     // Adjust stroke width based on zoom to keep gridlines visible
     // At low zoom levels, increase worksheet stroke width so it remains
     // visible when scaled down
-    var strokeWidth = _getGridlineStrokeWidth(zoomBucket);
-
-    // Adjust for device pixel ratio to get true 1-physical-pixel lines on Retina
-    if (devicePixelRatio != null && devicePixelRatio! > 1.0) {
-      strokeWidth = strokeWidth / devicePixelRatio!;
-    }
+    final strokeWidth = _getGridlineStrokeWidth(zoomBucket);
 
     final paint = Paint()
       ..color = gridlineColor

@@ -11,7 +11,7 @@ void main() {
 
       expect(theme.selectionStyle, SelectionStyle.defaultStyle);
       expect(theme.headerStyle, HeaderStyle.defaultStyle);
-      expect(theme.gridlineColor, const Color(0xFFE0E0E0));
+      expect(theme.gridlineColor, const Color(0xFFD4D4D4));
       expect(theme.gridlineWidth, 1.0);
       expect(theme.cellBackgroundColor, const Color(0xFFFFFFFF));
       expect(theme.textColor, const Color(0xFF000000));
