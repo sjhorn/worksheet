@@ -210,6 +210,9 @@ class _WorksheetState extends State<Worksheet>
   int _layoutVersion = 0;
   bool _pointerInScrollbarArea = false;
 
+  // Track viewInsets for keyboard visibility changes
+  EdgeInsets _lastViewInsets = EdgeInsets.zero;
+
   // Data change subscription for external mutations
   StreamSubscription<DataChangeEvent>? _dataSubscription;
 
@@ -217,6 +220,9 @@ class _WorksheetState extends State<Worksheet>
   Timer? _autoScrollTimer;
   Offset? _lastPointerPosition;
   static const Duration _autoScrollInterval = Duration(milliseconds: 16);
+
+  // Timer for keyboard scroll adjustment (cancellable for tests)
+  Timer? _keyboardScrollTimer;
 
   // WorksheetActionContext implementation
   @override
@@ -518,6 +524,42 @@ class _WorksheetState extends State<Worksheet>
     _controller.ensureCellVisible(cell, viewportSize: size);
   }
 
+  /// Scrolls to center the cell vertically in the visible area above the keyboard.
+  void _scrollCellToCenter(CellCoordinate cell) {
+    final size = context.size;
+    if (size == null) return;
+    final solver = _controller.layoutSolver;
+    if (solver == null) return;
+
+    final viewInsets = MediaQuery.of(context).viewInsets;
+    final theme = WorksheetTheme.of(context);
+    final zoom = _controller.zoom;
+
+    // Calculate cell position in screen coordinates
+    final cellTop = solver.getRowTop(cell.row) * zoom;
+    final cellHeight = solver.getRowHeight(cell.row) * zoom;
+    final headerHeight = theme.showHeaders ? theme.columnHeaderHeight * zoom : 0.0;
+
+    // Available height above keyboard (minus headers)
+    final availableHeight = size.height - viewInsets.bottom - headerHeight;
+
+    // Target: center the cell vertically in the available space
+    final cellCenterY = cellTop + cellHeight / 2;
+    final targetScrollY = cellCenterY - availableHeight / 2;
+
+    // Clamp to valid scroll range
+    final vController = _controller.verticalScrollController;
+    if (!vController.hasClients) return;
+    final maxScroll = vController.position.maxScrollExtent;
+    final clampedY = targetScrollY.clamp(0.0, maxScroll);
+
+    vController.animateTo(
+      clampedY,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeInOut,
+    );
+  }
+
   // --- Integrated editing support ---
 
   /// Starts editing via the integrated editController.
@@ -545,6 +587,16 @@ class _WorksheetState extends State<Worksheet>
     );
     _layoutVersion++;
     setState(() {});
+
+    // Scroll cell into view after keyboard has time to appear.
+    // Cancel any pending timer and start a new one.
+    _keyboardScrollTimer?.cancel();
+    _keyboardScrollTimer = Timer(const Duration(milliseconds: 300), () {
+      if (!mounted) return;
+      final ec = widget.editController;
+      if (ec == null || !ec.isEditing) return;
+      _scrollCellToCenter(cell);
+    });
   }
 
   /// Clears the editing cell from the tile painter so tile text re-appears.
@@ -877,6 +929,7 @@ class _WorksheetState extends State<Worksheet>
   @override
   void dispose() {
     _stopAutoScroll();
+    _keyboardScrollTimer?.cancel();
     _dataSubscription?.cancel();
     _controller.detachLayout();
     _controller.removeListener(_onControllerChanged);
@@ -895,8 +948,31 @@ class _WorksheetState extends State<Worksheet>
   @override
   Widget build(BuildContext context) {
     final theme = WorksheetTheme.of(context);
-    final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
+    final mediaQuery = MediaQuery.of(context);
+    final devicePixelRatio = mediaQuery.devicePixelRatio;
     _ensureInitialized(theme, devicePixelRatio);
+
+    // Detect keyboard appearance and scroll to keep editing cell visible
+    final viewInsets = mediaQuery.viewInsets;
+    if (viewInsets.bottom > _lastViewInsets.bottom) {
+      // Keyboard appeared or grew — scroll editing cell into view
+      final ec = widget.editController;
+      if (ec != null && ec.isEditing) {
+        final cell = ec.editingCell;
+        if (cell != null) {
+          // Cancel any pending scroll timer and start a new one.
+          // Delay slightly to let keyboard animation settle.
+          _keyboardScrollTimer?.cancel();
+          _keyboardScrollTimer = Timer(const Duration(milliseconds: 100), () {
+            if (!mounted) return;
+            final ec2 = widget.editController;
+            if (ec2 == null || !ec2.isEditing) return;
+            _scrollCellToCenter(cell);
+          });
+        }
+      }
+    }
+    _lastViewInsets = viewInsets;
 
     // Use Listener for low-level pointer events to handle:
     // - Left mouse button: tap and drag for selection

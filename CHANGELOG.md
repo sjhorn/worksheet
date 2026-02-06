@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-02-06
+
+### Added
+- Worksheet automatically scrolls to center the editing cell vertically when virtual keyboard appears, keeping it visible above browser URL bars and other UI elements
+
 ## [1.6.1] - 2026-02-06
 
 ### Fixed
