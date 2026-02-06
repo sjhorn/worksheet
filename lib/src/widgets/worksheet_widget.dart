@@ -196,6 +196,10 @@ class _WorksheetState extends State<Worksheet>
   late WorksheetGestureHandler _gestureHandler;
   late ClipboardHandler _clipboardHandler;
 
+  /// Focus node for keyboard navigation. Passed to the cell editor overlay
+  /// so it can restore focus here when editing completes.
+  final FocusNode _keyboardFocusNode = FocusNode(debugLabel: 'Worksheet');
+
   late SelectionRenderer _selectionRenderer;
   late HeaderRenderer _headerRenderer;
   late SelectionLayer _selectionLayer;
@@ -884,6 +888,7 @@ class _WorksheetState extends State<Worksheet>
       _headerLayer.dispose();
       _tileManager.dispose();
     }
+    _keyboardFocusNode.dispose();
     super.dispose();
   }
 
@@ -918,6 +923,7 @@ class _WorksheetState extends State<Worksheet>
       child: Actions(
         actions: effectiveActions,
         child: Focus(
+          focusNode: _keyboardFocusNode,
           autofocus: true,
           onKeyEvent: widget.editController != null ? _handleTypeToEdit : null,
           child: MouseRegion(
@@ -1168,6 +1174,7 @@ class _WorksheetState extends State<Worksheet>
                         textColor: cellStyle.textColor ?? theme.textColor,
                         textAlign: _toTextAlign(cellStyle.textAlignment),
                         cellPadding: theme.cellPadding,
+                        restoreFocusTo: _keyboardFocusNode,
                       );
                     },
                   ),

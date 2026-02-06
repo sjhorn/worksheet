@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-02-06
+
+### Fixed
+- Keyboard navigation now works immediately after editing completes on all platforms (web, macOS, mobile)
+- Focus restoration uses explicit `FocusNode` and post-frame callback to avoid timing conflicts with tap events
+- Software keyboard reliably activates on mobile when cell editing starts
+
 ## [1.6.0] - 2026-02-06
 
 ### Added

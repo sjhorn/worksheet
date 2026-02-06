@@ -59,6 +59,10 @@ class CellEditorOverlay extends StatefulWidget {
   /// The cell padding used by the tile painter (in worksheet coordinates).
   final double cellPadding;
 
+  /// Focus node to restore when editing completes. If null, attempts to
+  /// find the parent focus node automatically.
+  final FocusNode? restoreFocusTo;
+
   /// Minimum width for the editor.
   static const double minWidth = 60.0;
 
@@ -78,6 +82,7 @@ class CellEditorOverlay extends StatefulWidget {
     this.textColor = const Color(0xFF000000),
     this.textAlign = TextAlign.left,
     this.cellPadding = 4.0,
+    this.restoreFocusTo,
   });
 
   @override
@@ -100,7 +105,6 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       text: widget.editController.currentText,
     );
     _focusNode = FocusNode();
-    _focusNode.requestFocus();
 
     // Listen for changes from edit controller
     widget.editController.addListener(_onEditControllerChanged);
@@ -115,6 +119,15 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       _guardSelectAll = true;
       _textController.addListener(_onSelectionGuard);
     }
+
+    // Request focus after the TextField is built and attached to the tree.
+    // This ensures the text input connection is established on mobile,
+    // which is required to show the software keyboard.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _focusNode.requestFocus();
+      }
+    });
   }
 
   @override
@@ -154,10 +167,15 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
   void _onEditControllerChanged() {
     if (!widget.editController.isEditing) {
-      // Restore focus to parent Focus scope (the Worksheet) instead of
-      // whatever random widget had focus before editing started.
-      final scope = FocusScope.of(context);
-      scope.requestFocus();
+      // Restore focus to the Worksheet's keyboard focus node.
+      // Use post-frame callback to ensure the overlay is fully disposed
+      // and doesn't interfere with focus (especially on web where timing
+      // of tap events can compete with focus restoration).
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (widget.restoreFocusTo != null) {
+          widget.restoreFocusTo!.requestFocus();
+        }
+      });
       setState(() {});
       return;
     }
