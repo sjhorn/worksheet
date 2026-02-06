@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-02-06
+
+### Added
+- `CellEditorOverlay` now respects per-cell styles (font size, family, weight, style, color, text alignment) to match the tile-rendered cell appearance
+- `autofocus: true` on cell editor TextField to ensure software keyboard activates on mobile
+
+### Fixed
+- Gridlines and selection borders snap to half-pixel positions (+0.5) for crisp 1px rendering on Impeller — prevents gray anti-aliased lines
+- Removed devicePixelRatio strokeWidth adjustment that caused sub-pixel blending artifacts
+- Cell editor overlay text now aligns precisely with cell content using measured TextPainter height
+- Cursor height matches font size instead of default line height
+- Double-tap to edit places cursor at end instead of selecting all text (F2 still selects all)
+- Focus returns to worksheet after editing instead of previous widget (e.g., zoom slider)
+
+### Changed
+- Default gridline color changed to `0xFFD4D4D4`
+
 ## [1.5.0] - 2026-02-03
 
 ### Added

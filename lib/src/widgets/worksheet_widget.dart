@@ -13,6 +13,7 @@ import '../core/geometry/layout_solver.dart';
 import '../core/geometry/span_list.dart';
 import '../core/models/cell_coordinate.dart';
 import '../core/models/cell_range.dart';
+import '../core/models/cell_style.dart';
 import '../core/models/cell_value.dart';
 import '../interaction/clipboard/clipboard_handler.dart';
 import '../interaction/clipboard/clipboard_serializer.dart';
@@ -559,6 +560,19 @@ class _WorksheetState extends State<Worksheet>
     _clearEditingCell();
     widget.data.setCell(cell, value);
     invalidateAndRebuild();
+  }
+
+  /// Converts CellTextAlignment to Flutter TextAlign.
+  static TextAlign _toTextAlign(CellTextAlignment? alignment) {
+    switch (alignment) {
+      case CellTextAlignment.center:
+        return TextAlign.center;
+      case CellTextAlignment.right:
+        return TextAlign.right;
+      case CellTextAlignment.left:
+      case null:
+        return TextAlign.left;
+    }
   }
 
   /// Handles cancel from the internal CellEditorOverlay.
@@ -1136,6 +1150,10 @@ class _WorksheetState extends State<Worksheet>
                           child: SizedBox.shrink(),
                         );
                       }
+                      // Resolve per-cell style the same way tile_painter does
+                      final cellStyle = CellStyle.defaultStyle.merge(
+                        widget.data.getStyle(cell),
+                      );
                       return CellEditorOverlay(
                         editController: widget.editController!,
                         cellBounds: bounds,
@@ -1143,9 +1161,12 @@ class _WorksheetState extends State<Worksheet>
                         onCancel: _onInternalCancel,
                         onCommitAndNavigate: _onInternalCommitAndNavigate,
                         zoom: _controller.zoom,
-                        fontSize: theme.fontSize,
-                        fontFamily: theme.fontFamily,
-                        textColor: theme.textColor,
+                        fontSize: cellStyle.fontSize ?? theme.fontSize,
+                        fontFamily: cellStyle.fontFamily ?? theme.fontFamily,
+                        fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
+                        fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
+                        textColor: cellStyle.textColor ?? theme.textColor,
+                        textAlign: _toTextAlign(cellStyle.textAlignment),
                         cellPadding: theme.cellPadding,
                       );
                     },

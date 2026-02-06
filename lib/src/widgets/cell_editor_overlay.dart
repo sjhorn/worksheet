@@ -44,8 +44,17 @@ class CellEditorOverlay extends StatefulWidget {
   /// The font family used by the tile painter.
   final String fontFamily;
 
+  /// The font weight.
+  final FontWeight fontWeight;
+
+  /// The font style (normal or italic).
+  final FontStyle fontStyle;
+
   /// The text color.
   final Color textColor;
+
+  /// Horizontal text alignment.
+  final TextAlign textAlign;
 
   /// The cell padding used by the tile painter (in worksheet coordinates).
   final double cellPadding;
@@ -64,7 +73,10 @@ class CellEditorOverlay extends StatefulWidget {
     this.zoom = 1.0,
     this.fontSize = 14.0,
     this.fontFamily = 'Roboto',
+    this.fontWeight = FontWeight.normal,
+    this.fontStyle = FontStyle.normal,
     this.textColor = const Color(0xFF000000),
+    this.textAlign = TextAlign.left,
     this.cellPadding = 4.0,
   });
 
@@ -75,7 +87,6 @@ class CellEditorOverlay extends StatefulWidget {
 class _CellEditorOverlayState extends State<CellEditorOverlay> {
   late TextEditingController _textController;
   late FocusNode _focusNode;
-  FocusNode? _previousFocus;
 
   /// When true, a controller listener guards against select-all that the
   /// platform may apply on focus gain, reversing it to cursor-at-end.
@@ -84,8 +95,6 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   @override
   void initState() {
     super.initState();
-    // Capture the currently focused node so we can restore it when editing ends.
-    _previousFocus = FocusManager.instance.primaryFocus;
 
     _textController = TextEditingController(
       text: widget.editController.currentText,
@@ -145,8 +154,10 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
   void _onEditControllerChanged() {
     if (!widget.editController.isEditing) {
-      // Restore focus to whatever was focused before the editor opened.
-      _previousFocus?.requestFocus();
+      // Restore focus to parent Focus scope (the Worksheet) instead of
+      // whatever random widget had focus before editing started.
+      final scope = FocusScope.of(context);
+      scope.requestFocus();
       setState(() {});
       return;
     }
@@ -161,8 +172,14 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
   void _onFocusChanged() {
     if (_focusNode.hasFocus && _textController.text.isNotEmpty) {
-      if (widget.editController.trigger != EditTrigger.typing) {
-        // For F2, double-tap, etc., select all text
+      final trigger = widget.editController.trigger;
+      if (trigger == EditTrigger.typing || trigger == EditTrigger.doubleTap) {
+        // Typing or double-tap: cursor at end
+        _textController.selection = TextSelection.collapsed(
+          offset: _textController.text.length,
+        );
+      } else {
+        // F2, programmatic: select all text
         _textController.selection = TextSelection(
           baseOffset: 0,
           extentOffset: _textController.text.length,
@@ -262,8 +279,45 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     final textStyle = TextStyle(
       fontSize: scaledFontSize,
       fontFamily: widget.fontFamily,
+      fontWeight: widget.fontWeight,
+      fontStyle: widget.fontStyle,
       color: widget.textColor,
     );
+
+    // Measure text height to match tile painter's vertical centering exactly:
+    // dy = bounds.top + (bounds.height - textPainter.height) / 2
+    final measurer = TextPainter(
+      text: TextSpan(text: 'Xg', style: textStyle),
+      textDirection: TextDirection.ltr,
+      maxLines: 1,
+    )..layout();
+    final textHeight = measurer.height;
+    measurer.dispose();
+
+    final verticalPad =
+        ((widget.cellBounds.height - textHeight) / 2).clamp(0.0, double.infinity);
+
+    // Match tile painter's per-alignment horizontal padding:
+    //   left:   dx = bounds.left + cellPadding
+    //   center: dx = bounds.left + (bounds.width - textWidth) / 2  (no padding)
+    //   right:  dx = bounds.right - cellPadding - textWidth
+    final double leftPad;
+    final double rightPad;
+    switch (widget.textAlign) {
+      case TextAlign.right:
+      case TextAlign.end:
+        leftPad = 0;
+        rightPad = scaledPadding;
+        break;
+      case TextAlign.center:
+        leftPad = 0;
+        rightPad = 0;
+        break;
+      default:
+        leftPad = scaledPadding;
+        rightPad = 0;
+        break;
+    }
 
     return Positioned(
       left: widget.cellBounds.left,
@@ -273,19 +327,23 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         height: widget.cellBounds.height,
         child: Focus(
           onKeyEvent: _handleKeyEvent,
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Padding(
-              padding: EdgeInsets.only(left: scaledPadding),
-              child: TextField(
-                controller: _textController,
-                focusNode: _focusNode,
-                style: textStyle,
-                decoration: const InputDecoration.collapsed(hintText: ''),
-                cursorColor: widget.textColor,
-                onChanged: _onTextChanged,
+          child: TextField(
+            controller: _textController,
+            focusNode: _focusNode,
+            autofocus: true,
+            style: textStyle,
+            maxLines: 1,
+            textAlign: widget.textAlign,
+            decoration: InputDecoration(
+              contentPadding: EdgeInsets.fromLTRB(
+                leftPad, verticalPad, rightPad, verticalPad,
               ),
+              border: InputBorder.none,
+              isCollapsed: true,
             ),
+            cursorHeight: textHeight,
+            cursorColor: widget.textColor,
+            onChanged: _onTextChanged,
           ),
         ),
       ),
