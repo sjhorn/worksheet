@@ -1,6 +1,6 @@
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide BorderStyle;
 import 'package:worksheet/worksheet.dart';
 
 /// Converts a slider value (0.0 to 1.0) to a zoom level (0.1 to 4.0).
@@ -110,12 +110,19 @@ class _WorksheetExampleState extends State<WorksheetExample> {
       'Notes',
     ];
 
-    // Header style
+    // Header style with thick bottom border
     const headerStyle = CellStyle(
       backgroundColor: Color(0xFF4472C4),
       textColor: Color(0xFFFFFFFF),
       fontWeight: FontWeight.bold,
       textAlignment: CellTextAlignment.center,
+      borders: CellBorders(
+        bottom: BorderStyle(
+          width: 2.0,
+          color: Color(0xFF2E5A94),
+          lineStyle: BorderLineStyle.solid,
+        ),
+      ),
     );
 
     for (var col = 0; col < headers.length; col++) {
@@ -230,7 +237,26 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     _data.setStyle(const CellCoordinate(summaryStartRow, 0), const CellStyle(
       fontWeight: FontWeight.bold,
       fontSize: 14,
+      borders: CellBorders(
+        top: BorderStyle(
+          width: 2.0,
+          lineStyle: BorderLineStyle.double,
+        ),
+      ),
     ));
+
+    // Add dashed border to a few cells for demonstration
+    for (var col = 1; col < 5; col++) {
+      _data.setStyle(CellCoordinate(summaryStartRow, col), const CellStyle(
+        borders: CellBorders(
+          top: BorderStyle(
+            width: 1.0,
+            lineStyle: BorderLineStyle.dashed,
+            color: Color(0xFF888888),
+          ),
+        ),
+      ));
+    }
 
     _data.setCell(const CellCoordinate(summaryStartRow + 1, 0), CellValue.text('Total Records:'));
     _data.setCell(const CellCoordinate(summaryStartRow + 1, 1), CellValue.number(50000));
