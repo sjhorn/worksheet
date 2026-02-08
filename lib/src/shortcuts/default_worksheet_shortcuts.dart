@@ -123,6 +123,14 @@ class DefaultWorksheetShortcuts {
     const SingleActivator(LogicalKeyboardKey.backspace):
         const ClearCellsIntent(),
 
+    // Ctrl+\: clear formatting (preserve values)
+    const SingleActivator(LogicalKeyboardKey.backslash, control: true):
+        const ClearCellsIntent(
+            clearValue: false, clearStyle: true, clearFormat: true),
+    const SingleActivator(LogicalKeyboardKey.backslash, meta: true):
+        const ClearCellsIntent(
+            clearValue: false, clearStyle: true, clearFormat: true),
+
     // Ctrl+D: fill down
     const SingleActivator(LogicalKeyboardKey.keyD, control: true):
         const FillDownIntent(),

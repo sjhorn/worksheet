@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-02-08
+
+### Added
+- Selective cell clearing via `ClearCellsIntent` flags (`clearValue`, `clearStyle`, `clearFormat`) — clear values, styles, or formats independently while preserving the rest
+- `Ctrl+\` / `Cmd+\` keyboard shortcut for "Clear Formatting" (removes styles and formats, keeps values)
+
 ## [1.8.0] - 2026-02-08
 
 ### Added

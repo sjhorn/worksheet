@@ -201,7 +201,17 @@ class ClearCellsAction extends Action<ClearCellsIntent> {
   Object? invoke(ClearCellsIntent intent) {
     final range = _context.selectionController.selectedRange;
     if (range == null) return null;
-    _context.worksheetData.clearRange(range);
+
+    if (intent.clearValue && intent.clearStyle && intent.clearFormat) {
+      _context.worksheetData.clearRange(range);
+    } else {
+      _context.worksheetData.batchUpdate((batch) {
+        if (intent.clearValue) batch.clearValues(range);
+        if (intent.clearStyle) batch.clearStyles(range);
+        if (intent.clearFormat) batch.clearFormats(range);
+      });
+    }
+
     _context.invalidateAndRebuild();
     return null;
   }

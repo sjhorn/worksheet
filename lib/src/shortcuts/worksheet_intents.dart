@@ -100,11 +100,30 @@ class PasteCellsIntent extends Intent {
   const PasteCellsIntent();
 }
 
-/// Clears the contents of the selected cells.
+/// Clears the contents, styles, and/or formats of the selected cells.
 ///
-/// Used for Delete and Backspace.
+/// By default all three flags are `true`, so `const ClearCellsIntent()` clears
+/// everything (backward compatible with Delete/Backspace behavior).
+///
+/// Common combinations:
+/// - Clear all: `ClearCellsIntent()` (default)
+/// - Clear formatting only: `ClearCellsIntent(clearValue: false)`
+/// - Clear values only: `ClearCellsIntent(clearStyle: false, clearFormat: false)`
 class ClearCellsIntent extends Intent {
-  const ClearCellsIntent();
+  /// Whether to clear cell values.
+  final bool clearValue;
+
+  /// Whether to clear cell styles (background, font, alignment, borders, etc.).
+  final bool clearStyle;
+
+  /// Whether to clear cell formats (number format, date format, etc.).
+  final bool clearFormat;
+
+  const ClearCellsIntent({
+    this.clearValue = true,
+    this.clearStyle = true,
+    this.clearFormat = true,
+  });
 }
 
 /// Fills the selected range downward from the first row.

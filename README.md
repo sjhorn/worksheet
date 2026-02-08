@@ -275,6 +275,7 @@ All shortcuts work out of the box. You can override or extend them via the `shor
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy / Cut / Paste |
 | Ctrl+D / Ctrl+R | Fill down / Fill right |
 | Delete / Backspace | Clear selected cells |
+| Ctrl+\ | Clear formatting (keep values) |
 
 ### Customizing Shortcuts
 

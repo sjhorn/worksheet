@@ -257,9 +257,30 @@ Worksheet(
 | `CopyCellsIntent` | — | Ctrl+C |
 | `CutCellsIntent` | — | Ctrl+X |
 | `PasteCellsIntent` | — | Ctrl+V |
-| `ClearCellsIntent` | — | Delete, Backspace |
+| `ClearCellsIntent` | `clearValue`, `clearStyle`, `clearFormat` | Delete, Backspace, Ctrl+\ |
 | `FillDownIntent` | — | Ctrl+D |
 | `FillRightIntent` | — | Ctrl+R |
+
+### ClearCellsIntent Flags
+
+`ClearCellsIntent` supports selective clearing via three boolean flags (all default to `true`):
+
+```dart
+// Clear everything (default — Delete/Backspace)
+const ClearCellsIntent()
+
+// Clear formatting only, keep values (Ctrl+\)
+const ClearCellsIntent(clearValue: false, clearStyle: true, clearFormat: true)
+
+// Clear values only, keep formatting
+const ClearCellsIntent(clearValue: true, clearStyle: false, clearFormat: false)
+```
+
+| Flag | What it clears |
+|------|---------------|
+| `clearValue` | Cell values (text, numbers, dates, etc.) |
+| `clearStyle` | Cell styles (background, font, alignment, borders) |
+| `clearFormat` | Cell formats (number format, date format, etc.) |
 
 ### WorksheetActionContext
 

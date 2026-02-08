@@ -1,8 +1,12 @@
+import 'dart:ui';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/data/worksheet_data.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_format.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
+import 'package:worksheet/src/core/models/cell_style.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/interaction/clipboard/clipboard_handler.dart';
 import 'package:worksheet/src/interaction/clipboard/clipboard_serializer.dart';
@@ -267,6 +271,160 @@ void main() {
       final action = ClearCellsAction(ctx);
       action.invoke(const ClearCellsIntent());
       expect(ctx.invalidateAndRebuildCount, 0);
+    });
+
+    test('clears only values when clearStyle and clearFormat are false', () {
+      const coord = CellCoordinate(5, 5);
+      data.setCell(coord, CellValue.text('hello'));
+      data.setStyle(coord, const CellStyle(fontWeight: FontWeight.bold));
+      data.setFormat(coord, CellFormat.currency);
+      selectionController.selectCell(coord);
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: true,
+        clearStyle: false,
+        clearFormat: false,
+      ));
+
+      expect(data.getCell(coord), isNull);
+      expect(data.getStyle(coord), isNotNull);
+      expect(data.getStyle(coord)!.fontWeight, FontWeight.bold);
+      expect(data.getFormat(coord), CellFormat.currency);
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('clears only style and format when clearValue is false', () {
+      const coord = CellCoordinate(5, 5);
+      data.setCell(coord, CellValue.text('hello'));
+      data.setStyle(coord, const CellStyle(fontWeight: FontWeight.bold));
+      data.setFormat(coord, CellFormat.currency);
+      selectionController.selectCell(coord);
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: false,
+        clearStyle: true,
+        clearFormat: true,
+      ));
+
+      expect(data.getCell(coord)?.displayValue, 'hello');
+      expect(data.getStyle(coord), isNull);
+      expect(data.getFormat(coord), isNull);
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('clears everything by default (backward compatible)', () {
+      const coord = CellCoordinate(5, 5);
+      data.setCell(coord, CellValue.text('hello'));
+      data.setStyle(coord, const CellStyle(fontWeight: FontWeight.bold));
+      data.setFormat(coord, CellFormat.currency);
+      selectionController.selectCell(coord);
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent());
+
+      expect(data.getCell(coord), isNull);
+      expect(data.getStyle(coord), isNull);
+      expect(data.getFormat(coord), isNull);
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('no-op when all flags are false', () {
+      const coord = CellCoordinate(5, 5);
+      data.setCell(coord, CellValue.text('hello'));
+      data.setStyle(coord, const CellStyle(fontWeight: FontWeight.bold));
+      selectionController.selectCell(coord);
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: false,
+        clearStyle: false,
+        clearFormat: false,
+      ));
+
+      expect(data.getCell(coord)?.displayValue, 'hello');
+      expect(data.getStyle(coord)!.fontWeight, FontWeight.bold);
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('clearing format on cell with no format is safe', () {
+      const coord = CellCoordinate(5, 5);
+      data.setCell(coord, CellValue.text('hello'));
+      selectionController.selectCell(coord);
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: false,
+        clearStyle: false,
+        clearFormat: true,
+      ));
+
+      expect(data.getCell(coord)?.displayValue, 'hello');
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('clearing style on cell with no style is safe', () {
+      const coord = CellCoordinate(5, 5);
+      data.setCell(coord, CellValue.text('hello'));
+      selectionController.selectCell(coord);
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: false,
+        clearStyle: true,
+        clearFormat: false,
+      ));
+
+      expect(data.getCell(coord)?.displayValue, 'hello');
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('selective clear works over multi-cell range', () {
+      const coord1 = CellCoordinate(0, 0);
+      const coord2 = CellCoordinate(1, 1);
+      data.setCell(coord1, CellValue.text('a'));
+      data.setStyle(coord1, const CellStyle(
+        backgroundColor: Color(0xFFFF0000),
+      ));
+      data.setCell(coord2, CellValue.text('b'));
+      data.setStyle(coord2, const CellStyle(
+        backgroundColor: Color(0xFF00FF00),
+      ));
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: false,
+        clearStyle: true,
+        clearFormat: true,
+      ));
+
+      expect(data.getCell(coord1)?.displayValue, 'a');
+      expect(data.getCell(coord2)?.displayValue, 'b');
+      expect(data.getStyle(coord1), isNull);
+      expect(data.getStyle(coord2), isNull);
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('isEnabled respects readOnly for flagged intent', () {
+      final roCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        readOnly: true,
+      );
+      final action = ClearCellsAction(roCtx);
+      expect(
+        action.isEnabled(const ClearCellsIntent(
+          clearValue: false,
+          clearStyle: true,
+          clearFormat: true,
+        )),
+        false,
+      );
     });
   });
 
