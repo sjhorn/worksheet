@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-02-08
+
+### Added
+- Cell border styling with line styles (`solid`, `dotted`, `dashed`, `double`) and `BorderResolver` for adjacent-cell conflict resolution matching Excel/Sheets rules
+- `BorderPainter` utility for rendering all border line styles in tiles and frozen layers
+- `keepAnchorVisible` on `WorksheetController` — automatically adjusts scroll when zoom changes so the selected cell stays visible and fully in view
+- `copyWith` methods on `BorderStyle` and `CellBorders`
+
 ## [1.6.3] - 2026-02-08
 
 ### Fixed
