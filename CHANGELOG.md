@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-02-08
+
+### Added
+- `CellValueType.duration` and `CellValue.duration()` for storing elapsed time / duration values
+- `Cell.duration()` constructor and `WorksheetDuration` extension (`.cell` on `Duration`)
+- `CellFormatType.duration` with Excel-style bracket notation format codes (`[h]:mm:ss`, `[h]:mm`, `[m]:ss`, `[s]`)
+- 3 duration format presets: `CellFormat.duration`, `CellFormat.durationShort`, `CellFormat.durationMinSec`
+- Duration formatting engine supporting bracketed accumulating units and negative durations
+
 ## [1.7.0] - 2026-02-08
 
 ### Added

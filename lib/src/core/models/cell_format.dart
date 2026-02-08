@@ -39,6 +39,9 @@ enum CellFormatType {
   /// Special formats (phone numbers, postal codes, etc.).
   special,
 
+  /// Duration/elapsed time format (e.g., [h]:mm:ss).
+  duration,
+
   /// User-defined custom format code.
   custom,
 }
@@ -140,6 +143,18 @@ class CellFormat {
   static const fraction =
       CellFormat(type: CellFormatType.fraction, formatCode: '# ?/?');
 
+  /// Duration hours:minutes:seconds — 1:30:05
+  static const duration =
+      CellFormat(type: CellFormatType.duration, formatCode: '[h]:mm:ss');
+
+  /// Duration hours:minutes — 1:30
+  static const durationShort =
+      CellFormat(type: CellFormatType.duration, formatCode: '[h]:mm');
+
+  /// Duration minutes:seconds — 90:05
+  static const durationMinSec =
+      CellFormat(type: CellFormatType.duration, formatCode: '[m]:ss');
+
   /// Formats a [CellValue] according to this format code.
   String format(CellValue value) => _CellFormatEngine.format(value, this);
 
@@ -174,7 +189,14 @@ class _CellFormatEngine {
         return _formatNumber(value.rawValue as double, fmt);
       case CellValueType.date:
         return _formatDateTime(value.rawValue as DateTime, fmt);
+      case CellValueType.duration:
+        return _formatDuration(value.rawValue as Duration, fmt);
       case CellValueType.text:
+        if (fmt.type == CellFormatType.number ||
+            fmt.type == CellFormatType.currency ||
+            fmt.type == CellFormatType.accounting) {
+          return _formatTextSection(value.rawValue as String, fmt.formatCode);
+        }
         return value.rawValue as String;
       case CellValueType.boolean:
         return (value.rawValue as bool) ? 'TRUE' : 'FALSE';
@@ -190,12 +212,12 @@ class _CellFormatEngine {
         return _formatPercentage(number, fmt.formatCode);
       case CellFormatType.scientific:
         return _formatScientific(number, fmt.formatCode);
-      case CellFormatType.currency:
-        return _formatCurrency(number, fmt.formatCode);
       case CellFormatType.fraction:
         return _formatFraction(number);
       case CellFormatType.number:
+      case CellFormatType.currency:
       case CellFormatType.accounting:
+        return _formatWithSections(number, fmt.formatCode);
       case CellFormatType.custom:
       case CellFormatType.special:
         return _formatNumericCode(number, fmt.formatCode);
@@ -203,7 +225,9 @@ class _CellFormatEngine {
       case CellFormatType.time:
         // Number treated as-is when format expects a date
         return _formatNumericCode(number, fmt.formatCode);
-      default:
+      case CellFormatType.duration:
+      case CellFormatType.general:
+      case CellFormatType.text:
         return number.toString();
     }
   }
@@ -302,21 +326,197 @@ class _CellFormatEngine {
     return isNegative ? '-$result' : result;
   }
 
-  /// Formats currency: extracts symbol, formats number part.
-  static String _formatCurrency(double number, String code) {
-    // Extract currency symbol (everything before the first # or 0)
-    final firstDigitPlaceholder = code.indexOf(RegExp(r'[#0]'));
-    final symbol =
-        firstDigitPlaceholder > 0 ? code.substring(0, firstDigitPlaceholder) : '';
+  /// Splits a format code on `;` outside quoted strings.
+  static List<String> _splitSections(String code) {
+    final sections = <String>[];
+    final buffer = StringBuffer();
+    var inQuote = false;
+    for (var i = 0; i < code.length; i++) {
+      final ch = code[i];
+      if (ch == '"') {
+        inQuote = !inQuote;
+        buffer.write(ch);
+      } else if (ch == ';' && !inQuote) {
+        sections.add(buffer.toString());
+        buffer.clear();
+      } else {
+        buffer.write(ch);
+      }
+    }
+    sections.add(buffer.toString());
+    return sections;
+  }
 
-    // Extract the numeric format part
-    final numericPart =
-        firstDigitPlaceholder >= 0 ? code.substring(firstDigitPlaceholder) : code;
+  /// Formats a number using section-aware format codes.
+  ///
+  /// Supports Excel section separators:
+  /// - 1 section: used for all values, negative gets '-' prefix
+  /// - 2 sections: [0]=positive+zero, [1]=negative (abs value)
+  /// - 3+ sections: [0]=positive, [1]=negative (abs), [2]=zero
+  static String _formatWithSections(double number, String code) {
+    final sections = _splitSections(code);
 
-    final isNegative = number < 0;
-    final formatted = _formatNumericCode(number.abs(), numericPart);
+    String section;
+    double value;
+    var prependMinus = false;
 
-    return isNegative ? '-$symbol$formatted' : '$symbol$formatted';
+    if (sections.length == 1) {
+      section = sections[0];
+      value = number.abs();
+      if (number < 0) prependMinus = true;
+    } else if (sections.length == 2) {
+      if (number < 0) {
+        section = sections[1];
+        value = number.abs();
+      } else {
+        section = sections[0];
+        value = number;
+      }
+    } else {
+      // 3+ sections
+      if (number > 0) {
+        section = sections[0];
+        value = number;
+      } else if (number < 0) {
+        section = sections[1];
+        value = number.abs();
+      } else {
+        section = sections[2];
+        value = 0;
+      }
+    }
+
+    final result = _applyFormatSection(section, value);
+    return prependMinus ? '-$result' : result;
+  }
+
+  /// Applies a single format section to a number value.
+  ///
+  /// Processes Excel metacharacters:
+  /// - `"text"` — quoted literal strings
+  /// - `\X` — escaped literal character
+  /// - `_X` — space equal to width of character X (→ single space)
+  /// - `*X` — repeat fill character (→ single space)
+  /// - `?` — digit placeholder showing space for insignificant zeros
+  /// Returns a single PUA character for the given index, used as a
+  /// placeholder that cannot collide with format metacharacters or digits.
+  static String _placeholder(int index) =>
+      String.fromCharCode(0xE000 + index);
+
+  static String _applyFormatSection(String section, double number) {
+    final literals = <String>[];
+    var code = section;
+    var processed = StringBuffer();
+
+    // Step 1: Extract quoted literals "..." and escape sequences \X
+    var i = 0;
+    while (i < code.length) {
+      if (code[i] == '"') {
+        final end = code.indexOf('"', i + 1);
+        if (end != -1) {
+          final ph = _placeholder(literals.length);
+          literals.add(code.substring(i + 1, end));
+          processed.write(ph);
+          i = end + 1;
+        } else {
+          processed.write(code[i]);
+          i++;
+        }
+      } else if (code[i] == '\\' && i + 1 < code.length) {
+        // Step 2: Extract escape sequences \X
+        final ph = _placeholder(literals.length);
+        literals.add(code[i + 1]);
+        processed.write(ph);
+        i += 2;
+      } else {
+        processed.write(code[i]);
+        i++;
+      }
+    }
+    code = processed.toString();
+
+    // Step 3: Replace _X with single space (skip PUA placeholder chars)
+    code = code.replaceAllMapped(
+        RegExp('_[^\uE000-\uE0FF]'), (_) => ' ');
+
+    // Step 4: Replace *X with single space (skip PUA placeholder chars)
+    code = code.replaceAllMapped(
+        RegExp('\\*[^\uE000-\uE0FF]'), (_) => ' ');
+
+    // Step 5: Replace ? with space
+    code = code.replaceAll('?', ' ');
+
+    // Step 6: Find numeric pattern and format via _formatNumericCode
+    final numericPattern = RegExp(r'[#0][#0,]*\.?[0#]*');
+    final match = numericPattern.firstMatch(code);
+    if (match != null) {
+      final formatted = _formatNumericCode(number, match.group(0)!);
+      code = code.replaceFirst(numericPattern, formatted);
+    }
+
+    // Step 7: Restore literal placeholders
+    for (var j = 0; j < literals.length; j++) {
+      code = code.replaceAll(_placeholder(j), literals[j]);
+    }
+
+    return code;
+  }
+
+  /// Formats a text value using section-aware format codes.
+  ///
+  /// Uses the 4th section (index 3) if available for text formatting.
+  /// Falls back to raw text if no text section exists.
+  static String _formatTextSection(String text, String code) {
+    final sections = _splitSections(code);
+    if (sections.length < 4) return text;
+
+    final section = sections[3];
+    final literals = <String>[];
+    var processed = StringBuffer();
+
+    // Extract quoted literals and escape sequences
+    var i = 0;
+    while (i < section.length) {
+      if (section[i] == '"') {
+        final end = section.indexOf('"', i + 1);
+        if (end != -1) {
+          final ph = _placeholder(literals.length);
+          literals.add(section.substring(i + 1, end));
+          processed.write(ph);
+          i = end + 1;
+        } else {
+          processed.write(section[i]);
+          i++;
+        }
+      } else if (section[i] == '\\' && i + 1 < section.length) {
+        final ph = _placeholder(literals.length);
+        literals.add(section[i + 1]);
+        processed.write(ph);
+        i += 2;
+      } else {
+        processed.write(section[i]);
+        i++;
+      }
+    }
+    var result = processed.toString();
+
+    // Replace _X with single space (skip PUA placeholder chars)
+    result = result.replaceAllMapped(
+        RegExp('_[^\uE000-\uE0FF]'), (_) => ' ');
+
+    // Replace *X with single space (skip PUA placeholder chars)
+    result = result.replaceAllMapped(
+        RegExp('\\*[^\uE000-\uE0FF]'), (_) => ' ');
+
+    // Replace @ with the text value
+    result = result.replaceAll('@', text);
+
+    // Restore literal placeholders
+    for (var j = 0; j < literals.length; j++) {
+      result = result.replaceAll(_placeholder(j), literals[j]);
+    }
+
+    return result;
   }
 
   /// Formats a number as a fraction: # ?/?
@@ -374,6 +574,58 @@ class _CellFormatEngine {
       a = t;
     }
     return a;
+  }
+
+  // --- Duration formatting ---
+
+  /// Formats a Duration value using bracket-notation format codes.
+  ///
+  /// Supported codes: `[h]:mm:ss`, `[h]:mm`, `[m]:ss`, `[s]`,
+  /// and bare `h:mm:ss` (treated as `[h]:mm:ss` for duration type).
+  static String _formatDuration(Duration duration, CellFormat fmt) {
+    final negative = duration.isNegative;
+    final abs = duration.abs();
+    final totalSeconds = abs.inSeconds;
+    final totalMinutes = abs.inMinutes;
+    final totalHours = abs.inHours;
+
+    final code = fmt.formatCode.toLowerCase();
+
+    String result;
+    if (code.contains('[h]')) {
+      // Total hours, modular minutes and seconds
+      final mm = totalMinutes.remainder(60).toString().padLeft(2, '0');
+      if (code.contains('ss')) {
+        final ss = totalSeconds.remainder(60).toString().padLeft(2, '0');
+        result = '$totalHours:$mm:$ss';
+      } else {
+        result = '$totalHours:$mm';
+      }
+    } else if (code.contains('[m]')) {
+      // Total minutes, modular seconds
+      if (code.contains('ss')) {
+        final ss = totalSeconds.remainder(60).toString().padLeft(2, '0');
+        result = '$totalMinutes:$ss';
+      } else {
+        result = '$totalMinutes';
+      }
+    } else if (code.contains('[s]')) {
+      // Total seconds
+      result = '$totalSeconds';
+    } else {
+      // No brackets — treat h as [h] (sensible default for duration type)
+      final mm = totalMinutes.remainder(60).toString().padLeft(2, '0');
+      if (code.contains('ss')) {
+        final ss = totalSeconds.remainder(60).toString().padLeft(2, '0');
+        result = '$totalHours:$mm:$ss';
+      } else if (code.contains('mm')) {
+        result = '$totalHours:$mm';
+      } else {
+        result = '$totalHours';
+      }
+    }
+
+    return negative ? '-$result' : result;
   }
 
   // --- Date/Time formatting ---
@@ -443,8 +695,13 @@ class _CellFormatEngine {
       code = code.replaceAll('AM/PM', ampm);
       code = code.replaceAll('am/pm', ampm.toLowerCase());
     } else {
-      // Date context: MM/m = month, dd/d = day
+      // Date context: MM/mm/m = month, dd/d = day
       code = code.replaceAll('MM', date.month.toString().padLeft(2, '0'));
+      // Lowercase 'mm' as month — only when NOT adjacent to ':' (time context)
+      code = code.replaceAll(
+        RegExp(r'(?<![\d:])mm(?!:)'),
+        date.month.toString().padLeft(2, '0'),
+      );
       code = code.replaceAll('dd', date.day.toString().padLeft(2, '0'));
       // Single 'm' for month (no padding)
       code = code.replaceAll(RegExp(r'(?<!m)m(?!m)'), date.month.toString());
@@ -458,6 +715,10 @@ class _CellFormatEngine {
             date.hour.toString());
         code = code.replaceAll('hh', hour.toString().padLeft(2, '0'));
         code = code.replaceAll(RegExp(r'(?<!h)h(?!h)'), hour.toString());
+        code = code.replaceAll(
+          RegExp(r'(?<=[\d:])mm|mm(?=:)'),
+          date.minute.toString().padLeft(2, '0'),
+        );
         code = code.replaceAll('ss', date.second.toString().padLeft(2, '0'));
         code = code.replaceAll('AM/PM', ampm);
         code = code.replaceAll('am/pm', ampm.toLowerCase());

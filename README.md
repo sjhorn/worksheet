@@ -112,10 +112,12 @@ final data = SparseWorksheetData(rowCount: 100, columnCount: 10, cells: {
     (2, 1): Cell.date(DateTime(2024, 1, 15), format: CellFormat.dateIso), // "2024-01-15"
     (3, 0): 'Precision'.cell,
     (3, 1): Cell.number(3.14159, format: CellFormat.scientific),   // "3.14E+00"
+    (4, 0): 'Duration'.cell,
+    (4, 1): Cell.duration(Duration(hours: 1, minutes: 30), format: CellFormat.duration), // "1:30:00"
 });
 ```
 
-16 built-in presets cover common formats. For custom codes, create your own:
+20 built-in presets cover common formats. For custom codes, create your own:
 
 ```dart
 const custom = CellFormat(type: CellFormatType.number, formatCode: '#,##0.000');
@@ -319,6 +321,7 @@ final cell = data[(0, 0)];  // Cell(value: 'Hello', style: null)
 42.cell                 // Cell with numeric value
 true.cell               // Cell with boolean value
 DateTime.now().cell     // Cell with date value
+Duration(hours: 1).cell // Cell with duration value
 '=SUM(A1:A10)'.formula  // Cell with formula
 
 // Cell constructors for full control (when you need style or format)
@@ -326,6 +329,7 @@ Cell.text('Hello', style: headerStyle)
 Cell.number(42.5, format: CellFormat.currency)
 Cell.boolean(true)
 Cell.date(DateTime.now(), format: CellFormat.dateIso)
+Cell.duration(Duration(hours: 1, minutes: 30), format: CellFormat.duration)
 Cell.withStyle(headerStyle)  // style only, no value
 
 // Controller

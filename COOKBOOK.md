@@ -7,16 +7,17 @@ Practical recipes for common worksheet tasks.
 1. [Read-Only Spreadsheet Viewer](#read-only-spreadsheet-viewer)
 2. [Editable Data Grid with Persistence](#editable-data-grid-with-persistence)
 3. [Number Formatting](#number-formatting)
-4. [Custom Cell Styling (Conditional Formatting)](#custom-cell-styling-conditional-formatting)
-5. [Cell Borders](#cell-borders)
-6. [Large Dataset Loading](#large-dataset-loading)
-7. [Keyboard Navigation](#keyboard-navigation)
-8. [Programmatic Scrolling to Cells](#programmatic-scrolling-to-cells)
-9. [Export Data to CSV](#export-data-to-csv)
-10. [Custom Column Widths](#custom-column-widths)
-11. [Cell Value Validation](#cell-value-validation)
-12. [Automatic Date Detection](#automatic-date-detection)
-13. [Multi-Select Resize](#multi-select-resize)
+4. [Duration Formatting](#duration-formatting)
+5. [Custom Cell Styling (Conditional Formatting)](#custom-cell-styling-conditional-formatting)
+6. [Cell Borders](#cell-borders)
+7. [Large Dataset Loading](#large-dataset-loading)
+8. [Keyboard Navigation](#keyboard-navigation)
+9. [Programmatic Scrolling to Cells](#programmatic-scrolling-to-cells)
+10. [Export Data to CSV](#export-data-to-csv)
+11. [Custom Column Widths](#custom-column-widths)
+12. [Cell Value Validation](#cell-value-validation)
+13. [Automatic Date Detection](#automatic-date-detection)
+14. [Multi-Select Resize](#multi-select-resize)
 
 ---
 
@@ -308,6 +309,90 @@ data[(0, 0)] = Cell.number(
 | `CellFormat.time12` | `2:30 PM` |
 | `CellFormat.text` | `hello` |
 | `CellFormat.fraction` | `3 1/2` |
+| `CellFormat.duration` | `1:30:05` |
+| `CellFormat.durationShort` | `1:30` |
+| `CellFormat.durationMinSec` | `90:05` |
+
+---
+
+## Duration Formatting
+
+Display elapsed time and durations using Excel-style bracket notation:
+
+### Built-in Presets
+
+```dart
+final data = SparseWorksheetData(
+  rowCount: 100,
+  columnCount: 10,
+  cells: {
+    (0, 0): 'Task'.cell,
+    (0, 1): 'Duration'.cell,
+    // Hours:minutes:seconds — "1:30:05"
+    (1, 0): 'Meeting'.cell,
+    (1, 1): Cell.duration(
+      const Duration(hours: 1, minutes: 30, seconds: 5),
+      format: CellFormat.duration,
+    ),
+    // Hours:minutes only — "2:45"
+    (2, 0): 'Travel'.cell,
+    (2, 1): Cell.duration(
+      const Duration(hours: 2, minutes: 45),
+      format: CellFormat.durationShort,
+    ),
+    // Total minutes:seconds — "90:05"
+    (3, 0): 'Sprint'.cell,
+    (3, 1): Cell.duration(
+      const Duration(hours: 1, minutes: 30, seconds: 5),
+      format: CellFormat.durationMinSec,
+    ),
+  },
+);
+```
+
+### Duration Extension
+
+```dart
+// Quick cell creation via .cell extension on Duration
+const Duration(hours: 2, minutes: 30).cell  // Cell.duration(...)
+```
+
+### Custom Duration Format Codes
+
+The bracketed unit accumulates beyond its normal range (e.g., `[h]` shows 25 hours, not 1 day + 1 hour):
+
+```dart
+// Total seconds only
+const totalSeconds = CellFormat(
+  type: CellFormatType.duration,
+  formatCode: '[s]',
+);
+// Duration(minutes: 1, seconds: 30) → "90"
+```
+
+### Available Format Codes
+
+| Code | Meaning | Example (1h 30m 5s) |
+|------|---------|---------------------|
+| `[h]:mm:ss` | Total hours : min : sec | `1:30:05` |
+| `[h]:mm` | Total hours : min | `1:30` |
+| `[m]:ss` | Total minutes : sec | `90:05` |
+| `[s]` | Total seconds | `5405` |
+| `h:mm:ss` | Same as `[h]:mm:ss` for duration values | `1:30:05` |
+
+### Combining with Style
+
+```dart
+data[(0, 0)] = Cell.duration(
+  const Duration(hours: 8, minutes: 30),
+  format: CellFormat.duration,
+  style: const CellStyle(
+    textColor: Color(0xFF008000),        // Green
+    textAlignment: CellTextAlignment.right,
+  ),
+);
+// Displays: "8:30:00" in green, right-aligned
+```
 
 ---
 

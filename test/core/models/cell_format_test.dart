@@ -5,7 +5,7 @@ import 'package:worksheet/src/core/models/cell_value.dart';
 void main() {
   group('CellFormatType', () {
     test('has all expected values', () {
-      expect(CellFormatType.values, hasLength(12));
+      expect(CellFormatType.values, hasLength(13));
       expect(CellFormatType.values, contains(CellFormatType.general));
       expect(CellFormatType.values, contains(CellFormatType.number));
       expect(CellFormatType.values, contains(CellFormatType.currency));
@@ -17,6 +17,7 @@ void main() {
       expect(CellFormatType.values, contains(CellFormatType.scientific));
       expect(CellFormatType.values, contains(CellFormatType.text));
       expect(CellFormatType.values, contains(CellFormatType.special));
+      expect(CellFormatType.values, contains(CellFormatType.duration));
       expect(CellFormatType.values, contains(CellFormatType.custom));
     });
   });
@@ -186,6 +187,88 @@ void main() {
       });
     });
 
+    group('accounting', () {
+      test('financial positive: trailing space for paren alignment', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: r'#,##0.00_);(#,##0.00)',
+        );
+        expect(fmt.format(CellValue.number(1234.56)), '1,234.56 ');
+      });
+
+      test('financial negative: parentheses', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: r'#,##0.00_);(#,##0.00)',
+        );
+        expect(fmt.format(CellValue.number(-1234.56)), '(1,234.56)');
+      });
+
+      test('financial zero: uses positive section', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: r'#,##0.00_);(#,##0.00)',
+        );
+        expect(fmt.format(CellValue.number(0)), '0.00 ');
+      });
+
+      test('accounting positive: aligned with spaces', () {
+        const fmt = CellFormat(
+          type: CellFormatType.accounting,
+          formatCode: r'_("$"* #,##0.00_);_("$"* \(#,##0.00\);_("$"* "-"??_);_(@_)',
+        );
+        expect(fmt.format(CellValue.number(1234.56)), r' $ 1,234.56 ');
+      });
+
+      test('accounting negative: parentheses with dollar', () {
+        const fmt = CellFormat(
+          type: CellFormatType.accounting,
+          formatCode: r'_("$"* #,##0.00_);_("$"* \(#,##0.00\);_("$"* "-"??_);_(@_)',
+        );
+        expect(fmt.format(CellValue.number(-1234.56)), r' $ (1,234.56)');
+      });
+
+      test('accounting zero: dash with spaces', () {
+        const fmt = CellFormat(
+          type: CellFormatType.accounting,
+          formatCode: r'_("$"* #,##0.00_);_("$"* \(#,##0.00\);_("$"* "-"??_);_(@_)',
+        );
+        expect(fmt.format(CellValue.number(0)), r' $ -   ');
+      });
+
+      test('accounting text section: text with alignment spaces', () {
+        const fmt = CellFormat(
+          type: CellFormatType.accounting,
+          formatCode: r'_("$"* #,##0.00_);_("$"* \(#,##0.00\);_("$"* "-"??_);_(@_)',
+        );
+        expect(fmt.format(CellValue.text('hello')), ' hello ');
+      });
+
+      test('text with no text section: passthrough', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: r'#,##0.00_);(#,##0.00)',
+        );
+        expect(fmt.format(CellValue.text('hello')), 'hello');
+      });
+
+      test('simple format with no sections: backward compat', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '#,##0.00',
+        );
+        expect(fmt.format(CellValue.number(1234.56)), '1,234.56');
+      });
+
+      test('negative with single section: prepends minus', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '#,##0.00',
+        );
+        expect(fmt.format(CellValue.number(-5.5)), '-5.50');
+      });
+    });
+
     group('percentage', () {
       test('0% multiplies by 100', () {
         expect(
@@ -339,6 +422,117 @@ void main() {
       test('handles negative fractions', () {
         expect(
             CellFormat.fraction.format(CellValue.number(-3.5)), '-3 1/2');
+      });
+    });
+
+    group('date+time', () {
+      test('m/d/yyyy H:mm:ss formats minutes correctly', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'm/d/yyyy H:mm:ss',
+        );
+        final date = DateTime(2024, 1, 15, 14, 30, 45);
+        expect(fmt.format(CellValue.date(date)), '1/15/2024 14:30:45');
+      });
+
+      test('m/d/yyyy h:mm AM/PM formats 12-hour with minutes', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'm/d/yyyy h:mm AM/PM',
+        );
+        final date = DateTime(2024, 1, 15, 14, 30);
+        expect(fmt.format(CellValue.date(date)), '1/15/2024 2:30 PM');
+      });
+
+      test('yyyy-MM-dd HH:mm:ss ISO-style with uppercase MM month', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'yyyy-MM-dd HH:mm:ss',
+        );
+        final date = DateTime(2024, 1, 15, 14, 30, 45);
+        expect(fmt.format(CellValue.date(date)), '2024-01-15 14:30:45');
+      });
+
+      test('mm/dd/yyyy H:mm:ss with mm as both month and minutes', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'mm/dd/yyyy H:mm:ss',
+        );
+        final date = DateTime(2024, 3, 5, 9, 7, 2);
+        expect(fmt.format(CellValue.date(date)), '03/05/2024 9:07:02');
+      });
+
+      test('midnight edge case', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'm/d/yyyy H:mm:ss',
+        );
+        final date = DateTime(2024, 1, 1, 0, 0, 0);
+        expect(fmt.format(CellValue.date(date)), '1/1/2024 0:00:00');
+      });
+
+      test('noon edge case', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'm/d/yyyy h:mm:ss AM/PM',
+        );
+        final date = DateTime(2024, 6, 15, 12, 0, 0);
+        expect(fmt.format(CellValue.date(date)), '6/15/2024 12:00:00 PM');
+      });
+    });
+
+    group('duration', () {
+      test('[h]:mm:ss formats hours, minutes, seconds', () {
+        final d = const Duration(hours: 1, minutes: 30, seconds: 5);
+        expect(CellFormat.duration.format(CellValue.duration(d)), '1:30:05');
+      });
+
+      test('[h]:mm formats hours and minutes', () {
+        final d = const Duration(hours: 2, minutes: 45);
+        expect(
+            CellFormat.durationShort.format(CellValue.duration(d)), '2:45');
+      });
+
+      test('[m]:ss formats total minutes and seconds', () {
+        final d = const Duration(hours: 1, minutes: 30, seconds: 5);
+        expect(
+            CellFormat.durationMinSec.format(CellValue.duration(d)), '90:05');
+      });
+
+      test('[s] formats total seconds', () {
+        const fmt =
+            CellFormat(type: CellFormatType.duration, formatCode: '[s]');
+        final d = const Duration(minutes: 1, seconds: 30);
+        expect(fmt.format(CellValue.duration(d)), '90');
+      });
+
+      test('large duration', () {
+        final d = const Duration(hours: 100);
+        expect(
+            CellFormat.duration.format(CellValue.duration(d)), '100:00:00');
+      });
+
+      test('zero duration', () {
+        expect(CellFormat.duration.format(CellValue.duration(Duration.zero)),
+            '0:00:00');
+      });
+
+      test('negative duration', () {
+        final d = const Duration(hours: 1, minutes: 30);
+        expect(CellFormat.duration.format(CellValue.duration(-d)),
+            '-1:30:00');
+      });
+
+      test('bare h:mm:ss (no brackets) works as [h]:mm:ss for duration', () {
+        const fmt =
+            CellFormat(type: CellFormatType.duration, formatCode: 'h:mm:ss');
+        final d = const Duration(hours: 1, minutes: 30, seconds: 5);
+        expect(fmt.format(CellValue.duration(d)), '1:30:05');
+      });
+
+      test('duration with general format uses default display', () {
+        final d = const Duration(hours: 1, minutes: 30, seconds: 5);
+        expect(CellFormat.general.format(CellValue.duration(d)), '1:30:05');
       });
     });
 

@@ -152,6 +152,40 @@ void main() {
       });
     });
 
+    group('CellValue.duration', () {
+      test('creates duration value', () {
+        const d = Duration(hours: 1, minutes: 30, seconds: 5);
+        final value = CellValue.duration(d);
+        expect(value.type, CellValueType.duration);
+        expect(value.rawValue, d);
+      });
+
+      test('isDuration returns true', () {
+        expect(CellValue.duration(Duration.zero).isDuration, isTrue);
+        expect(CellValue.number(42).isDuration, isFalse);
+      });
+
+      test('asDuration returns the duration', () {
+        const d = Duration(hours: 2, minutes: 15);
+        final value = CellValue.duration(d);
+        expect(value.asDuration, d);
+      });
+
+      test('displayValue formats as H:mm:ss', () {
+        const d = Duration(hours: 1, minutes: 30, seconds: 5);
+        expect(CellValue.duration(d).displayValue, '1:30:05');
+      });
+
+      test('displayValue for zero duration', () {
+        expect(CellValue.duration(Duration.zero).displayValue, '0:00:00');
+      });
+
+      test('displayValue for negative duration', () {
+        const d = Duration(hours: 1, minutes: 30);
+        expect(CellValue.duration(-d).displayValue, '-1:30:00');
+      });
+    });
+
     group('equality', () {
       test('text values with same content are equal', () {
         final a = CellValue.text('Hello');

@@ -9,6 +9,7 @@ enum CellValueType {
   formula,
   error,
   date,
+  duration,
 }
 
 /// An immutable value that can be stored in a worksheet cell.
@@ -49,6 +50,10 @@ class CellValue {
 
   /// Creates a date value.
   const CellValue.date(DateTime date) : this._(CellValueType.date, date);
+
+  /// Creates a duration value.
+  const CellValue.duration(Duration duration)
+      : this._(CellValueType.duration, duration);
 
   /// Parses text into a [CellValue], detecting the type automatically.
   ///
@@ -113,6 +118,14 @@ class CellValue {
       case CellValueType.date:
         final date = rawValue as DateTime;
         return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+      case CellValueType.duration:
+        final d = rawValue as Duration;
+        final negative = d.isNegative;
+        final abs = d.abs();
+        final h = abs.inHours;
+        final m = abs.inMinutes.remainder(60).toString().padLeft(2, '0');
+        final s = abs.inSeconds.remainder(60).toString().padLeft(2, '0');
+        return '${negative ? '-' : ''}$h:$m:$s';
     }
   }
 
@@ -133,6 +146,9 @@ class CellValue {
 
   /// Returns true if this is a date value.
   bool get isDate => type == CellValueType.date;
+
+  /// Returns true if this is a duration value.
+  bool get isDuration => type == CellValueType.duration;
 
   /// Returns true if this numeric value is an integer.
   ///
@@ -165,6 +181,14 @@ class CellValue {
   DateTime get asDateTime {
     assert(type == CellValueType.date);
     return rawValue as DateTime;
+  }
+
+  /// Returns this value as a Duration.
+  ///
+  /// Only valid for duration type values.
+  Duration get asDuration {
+    assert(type == CellValueType.duration);
+    return rawValue as Duration;
   }
 
   @override

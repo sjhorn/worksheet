@@ -63,6 +63,10 @@ class Cell {
   Cell.date(DateTime date, {this.style, this.format})
       : value = CellValue.date(date);
 
+  /// Creates a cell with a duration value.
+  Cell.duration(Duration duration, {this.style, this.format})
+      : value = CellValue.duration(duration);
+
   /// Creates a cell with only a style (no value).
   const Cell.withStyle(CellStyle this.style)
       : value = null,
@@ -123,4 +127,8 @@ extension WorksheetBool on bool {
 
 extension WorksheetDate on DateTime {
   Cell get cell => Cell.date(this);
+}
+
+extension WorksheetDuration on Duration {
+  Cell get cell => Cell.duration(this);
 }

@@ -316,12 +316,13 @@ Worksheet(
 
 ```dart
 enum CellValueType {
-  text,     // String content
-  number,   // Numeric value (double)
-  boolean,  // true/false
-  formula,  // Formula string (not evaluated)
-  error,    // Error message
-  date,     // DateTime value
+  text,      // String content
+  number,    // Numeric value (double)
+  boolean,   // true/false
+  formula,   // Formula string (not evaluated)
+  error,     // Error message
+  date,      // DateTime value
+  duration,  // Duration value
 }
 ```
 
@@ -345,6 +346,9 @@ CellValue.error(String error)
 
 // Date value
 CellValue.date(DateTime date)
+
+// Duration value
+CellValue.duration(Duration duration)
 ```
 
 ### Properties
@@ -360,14 +364,16 @@ CellValue.date(DateTime date)
 | `isFormula` | `bool` | True if formula type |
 | `isError` | `bool` | True if error type |
 | `isDate` | `bool` | True if date type |
+| `isDuration` | `bool` | True if duration type |
 | `isInteger` | `bool` | True if number with no decimals |
 
 ### Type-Specific Accessors
 
 ```dart
-int get asInt        // For number types
-double get asDouble  // For number types
+int get asInt            // For number types
+double get asDouble      // For number types
 DateTime get asDateTime  // For date types
+Duration get asDuration  // For duration types
 ```
 
 ### Parsing Text into CellValue
@@ -441,6 +447,9 @@ print(boolean.displayValue);  // "TRUE"
 final date = CellValue.date(DateTime(2024, 1, 15));
 print(date.displayValue);  // "2024-01-15"
 
+final duration = CellValue.duration(Duration(hours: 1, minutes: 30, seconds: 5));
+print(duration.displayValue);  // "1:30:05"
+
 final error = CellValue.error('#DIV/0!');
 print(error.displayValue);  // "#DIV/0!"
 ```
@@ -463,6 +472,7 @@ Cell.number(num n, {CellStyle? style})
 Cell.boolean(bool b, {CellStyle? style})
 Cell.formula(String formula, {CellStyle? style})
 Cell.date(DateTime date, {CellStyle? style})
+Cell.duration(Duration duration, {CellStyle? style})
 Cell.withStyle(CellStyle style)  // style only, no value
 ```
 
@@ -494,6 +504,9 @@ true.cell              // Cell.boolean(true)
 
 // WorksheetDate (on DateTime)
 DateTime.now().cell    // Cell.date(DateTime.now())
+
+// WorksheetDuration (on Duration)
+Duration(hours: 1).cell  // Cell.duration(Duration(hours: 1))
 ```
 
 ### SparseWorksheetData Map-like API
@@ -539,6 +552,7 @@ enum CellFormatType {
   scientific,  // Exponential notation
   text,        // Plain text pass-through
   special,     // Phone numbers, postal codes
+  duration,    // Elapsed time ([h]:mm:ss)
   custom,      // User-defined format code
 }
 ```
@@ -570,6 +584,9 @@ const CellFormat({required CellFormatType type, required String formatCode})
 | `CellFormat.time12` | `h:mm AM/PM` | `14:30` | `2:30 PM` |
 | `CellFormat.text` | `@` | `hello` | `hello` |
 | `CellFormat.fraction` | `# ?/?` | `3.5` | `3 1/2` |
+| `CellFormat.duration` | `[h]:mm:ss` | `1h 30m 5s` | `1:30:05` |
+| `CellFormat.durationShort` | `[h]:mm` | `2h 45m` | `2:45` |
+| `CellFormat.durationMinSec` | `[m]:ss` | `1h 30m 5s` | `90:05` |
 
 ### Usage
 
@@ -578,6 +595,7 @@ const CellFormat({required CellFormatType type, required String formatCode})
 Cell.number(1234.56, format: CellFormat.currency)    // "$1,234.56"
 Cell.number(0.42, format: CellFormat.percentage)      // "42%"
 Cell.date(DateTime.now(), format: CellFormat.dateIso) // "2024-01-15"
+Cell.duration(Duration(hours: 1, minutes: 30), format: CellFormat.duration) // "1:30:00"
 
 // Via data layer
 data.setFormat(const CellCoordinate(0, 0), CellFormat.currency);
