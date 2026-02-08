@@ -4,6 +4,18 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+/// Line style for cell borders, ordered by priority for conflict resolution.
+///
+/// When adjacent cells share an edge, the border with the higher-priority
+/// line style wins (e.g., `double` beats `solid`).
+enum BorderLineStyle {
+  none,
+  dotted,
+  dashed,
+  solid,
+  double,
+}
+
 /// Text alignment options for cell content.
 enum CellTextAlignment {
   left,
@@ -27,23 +39,44 @@ class BorderStyle {
   /// The width of the border.
   final double width;
 
+  /// The line style (solid, dashed, dotted, double).
+  final BorderLineStyle lineStyle;
+
   const BorderStyle({
     this.color = const Color(0xFF000000),
     this.width = 1.0,
+    this.lineStyle = BorderLineStyle.solid,
   });
 
-  static const BorderStyle none = BorderStyle(width: 0);
+  static const BorderStyle none =
+      BorderStyle(width: 0, lineStyle: BorderLineStyle.none);
 
-  bool get isNone => width == 0;
+  bool get isNone => lineStyle == BorderLineStyle.none || width == 0;
+
+  /// Creates a copy with optionally modified fields.
+  BorderStyle copyWith({
+    Color? color,
+    double? width,
+    BorderLineStyle? lineStyle,
+  }) {
+    return BorderStyle(
+      color: color ?? this.color,
+      width: width ?? this.width,
+      lineStyle: lineStyle ?? this.lineStyle,
+    );
+  }
 
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;
-    return other is BorderStyle && other.color == color && other.width == width;
+    return other is BorderStyle &&
+        other.color == color &&
+        other.width == width &&
+        other.lineStyle == lineStyle;
   }
 
   @override
-  int get hashCode => Object.hash(color, width);
+  int get hashCode => Object.hash(color, width, lineStyle);
 }
 
 /// Border configuration for all four sides of a cell.
@@ -70,6 +103,21 @@ class CellBorders {
   static const CellBorders none = CellBorders();
 
   bool get isNone => top.isNone && right.isNone && bottom.isNone && left.isNone;
+
+  /// Creates a copy with optionally modified fields.
+  CellBorders copyWith({
+    BorderStyle? top,
+    BorderStyle? right,
+    BorderStyle? bottom,
+    BorderStyle? left,
+  }) {
+    return CellBorders(
+      top: top ?? this.top,
+      right: right ?? this.right,
+      bottom: bottom ?? this.bottom,
+      left: left ?? this.left,
+    );
+  }
 
   @override
   bool operator ==(Object other) {

@@ -157,6 +157,16 @@ const headerStyle = CellStyle(
 _data.setStyle(const CellCoordinate(0, 0), headerStyle);
 _data.setStyle(const CellCoordinate(0, 1), headerStyle);
 
+// Add borders with line styles (solid, dashed, dotted, double)
+_data.setStyle(
+  const CellCoordinate(0, 0),
+  const CellStyle(
+    borders: CellBorders(
+      bottom: BorderStyle(width: 2.0, lineStyle: BorderLineStyle.solid),
+    ),
+  ),
+);
+
 // Highlight negative numbers in red
 final value = _data.getCell(CellCoordinate(row, col));
 if (value != null && value.isNumber && value.asDouble < 0) {

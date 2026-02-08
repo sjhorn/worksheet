@@ -7,6 +7,7 @@ library;
 export 'package:any_date/any_date.dart' show AnyDate, DateParserInfo;
 
 // Core Models
+export 'src/core/models/border_resolver.dart';
 export 'src/core/models/cell.dart';
 export 'src/core/models/cell_coordinate.dart';
 export 'src/core/models/cell_format.dart';
@@ -59,6 +60,7 @@ export 'src/interaction/clipboard/clipboard_serializer.dart';
 export 'src/interaction/gesture_handler.dart';
 
 // Rendering - Painters
+export 'src/rendering/painters/border_painter.dart';
 export 'src/rendering/painters/selection_renderer.dart';
 export 'src/rendering/painters/header_renderer.dart';
 

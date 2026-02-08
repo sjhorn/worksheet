@@ -648,6 +648,20 @@ enum CellVerticalAlignment {
 }
 ```
 
+### BorderLineStyle Enum
+
+```dart
+enum BorderLineStyle {
+  none,     // No border
+  dotted,   // Dotted line
+  dashed,   // Dashed line
+  solid,    // Solid line (default)
+  double,   // Double parallel lines
+}
+```
+
+Ordered by priority for conflict resolution: `double` > `solid` > `dashed` > `dotted` > `none`.
+
 ### CellBorders Class
 
 ```dart
@@ -660,6 +674,9 @@ const CellBorders({
 
 // All sides same style
 const CellBorders.all(BorderStyle style)
+
+// Create modified copy
+CellBorders copyWith({BorderStyle? top, BorderStyle? right, BorderStyle? bottom, BorderStyle? left})
 ```
 
 ### BorderStyle Class
@@ -668,10 +685,29 @@ const CellBorders.all(BorderStyle style)
 const BorderStyle({
   Color color = const Color(0xFF000000),
   double width = 1.0,
+  BorderLineStyle lineStyle = BorderLineStyle.solid,
 })
 
-static const BorderStyle none = BorderStyle(width: 0)
+static const BorderStyle none = BorderStyle(width: 0, lineStyle: BorderLineStyle.none)
+
+// Create modified copy
+BorderStyle copyWith({Color? color, double? width, BorderLineStyle? lineStyle})
 ```
+
+### BorderResolver
+
+Resolves which border wins when adjacent cells share an edge:
+
+```dart
+// Returns the winning border for a shared edge
+static BorderStyle resolve(BorderStyle a, BorderStyle b)
+```
+
+Rules (matching Excel/Google Sheets):
+1. Non-none wins over none
+2. Thicker border wins
+3. Same width → higher-priority line style wins
+4. All equal → `b` wins (right/bottom neighbor)
 
 ### Methods
 
@@ -700,10 +736,14 @@ const currencyStyle = CellStyle(
   numberFormat: '\$#,##0.00',
 );
 
-// Cell with bottom border
+// Cell with thick dashed bottom border
 const bottomBorderStyle = CellStyle(
   borders: CellBorders(
-    bottom: BorderStyle(color: Color(0xFF000000), width: 2.0),
+    bottom: BorderStyle(
+      color: Color(0xFF000000),
+      width: 2.0,
+      lineStyle: BorderLineStyle.dashed,
+    ),
   ),
 );
 
@@ -899,6 +939,10 @@ data.changes.listen((event) {
 ---
 
 ## Core Models
+
+### BorderResolver
+
+Resolves conflicting borders on shared edges between adjacent cells. See [BorderResolver](#borderresolver) in the CellStyle Properties section above.
 
 ### SpanList
 

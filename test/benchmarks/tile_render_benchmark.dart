@@ -5,8 +5,10 @@ import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/geometry/layout_solver.dart';
 import 'package:worksheet/src/core/geometry/span_list.dart';
 import 'package:worksheet/src/core/geometry/zoom_transformer.dart';
+import 'package:worksheet/src/core/models/border_resolver.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
+import 'package:worksheet/src/core/models/cell_style.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/rendering/tile/tile_coordinate.dart';
 import 'package:worksheet/src/rendering/tile/tile_painter.dart';
@@ -140,6 +142,146 @@ void main() {
         // All zoom levels should render under 8ms
         expect(avgMs, lessThan(8.0));
       }
+    });
+
+    test('renders tile with borders in under 8ms', () {
+      // Populate cells with borders
+      final borderData = SparseWorksheetData(rowCount: 1000, columnCount: 100);
+      final lineStyles = BorderLineStyle.values
+          .where((s) => s != BorderLineStyle.none)
+          .toList();
+
+      for (int row = 0; row < 20; row++) {
+        for (int col = 0; col < 5; col++) {
+          borderData.setCell(
+            CellCoordinate(row, col),
+            CellValue.text('Cell $row,$col'),
+          );
+          final style = lineStyles[(row + col) % lineStyles.length];
+          borderData.setStyle(
+            CellCoordinate(row, col),
+            CellStyle(
+              borders: CellBorders.all(
+                BorderStyle(
+                  width: 1.0 + (row % 3),
+                  lineStyle: style,
+                ),
+              ),
+            ),
+          );
+        }
+      }
+
+      final borderPainter = TilePainter(
+        data: borderData,
+        layoutSolver: layoutSolver,
+      );
+
+      const iterations = 100;
+      final times = <int>[];
+
+      // Warm up
+      for (int i = 0; i < 10; i++) {
+        _renderTile(borderPainter, 256.0, 0, 0);
+      }
+
+      for (int i = 0; i < iterations; i++) {
+        final stopwatch = Stopwatch()..start();
+        _renderTile(borderPainter, 256.0, 0, 0);
+        stopwatch.stop();
+        times.add(stopwatch.elapsedMicroseconds);
+      }
+
+      final avgMs = times.reduce((a, b) => a + b) / times.length / 1000;
+      // ignore: avoid_print
+      print('Tile with borders: ${avgMs.toStringAsFixed(3)}ms avg');
+
+      expect(avgMs, lessThan(8.0),
+          reason: 'Tile with borders should render under 8ms');
+    });
+
+    test('renders tile with dense borders in under 16ms', () {
+      // Worst case: every cell has all 4 borders with different styles
+      final denseData = SparseWorksheetData(rowCount: 1000, columnCount: 100);
+      final lineStyles = BorderLineStyle.values
+          .where((s) => s != BorderLineStyle.none)
+          .toList();
+
+      for (int row = 0; row < 100; row++) {
+        for (int col = 0; col < 20; col++) {
+          denseData.setCell(
+            CellCoordinate(row, col),
+            CellValue.number((row * 20 + col).toDouble()),
+          );
+          denseData.setStyle(
+            CellCoordinate(row, col),
+            CellStyle(
+              borders: CellBorders(
+                top: BorderStyle(
+                  width: 1.0,
+                  lineStyle: lineStyles[col % lineStyles.length],
+                  color: const ui.Color(0xFFFF0000),
+                ),
+                right: BorderStyle(
+                  width: 2.0,
+                  lineStyle: lineStyles[(col + 1) % lineStyles.length],
+                  color: const ui.Color(0xFF00FF00),
+                ),
+                bottom: BorderStyle(
+                  width: 1.0,
+                  lineStyle: lineStyles[(col + 2) % lineStyles.length],
+                  color: const ui.Color(0xFF0000FF),
+                ),
+                left: BorderStyle(
+                  width: 2.0,
+                  lineStyle: lineStyles[(col + 3) % lineStyles.length],
+                  color: const ui.Color(0xFFFF00FF),
+                ),
+              ),
+            ),
+          );
+        }
+      }
+
+      final densePainter = TilePainter(
+        data: denseData,
+        layoutSolver: layoutSolver,
+      );
+
+      const iterations = 50;
+      final times = <int>[];
+
+      for (int i = 0; i < iterations; i++) {
+        final stopwatch = Stopwatch()..start();
+        _renderTile(densePainter, 256.0, 0, 0);
+        stopwatch.stop();
+        times.add(stopwatch.elapsedMicroseconds);
+      }
+
+      final avgMs = times.reduce((a, b) => a + b) / times.length / 1000;
+      // ignore: avoid_print
+      print('Dense borders: ${avgMs.toStringAsFixed(3)}ms avg');
+
+      expect(avgMs, lessThan(16.0),
+          reason: 'Dense borders should render under 16ms (2-frame budget)');
+    });
+
+    test('border conflict resolution benchmark', () {
+      const a = BorderStyle(width: 1.0, lineStyle: BorderLineStyle.solid);
+      const b = BorderStyle(width: 2.0, lineStyle: BorderLineStyle.dashed);
+
+      final stopwatch = Stopwatch()..start();
+      for (int i = 0; i < 100000; i++) {
+        BorderResolver.resolve(a, b);
+      }
+      stopwatch.stop();
+
+      final totalMs = stopwatch.elapsedMicroseconds / 1000;
+      // ignore: avoid_print
+      print('100k resolve() calls: ${totalMs.toStringAsFixed(3)}ms');
+
+      expect(totalMs, lessThan(100.0),
+          reason: '100k resolve() calls should be negligible overhead');
     });
 
     test('handles large cell range efficiently', () {

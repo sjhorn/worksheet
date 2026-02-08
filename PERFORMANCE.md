@@ -52,6 +52,8 @@ Tiles are cached per zoom bucket to avoid re-rendering at similar zoom levels:
 
 At lower zoom levels, tiles cover more worksheet area but contain less detail.
 
+**Border rendering** follows the same LOD as gridlines — borders are hidden below 40% zoom. Border rendering is per-cell and sparse: only cells with non-none borders pay the rendering cost.
+
 ---
 
 ## TileConfig Tuning

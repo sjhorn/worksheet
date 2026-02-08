@@ -67,9 +67,10 @@ lib/
 └── src/
     ├── core/                   # Models, data, geometry
     │   ├── models/
+    │   │   ├── border_resolver.dart    # Adjacent cell border conflict resolution
     │   │   ├── cell_coordinate.dart    # (row, column) position
     │   │   ├── cell_range.dart         # Rectangular cell range
-    │   │   ├── cell_style.dart         # Fonts, colors, alignment
+    │   │   ├── cell_style.dart         # Fonts, colors, alignment, borders
     │   │   ├── cell_value.dart         # Text, number, formula, error
     │   │   └── freeze_config.dart      # Frozen rows/columns config
     │   ├── geometry/
@@ -91,6 +92,7 @@ lib/
     │   │   ├── tile_manager.dart      # Lifecycle orchestrator
     │   │   └── tile_painter.dart      # Cell/gridline rendering
     │   ├── painters/
+    │   │   ├── border_painter.dart     # Border line style rendering
     │   │   ├── selection_renderer.dart # Selection highlight
     │   │   └── header_renderer.dart    # Row/column headers
     │   └── layers/
@@ -513,13 +515,16 @@ TilePainter.renderTile(
 3. Draw gridlines (if zoom ≥ 40%)
 4. Draw cell backgrounds (styled cells)
 5. Draw cell text (if zoom ≥ 25%)
-6. `endRecording()` to finalize the `ui.Picture`
-7. Dispose `TextPainter`s (must be after step 6)
+6. Draw cell borders (if zoom ≥ 40%) — uses `BorderResolver` to resolve
+   conflicts on shared edges, `BorderPainter` for line style rendering
+7. `endRecording()` to finalize the `ui.Picture`
+8. Dispose `TextPainter`s (must be after step 7)
 
 **LOD optimizations:**
 - Skip gridlines below 40% zoom
 - Skip text below 25% zoom
-- Adjust gridline stroke width per zoom bucket
+- Skip borders below 40% zoom (same as gridlines)
+- Adjust gridline/border stroke width per zoom bucket
 
 ### HeaderLayer
 

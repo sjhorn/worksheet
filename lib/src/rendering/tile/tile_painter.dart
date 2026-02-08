@@ -1,15 +1,17 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/painting.dart';
+import 'package:flutter/painting.dart' hide BorderStyle;
 
 import '../../core/data/worksheet_data.dart';
 import '../../core/geometry/layout_solver.dart';
 import '../../core/geometry/zoom_transformer.dart';
+import '../../core/models/border_resolver.dart';
 import '../../core/models/cell_coordinate.dart';
 import '../../core/models/cell_range.dart';
 import '../../core/models/cell_format.dart';
 import '../../core/models/cell_style.dart';
 import '../../core/models/cell_value.dart';
+import '../painters/border_painter.dart';
 import 'tile_coordinate.dart';
 import 'tile_manager.dart';
 
@@ -58,6 +60,7 @@ class TilePainter implements TileRenderer {
   // Pre-allocated paint objects for performance
   late final Paint _backgroundPaint;
   late final Paint _cellBackgroundPaint;
+  late final Paint _borderPaint;
 
   /// Creates a tile painter.
   TilePainter({
@@ -77,6 +80,10 @@ class TilePainter implements TileRenderer {
       ..style = PaintingStyle.fill;
 
     _cellBackgroundPaint = Paint()..style = PaintingStyle.fill;
+
+    _borderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = false;
   }
 
   @override
@@ -113,6 +120,11 @@ class TilePainter implements TileRenderer {
     // resources before endRecording() can cause missing text on some backends.
     final textPainters = <TextPainter>[];
     _renderCells(canvas, bounds, cellRange, zoomBucket, textPainters);
+
+    // Render borders on top of backgrounds and gridlines (Excel behavior)
+    if (_shouldRenderGridlines(zoomBucket)) {
+      _renderBorders(canvas, bounds, cellRange, zoomBucket);
+    }
 
     final picture = recorder.endRecording();
 
@@ -183,6 +195,135 @@ class TilePainter implements TileRenderer {
     if (bgColor != null) {
       _cellBackgroundPaint.color = bgColor;
       canvas.drawRect(bounds, _cellBackgroundPaint);
+    }
+  }
+
+  void _renderBorders(
+    Canvas canvas,
+    ui.Rect tileBounds,
+    CellRange cellRange,
+    ZoomBucket zoomBucket,
+  ) {
+    final maxRow = layoutSolver.rowCount - 1;
+    final maxCol = layoutSolver.columnCount - 1;
+    final startRow = cellRange.startRow.clamp(0, maxRow);
+    final endRow = cellRange.endRow.clamp(0, maxRow);
+    final startCol = cellRange.startColumn.clamp(0, maxCol);
+    final endCol = cellRange.endColumn.clamp(0, maxCol);
+
+    final strokeWidth = _getGridlineStrokeWidth(zoomBucket);
+
+    for (var row = startRow; row <= endRow; row++) {
+      for (var col = startCol; col <= endCol; col++) {
+        final coord = CellCoordinate(row, col);
+        final style = data.getStyle(coord);
+        final borders = style?.borders;
+        if (borders == null || borders.isNone) continue;
+
+        final cellBounds = layoutSolver.getCellBounds(coord);
+        final localBounds = ui.Rect.fromLTWH(
+          cellBounds.left - tileBounds.left,
+          cellBounds.top - tileBounds.top,
+          cellBounds.width,
+          cellBounds.height,
+        );
+
+        // Top border
+        if (!borders.top.isNone) {
+          final resolved = row > 0
+              ? BorderResolver.resolve(
+                  data.getStyle(CellCoordinate(row - 1, col))?.borders?.bottom ?? BorderStyle.none,
+                  borders.top,
+                )
+              : borders.top;
+          if (!resolved.isNone) {
+            _borderPaint
+              ..color = resolved.color
+              ..strokeWidth = resolved.width * strokeWidth;
+            final y = localBounds.top.roundToDouble() + 0.5;
+            BorderPainter.drawBorderEdge(
+              canvas,
+              Offset(localBounds.left, y),
+              Offset(localBounds.right, y),
+              _borderPaint,
+              resolved.lineStyle,
+              resolved.width * strokeWidth,
+            );
+          }
+        }
+
+        // Bottom border
+        if (!borders.bottom.isNone) {
+          final resolved = row < maxRow
+              ? BorderResolver.resolve(
+                  borders.bottom,
+                  data.getStyle(CellCoordinate(row + 1, col))?.borders?.top ?? BorderStyle.none,
+                )
+              : borders.bottom;
+          if (!resolved.isNone) {
+            _borderPaint
+              ..color = resolved.color
+              ..strokeWidth = resolved.width * strokeWidth;
+            final y = localBounds.bottom.roundToDouble() + 0.5;
+            BorderPainter.drawBorderEdge(
+              canvas,
+              Offset(localBounds.left, y),
+              Offset(localBounds.right, y),
+              _borderPaint,
+              resolved.lineStyle,
+              resolved.width * strokeWidth,
+            );
+          }
+        }
+
+        // Left border
+        if (!borders.left.isNone) {
+          final resolved = col > 0
+              ? BorderResolver.resolve(
+                  data.getStyle(CellCoordinate(row, col - 1))?.borders?.right ?? BorderStyle.none,
+                  borders.left,
+                )
+              : borders.left;
+          if (!resolved.isNone) {
+            _borderPaint
+              ..color = resolved.color
+              ..strokeWidth = resolved.width * strokeWidth;
+            final x = localBounds.left.roundToDouble() + 0.5;
+            BorderPainter.drawBorderEdge(
+              canvas,
+              Offset(x, localBounds.top),
+              Offset(x, localBounds.bottom),
+              _borderPaint,
+              resolved.lineStyle,
+              resolved.width * strokeWidth,
+            );
+          }
+        }
+
+        // Right border
+        if (!borders.right.isNone) {
+          final resolved = col < maxCol
+              ? BorderResolver.resolve(
+                  borders.right,
+                  data.getStyle(CellCoordinate(row, col + 1))?.borders?.left ?? BorderStyle.none,
+                )
+              : borders.right;
+          if (!resolved.isNone) {
+            _borderPaint
+              ..color = resolved.color
+              ..strokeWidth = resolved.width * strokeWidth;
+            final x = localBounds.right.roundToDouble() + 0.5;
+            BorderPainter.drawBorderEdge(
+              canvas,
+              Offset(x, localBounds.top),
+              Offset(x, localBounds.bottom),
+              _borderPaint,
+              resolved.lineStyle,
+              resolved.width * strokeWidth,
+            );
+          }
+        }
+      }
     }
   }
 

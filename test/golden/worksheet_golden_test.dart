@@ -3,7 +3,7 @@ library;
 
 import 'dart:io';
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide BorderStyle;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/worksheet.dart';
@@ -38,6 +38,13 @@ void main() {
           fontWeight: FontWeight.bold,
           backgroundColor: Color(0xFF4472C4),
           textColor: Color(0xFFFFFFFF),
+          borders: CellBorders(
+            bottom: BorderStyle(
+              color: Color(0xFF2E5A94),
+              width: 2.0,
+              lineStyle: BorderLineStyle.solid,
+            ),
+          ),
         ),
       );
     }

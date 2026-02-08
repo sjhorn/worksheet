@@ -8,14 +8,15 @@ Practical recipes for common worksheet tasks.
 2. [Editable Data Grid with Persistence](#editable-data-grid-with-persistence)
 3. [Number Formatting](#number-formatting)
 4. [Custom Cell Styling (Conditional Formatting)](#custom-cell-styling-conditional-formatting)
-5. [Large Dataset Loading](#large-dataset-loading)
-6. [Keyboard Navigation](#keyboard-navigation)
-7. [Programmatic Scrolling to Cells](#programmatic-scrolling-to-cells)
-8. [Export Data to CSV](#export-data-to-csv)
-9. [Custom Column Widths](#custom-column-widths)
-10. [Cell Value Validation](#cell-value-validation)
-11. [Automatic Date Detection](#automatic-date-detection)
-12. [Multi-Select Resize](#multi-select-resize)
+5. [Cell Borders](#cell-borders)
+6. [Large Dataset Loading](#large-dataset-loading)
+7. [Keyboard Navigation](#keyboard-navigation)
+8. [Programmatic Scrolling to Cells](#programmatic-scrolling-to-cells)
+9. [Export Data to CSV](#export-data-to-csv)
+10. [Custom Column Widths](#custom-column-widths)
+11. [Cell Value Validation](#cell-value-validation)
+12. [Automatic Date Detection](#automatic-date-detection)
+13. [Multi-Select Resize](#multi-select-resize)
 
 ---
 
@@ -395,6 +396,118 @@ void highlightThreshold(
   }
 }
 ```
+
+---
+
+## Cell Borders
+
+Add borders to cells with various line styles, colors, and widths.
+
+### Basic Border on All Sides
+
+```dart
+data.setStyle(
+  CellCoordinate(0, 0),
+  const CellStyle(
+    borders: CellBorders.all(BorderStyle(
+      color: Color(0xFF000000),
+      width: 1.0,
+    )),
+  ),
+);
+```
+
+### Individual Side Borders
+
+```dart
+data.setStyle(
+  CellCoordinate(0, 0),
+  const CellStyle(
+    borders: CellBorders(
+      bottom: BorderStyle(width: 2.0, color: Color(0xFF000000)),
+    ),
+  ),
+);
+```
+
+### Line Styles
+
+Five line styles are available: `none`, `solid`, `dotted`, `dashed`, and `double`:
+
+```dart
+data.setStyle(
+  CellCoordinate(0, 0),
+  const CellStyle(
+    borders: CellBorders(
+      top: BorderStyle(lineStyle: BorderLineStyle.solid),
+      right: BorderStyle(lineStyle: BorderLineStyle.dashed),
+      bottom: BorderStyle(lineStyle: BorderLineStyle.dotted),
+      left: BorderStyle(lineStyle: BorderLineStyle.double),
+    ),
+  ),
+);
+```
+
+### Header Row with Thick Bottom Border
+
+```dart
+const headerBorderStyle = CellStyle(
+  fontWeight: FontWeight.bold,
+  backgroundColor: Color(0xFF4472C4),
+  textColor: Color(0xFFFFFFFF),
+  borders: CellBorders(
+    bottom: BorderStyle(
+      width: 2.0,
+      color: Color(0xFF2E5A94),
+      lineStyle: BorderLineStyle.solid,
+    ),
+  ),
+);
+
+for (var col = 0; col < 10; col++) {
+  data.setStyle(CellCoordinate(0, col), headerBorderStyle);
+}
+```
+
+### Table Outline
+
+Apply borders to edge cells to create a table outline:
+
+```dart
+void addTableOutline(SparseWorksheetData data, CellRange range) {
+  const border = BorderStyle(width: 2.0, color: Color(0xFF000000));
+
+  for (var col = range.startColumn; col <= range.endColumn; col++) {
+    // Top edge
+    data.setStyle(
+      CellCoordinate(range.startRow, col),
+      CellStyle(borders: CellBorders(top: border)),
+    );
+    // Bottom edge
+    data.setStyle(
+      CellCoordinate(range.endRow, col),
+      CellStyle(borders: CellBorders(bottom: border)),
+    );
+  }
+
+  for (var row = range.startRow; row <= range.endRow; row++) {
+    // Left edge
+    data.setStyle(
+      CellCoordinate(row, range.startColumn),
+      CellStyle(borders: CellBorders(left: border)),
+    );
+    // Right edge
+    data.setStyle(
+      CellCoordinate(row, range.endColumn),
+      CellStyle(borders: CellBorders(right: border)),
+    );
+  }
+}
+```
+
+### Adjacent Cell Border Behavior
+
+When two adjacent cells both define a border on a shared edge, the thicker/higher-priority border wins. Priority order: thicker width > `double` > `solid` > `dashed` > `dotted`. If all attributes are equal, the right/bottom cell's border takes precedence.
 
 ---
 

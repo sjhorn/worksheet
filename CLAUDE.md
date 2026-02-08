@@ -153,6 +153,13 @@ flutter test test/core/span_list_test.dart
 flutter run --profile --trace-skia
 ```
 
+### Testing Tips
+- **Always pipe test output to a file** and grep for errors. Flutter test output uses `\r` carriage returns that make inline grep unreliable:
+  ```bash
+  flutter test 2>&1 | tr '\r' '\n' | tail -5   # Check final pass/fail
+  flutter test 2>&1 | tr '\r' '\n' | grep -i "fail\|error\|exception"
+  ```
+
 ## Code Review Checklist
 - [ ] Tests written before implementation
 - [ ] All public APIs documented

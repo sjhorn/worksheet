@@ -46,6 +46,72 @@ void main() {
     });
   });
 
+  group('BorderLineStyle', () {
+    test('has expected values in priority order', () {
+      expect(BorderLineStyle.values.length, 5);
+      expect(BorderLineStyle.none.index, 0);
+      expect(BorderLineStyle.dotted.index, 1);
+      expect(BorderLineStyle.dashed.index, 2);
+      expect(BorderLineStyle.solid.index, 3);
+      expect(BorderLineStyle.double.index, 4);
+    });
+  });
+
+  group('BorderStyle lineStyle', () {
+    test('default lineStyle is solid', () {
+      const style = BorderStyle();
+      expect(style.lineStyle, BorderLineStyle.solid);
+    });
+
+    test('none has none lineStyle', () {
+      expect(BorderStyle.none.lineStyle, BorderLineStyle.none);
+    });
+
+    test('isNone returns true for none lineStyle with non-zero width', () {
+      const style = BorderStyle(width: 1.0, lineStyle: BorderLineStyle.none);
+      expect(style.isNone, isTrue);
+    });
+
+    test('equality includes lineStyle', () {
+      const a = BorderStyle(width: 1.0, lineStyle: BorderLineStyle.solid);
+      const b = BorderStyle(width: 1.0, lineStyle: BorderLineStyle.solid);
+      const c = BorderStyle(width: 1.0, lineStyle: BorderLineStyle.dashed);
+
+      expect(a, b);
+      expect(a == c, isFalse);
+    });
+
+    test('hashCode includes lineStyle', () {
+      const a = BorderStyle(width: 1.0, lineStyle: BorderLineStyle.solid);
+      const b = BorderStyle(width: 1.0, lineStyle: BorderLineStyle.solid);
+
+      expect(a.hashCode, b.hashCode);
+    });
+
+    test('copyWith creates modified copy', () {
+      const original = BorderStyle(
+        color: Color(0xFF000000),
+        width: 1.0,
+        lineStyle: BorderLineStyle.solid,
+      );
+
+      final copy = original.copyWith(
+        lineStyle: BorderLineStyle.dashed,
+        width: 2.0,
+      );
+
+      expect(copy.color, const Color(0xFF000000));
+      expect(copy.width, 2.0);
+      expect(copy.lineStyle, BorderLineStyle.dashed);
+    });
+
+    test('copyWith returns equivalent when nothing specified', () {
+      const original = BorderStyle(width: 1.0);
+      final copy = original.copyWith();
+      expect(copy, original);
+    });
+  });
+
   group('CellBorders', () {
     test('creates with default none borders', () {
       const borders = CellBorders();
@@ -102,6 +168,28 @@ void main() {
       const b = CellBorders(top: style);
 
       expect(a.hashCode, b.hashCode);
+    });
+
+    test('copyWith creates modified copy', () {
+      const original = CellBorders(
+        top: BorderStyle(width: 1.0),
+        bottom: BorderStyle(width: 2.0),
+      );
+
+      final copy = original.copyWith(
+        top: const BorderStyle(width: 3.0),
+      );
+
+      expect(copy.top.width, 3.0);
+      expect(copy.bottom.width, 2.0);
+      expect(copy.right, BorderStyle.none);
+      expect(copy.left, BorderStyle.none);
+    });
+
+    test('copyWith returns equivalent when nothing specified', () {
+      const original = CellBorders(top: BorderStyle(width: 1.0));
+      final copy = original.copyWith();
+      expect(copy, original);
     });
   });
 

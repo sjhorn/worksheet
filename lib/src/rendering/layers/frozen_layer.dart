@@ -1,12 +1,14 @@
-import 'package:flutter/painting.dart';
+import 'package:flutter/painting.dart' hide BorderStyle;
 
 import '../../core/data/worksheet_data.dart';
 import '../../core/geometry/layout_solver.dart';
+import '../../core/models/border_resolver.dart';
 import '../../core/models/cell_coordinate.dart';
 import '../../core/models/cell_format.dart';
 import '../../core/models/cell_style.dart';
 import '../../core/models/cell_value.dart';
 import '../../core/models/freeze_config.dart';
+import '../painters/border_painter.dart';
 import 'render_layer.dart';
 
 /// Callback when the layer needs to be repainted.
@@ -45,6 +47,7 @@ class FrozenLayer extends RenderLayer {
   late final Paint _gridlinePaint;
   late final Paint _separatorPaint;
   late final Paint _cellBackgroundPaint;
+  late final Paint _borderPaint;
 
   /// Creates a frozen layer.
   FrozenLayer({
@@ -83,6 +86,10 @@ class FrozenLayer extends RenderLayer {
       ..style = PaintingStyle.stroke;
 
     _cellBackgroundPaint = Paint()..style = PaintingStyle.fill;
+
+    _borderPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = false;
   }
 
   /// Frozen layers paint on top of content (order 4).
@@ -351,6 +358,123 @@ class FrozenLayer extends RenderLayer {
     if (value != null && zoom >= 0.25) {
       final format = data.getFormat(coord);
       _paintCellContent(canvas, bounds, value, style, zoom, format);
+    }
+
+    // Paint borders (coordinates are already zoom-scaled)
+    final borders = style?.borders;
+    if (borders != null && !borders.isNone && zoom >= 0.4) {
+      _paintCellBorders(canvas, coord, bounds);
+    }
+  }
+
+  void _paintCellBorders(
+    Canvas canvas,
+    CellCoordinate coord,
+    Rect bounds,
+  ) {
+    final style = data.getStyle(coord);
+    final borders = style?.borders;
+    if (borders == null || borders.isNone) return;
+
+    final maxRow = layoutSolver.rowCount - 1;
+    final maxCol = layoutSolver.columnCount - 1;
+    final row = coord.row;
+    final col = coord.column;
+
+    // Top border
+    if (!borders.top.isNone) {
+      final resolved = row > 0
+          ? BorderResolver.resolve(
+              data.getStyle(CellCoordinate(row - 1, col))?.borders?.bottom ?? BorderStyle.none,
+              borders.top,
+            )
+          : borders.top;
+      if (!resolved.isNone) {
+        _borderPaint
+          ..color = resolved.color
+          ..strokeWidth = resolved.width;
+        final y = bounds.top.roundToDouble() + 0.5;
+        BorderPainter.drawBorderEdge(
+          canvas,
+          Offset(bounds.left, y),
+          Offset(bounds.right, y),
+          _borderPaint,
+          resolved.lineStyle,
+          resolved.width,
+        );
+      }
+    }
+
+    // Bottom border
+    if (!borders.bottom.isNone) {
+      final resolved = row < maxRow
+          ? BorderResolver.resolve(
+              borders.bottom,
+              data.getStyle(CellCoordinate(row + 1, col))?.borders?.top ?? BorderStyle.none,
+            )
+          : borders.bottom;
+      if (!resolved.isNone) {
+        _borderPaint
+          ..color = resolved.color
+          ..strokeWidth = resolved.width;
+        final y = bounds.bottom.roundToDouble() + 0.5;
+        BorderPainter.drawBorderEdge(
+          canvas,
+          Offset(bounds.left, y),
+          Offset(bounds.right, y),
+          _borderPaint,
+          resolved.lineStyle,
+          resolved.width,
+        );
+      }
+    }
+
+    // Left border
+    if (!borders.left.isNone) {
+      final resolved = col > 0
+          ? BorderResolver.resolve(
+              data.getStyle(CellCoordinate(row, col - 1))?.borders?.right ?? BorderStyle.none,
+              borders.left,
+            )
+          : borders.left;
+      if (!resolved.isNone) {
+        _borderPaint
+          ..color = resolved.color
+          ..strokeWidth = resolved.width;
+        final x = bounds.left.roundToDouble() + 0.5;
+        BorderPainter.drawBorderEdge(
+          canvas,
+          Offset(x, bounds.top),
+          Offset(x, bounds.bottom),
+          _borderPaint,
+          resolved.lineStyle,
+          resolved.width,
+        );
+      }
+    }
+
+    // Right border
+    if (!borders.right.isNone) {
+      final resolved = col < maxCol
+          ? BorderResolver.resolve(
+              borders.right,
+              data.getStyle(CellCoordinate(row, col + 1))?.borders?.left ?? BorderStyle.none,
+            )
+          : borders.right;
+      if (!resolved.isNone) {
+        _borderPaint
+          ..color = resolved.color
+          ..strokeWidth = resolved.width;
+        final x = bounds.right.roundToDouble() + 0.5;
+        BorderPainter.drawBorderEdge(
+          canvas,
+          Offset(x, bounds.top),
+          Offset(x, bounds.bottom),
+          _borderPaint,
+          resolved.lineStyle,
+          resolved.width,
+        );
+      }
     }
   }
 

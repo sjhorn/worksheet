@@ -1,6 +1,6 @@
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' hide BorderStyle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/geometry/layout_solver.dart';
@@ -303,6 +303,111 @@ void main() {
           coordinate: TileCoordinate(0, 0),
           bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
           cellRange: CellRange(0, 0, 10, 2),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+    });
+
+    group('borders', () {
+      test('renders cells with borders', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('Bordered'));
+        data.setStyle(
+          CellCoordinate(0, 0),
+          const CellStyle(
+            borders: CellBorders.all(
+              BorderStyle(
+                color: Color(0xFF000000),
+                width: 2.0,
+                lineStyle: BorderLineStyle.solid,
+              ),
+            ),
+          ),
+        );
+
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 5, 2),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+
+      test('renders cells with different line styles', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('Mixed'));
+        data.setStyle(
+          CellCoordinate(0, 0),
+          const CellStyle(
+            borders: CellBorders(
+              top: BorderStyle(lineStyle: BorderLineStyle.solid),
+              right: BorderStyle(lineStyle: BorderLineStyle.dashed),
+              bottom: BorderStyle(lineStyle: BorderLineStyle.dotted),
+              left: BorderStyle(lineStyle: BorderLineStyle.double),
+            ),
+          ),
+        );
+
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 5, 2),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+
+      test('borders hidden below 40% zoom', () {
+        data.setStyle(
+          CellCoordinate(0, 0),
+          const CellStyle(
+            borders: CellBorders.all(BorderStyle(width: 2.0)),
+          ),
+        );
+
+        // Should not throw at low zoom levels
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 50, 25),
+          zoomBucket: ZoomBucket.quarter,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+
+      test('renders adjacent cells with conflicting borders', () {
+        // Cell (0,0) has thick right border
+        data.setStyle(
+          CellCoordinate(0, 0),
+          const CellStyle(
+            borders: CellBorders(
+              right: BorderStyle(width: 3.0, color: Color(0xFFFF0000)),
+            ),
+          ),
+        );
+
+        // Cell (0,1) has thin left border
+        data.setStyle(
+          CellCoordinate(0, 1),
+          const CellStyle(
+            borders: CellBorders(
+              left: BorderStyle(width: 1.0, color: Color(0xFF0000FF)),
+            ),
+          ),
+        );
+
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 5, 2),
           zoomBucket: ZoomBucket.full,
         );
 
