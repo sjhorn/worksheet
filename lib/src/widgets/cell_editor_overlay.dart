@@ -32,7 +32,8 @@ class CellEditorOverlay extends StatefulWidget {
     CellValue? value,
     int rowDelta,
     int columnDelta,
-  )? onCommitAndNavigate;
+  )?
+  onCommitAndNavigate;
 
   /// The current zoom level, used to scale font size, padding, and cursor
   /// so the editor text aligns with the tile-rendered cell text.
@@ -104,7 +105,7 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     _textController = TextEditingController(
       text: widget.editController.currentText,
     );
-    _focusNode = FocusNode();
+    _focusNode = FocusNode(onKeyEvent: _handleKeyEvent);
 
     // Listen for changes from edit controller
     widget.editController.addListener(_onEditControllerChanged);
@@ -155,9 +156,7 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       // Select-all detected — reverse it.
       _guardSelectAll = false;
       _textController.removeListener(_onSelectionGuard);
-      _textController.selection = TextSelection.collapsed(
-        offset: text.length,
-      );
+      _textController.selection = TextSelection.collapsed(offset: text.length);
     } else if (sel.isCollapsed && sel.isValid) {
       // Selection is already fine — stop guarding.
       _guardSelectAll = false;
@@ -312,8 +311,10 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     final textHeight = measurer.height;
     measurer.dispose();
 
-    final verticalPad =
-        ((widget.cellBounds.height - textHeight) / 2).clamp(0.0, double.infinity);
+    final verticalPad = ((widget.cellBounds.height - textHeight) / 2).clamp(
+      0.0,
+      double.infinity,
+    );
 
     // Match tile painter's per-alignment horizontal padding:
     //   left:   dx = bounds.left + cellPadding
@@ -340,11 +341,10 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     return Positioned(
       left: widget.cellBounds.left,
       top: widget.cellBounds.top,
-      child: SizedBox(
-        width: width,
-        height: widget.cellBounds.height,
-        child: Focus(
-          onKeyEvent: _handleKeyEvent,
+      child: FocusScope(
+        child: SizedBox(
+          width: width,
+          height: widget.cellBounds.height,
           child: TextField(
             controller: _textController,
             focusNode: _focusNode,
@@ -354,7 +354,10 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
             textAlign: widget.textAlign,
             decoration: InputDecoration(
               contentPadding: EdgeInsets.fromLTRB(
-                leftPad, verticalPad, rightPad, verticalPad,
+                leftPad,
+                verticalPad,
+                rightPad,
+                verticalPad,
               ),
               border: InputBorder.none,
               isCollapsed: true,

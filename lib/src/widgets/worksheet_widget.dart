@@ -200,6 +200,19 @@ class _WorksheetState extends State<Worksheet>
   /// so it can restore focus here when editing completes.
   final FocusNode _keyboardFocusNode = FocusNode(debugLabel: 'Worksheet');
 
+  /// Offstage TextField focus node used as a keyboard trigger on iOS Safari.
+  ///
+  /// iOS Safari requires that `element.focus()` happens synchronously within
+  /// a user gesture for the virtual keyboard to appear. This node is attached
+  /// to a hidden [EditableText] that is always in the widget tree. When a
+  /// double-tap starts editing, we call `requestFocus()` on this node
+  /// synchronously inside the gesture handler, which satisfies Safari's
+  /// requirement and shows the keyboard. The [CellEditorOverlay]'s own
+  /// TextField then takes over focus in the next frame.
+  final FocusNode _editorFocusNode = FocusNode(debugLabel: 'EditorTrigger');
+  final TextEditingController _editorTriggerController =
+      TextEditingController();
+
   late SelectionRenderer _selectionRenderer;
   late HeaderRenderer _headerRenderer;
   late SelectionLayer _selectionLayer;
@@ -255,20 +268,20 @@ class _WorksheetState extends State<Worksheet>
   }
 
   Map<Type, Action<Intent>> get _defaultActions => <Type, Action<Intent>>{
-        MoveSelectionIntent: MoveSelectionAction(this),
-        GoToCellIntent: GoToCellAction(this),
-        GoToLastCellIntent: GoToLastCellAction(this),
-        GoToRowBoundaryIntent: GoToRowBoundaryAction(this),
-        SelectAllCellsIntent: SelectAllCellsAction(this),
-        CancelSelectionIntent: CancelSelectionAction(this),
-        EditCellIntent: _IntegratedEditCellAction(this),
-        CopyCellsIntent: CopyCellsAction(this),
-        CutCellsIntent: CutCellsAction(this),
-        PasteCellsIntent: PasteCellsAction(this),
-        ClearCellsIntent: ClearCellsAction(this),
-        FillDownIntent: FillDownAction(this),
-        FillRightIntent: FillRightAction(this),
-      };
+    MoveSelectionIntent: MoveSelectionAction(this),
+    GoToCellIntent: GoToCellAction(this),
+    GoToLastCellIntent: GoToLastCellAction(this),
+    GoToRowBoundaryIntent: GoToRowBoundaryAction(this),
+    SelectAllCellsIntent: SelectAllCellsAction(this),
+    CancelSelectionIntent: CancelSelectionAction(this),
+    EditCellIntent: _IntegratedEditCellAction(this),
+    CopyCellsIntent: CopyCellsAction(this),
+    CutCellsIntent: CutCellsAction(this),
+    PasteCellsIntent: PasteCellsAction(this),
+    ClearCellsIntent: ClearCellsAction(this),
+    FillDownIntent: FillDownAction(this),
+    FillRightIntent: FillRightAction(this),
+  };
 
   @override
   void initState() {
@@ -393,7 +406,8 @@ class _WorksheetState extends State<Worksheet>
     _clipboardHandler = ClipboardHandler(
       data: widget.data,
       selectionController: _controller.selectionController,
-      serializer: widget.clipboardSerializer ??
+      serializer:
+          widget.clipboardSerializer ??
           TsvClipboardSerializer(dateParser: widget.dateParser),
     );
 
@@ -403,7 +417,6 @@ class _WorksheetState extends State<Worksheet>
     // Subscribe to data change events for external mutations
     _dataSubscription?.cancel();
     _dataSubscription = widget.data.changes.listen(_onDataChanged);
-
   }
 
   void _initLayers(WorksheetThemeData theme, double devicePixelRatio) {
@@ -538,7 +551,9 @@ class _WorksheetState extends State<Worksheet>
     // Calculate cell position in screen coordinates
     final cellTop = solver.getRowTop(cell.row) * zoom;
     final cellHeight = solver.getRowHeight(cell.row) * zoom;
-    final headerHeight = theme.showHeaders ? theme.columnHeaderHeight * zoom : 0.0;
+    final headerHeight = theme.showHeaders
+        ? theme.columnHeaderHeight * zoom
+        : 0.0;
 
     // Available height above keyboard (minus headers)
     final availableHeight = size.height - viewInsets.bottom - headerHeight;
@@ -784,12 +799,14 @@ class _WorksheetState extends State<Worksheet>
       case DataChangeType.cellStyle:
       case DataChangeType.cellFormat:
         if (event.cell != null) {
-          _tileManager.invalidateRange(CellRange(
-            event.cell!.row,
-            event.cell!.column,
-            event.cell!.row,
-            event.cell!.column,
-          ));
+          _tileManager.invalidateRange(
+            CellRange(
+              event.cell!.row,
+              event.cell!.column,
+              event.cell!.row,
+              event.cell!.column,
+            ),
+          );
         }
       case DataChangeType.range:
         if (event.range != null) {
@@ -884,7 +901,8 @@ class _WorksheetState extends State<Worksheet>
         _clipboardHandler = ClipboardHandler(
           data: widget.data,
           selectionController: _controller.selectionController,
-          serializer: widget.clipboardSerializer ??
+          serializer:
+              widget.clipboardSerializer ??
               TsvClipboardSerializer(dateParser: widget.dateParser),
         );
         widget.editController?.dateParser = widget.dateParser;
@@ -941,6 +959,8 @@ class _WorksheetState extends State<Worksheet>
       _headerLayer.dispose();
       _tileManager.dispose();
     }
+    _editorTriggerController.dispose();
+    _editorFocusNode.dispose();
     _keyboardFocusNode.dispose();
     super.dispose();
   }
@@ -989,10 +1009,7 @@ class _WorksheetState extends State<Worksheet>
     // Merge default actions with consumer overrides.
     final effectiveActions = widget.readOnly
         ? <Type, Action<Intent>>{}
-        : <Type, Action<Intent>>{
-            ..._defaultActions,
-            ...?widget.actions,
-          };
+        : <Type, Action<Intent>>{..._defaultActions, ...?widget.actions};
 
     return Shortcuts(
       shortcuts: effectiveShortcuts,
@@ -1002,265 +1019,313 @@ class _WorksheetState extends State<Worksheet>
           focusNode: _keyboardFocusNode,
           autofocus: true,
           onKeyEvent: widget.editController != null ? _handleTypeToEdit : null,
-          child: MouseRegion(
-        cursor: _currentCursor,
-        onHover: widget.readOnly
-            ? null
-            : (event) {
-                final hit = _hitTester.hitTest(
-                  position: event.localPosition,
-                  scrollOffset: Offset(
-                    _controller.scrollX,
-                    _controller.scrollY,
-                  ),
-                  zoom: _controller.zoom,
-                  selectionRange: _controller.selectionController.selectedRange,
-                );
-                final newCursor = switch (hit.type) {
-                  HitTestType.rowResizeHandle => SystemMouseCursors.resizeRow,
-                  HitTestType.columnResizeHandle =>
-                    SystemMouseCursors.resizeColumn,
-                  HitTestType.fillHandle => SystemMouseCursors.precise,
-                  _ => SystemMouseCursors.basic,
-                };
-                if (_currentCursor != newCursor) {
-                  setState(() {
-                    _currentCursor = newCursor;
-                  });
-                }
-              },
-        child: Listener(
-          onPointerDown: widget.readOnly
-              ? null
-              : (event) {
-                  // Only handle primary button (left click) for selection
-                  if (event.buttons == kPrimaryButton) {
-                    // Skip selection when pointer is on a scrollbar
-                    if (_isInScrollbarArea(event.localPosition, theme)) {
-                      _pointerInScrollbarArea = true;
-                      return;
-                    }
-                    _pointerInScrollbarArea = false;
-
-                    // If editing, check whether the tap is inside the
-                    // editing cell.  If so, let it reach the TextField
-                    // for cursor positioning / text selection.  If outside,
-                    // commit the edit and proceed with normal selection.
-                    final ec = widget.editController;
-                    if (ec != null && ec.isEditing) {
-                      final editingCell = ec.editingCell;
-                      if (editingCell != null) {
-                        final cellBounds =
-                            _controller.getCellScreenBounds(editingCell);
-                        if (cellBounds != null &&
-                            cellBounds.contains(event.localPosition)) {
-                          return; // tap inside editing cell — hand off to TextField
-                        }
-                      }
-                      ec.commitEdit(onCommit: _onInternalCommit);
-                    }
-
-                    _gestureHandler.onTapDown(
-                      position: event.localPosition,
-                      scrollOffset: Offset(
-                        _controller.scrollX,
-                        _controller.scrollY,
-                      ),
-                      zoom: _controller.zoom,
-                    );
-                    widget.onCellTap?.call(
-                      _controller.focusCell ?? const CellCoordinate(0, 0),
-                    );
-                    _gestureHandler.onDragStart(
-                      position: event.localPosition,
-                      scrollOffset: Offset(
-                        _controller.scrollX,
-                        _controller.scrollY,
-                      ),
-                      zoom: _controller.zoom,
-                    );
-                  }
-                },
-          onPointerMove: widget.readOnly
-              ? null
-              : (event) {
-                  // Only handle drag when primary button is held
-                  if (event.buttons == kPrimaryButton &&
-                      !_pointerInScrollbarArea) {
-                    _gestureHandler.onDragUpdate(
-                      position: event.localPosition,
-                      scrollOffset: Offset(
-                        _controller.scrollX,
-                        _controller.scrollY,
-                      ),
-                      zoom: _controller.zoom,
-                    );
-
-                    // Auto-scroll when dragging outside the content area
-                    _lastPointerPosition = event.localPosition;
-                    if (_gestureHandler.isSelectingRange ||
-                        _gestureHandler.isFilling) {
-                      final contentArea = _getContentArea(theme);
-                      final pos = event.localPosition;
-                      if (pos.dx < contentArea.left ||
-                          pos.dx > contentArea.right ||
-                          pos.dy < contentArea.top ||
-                          pos.dy > contentArea.bottom) {
-                        _startAutoScroll();
-                      }
-                    }
-                  }
-                },
-          onPointerUp: widget.readOnly
-              ? null
-              : (event) {
-                  _stopAutoScroll();
-                  _pointerInScrollbarArea = false;
-                  _gestureHandler.onDragEnd();
-                },
-          child: GestureDetector(
-            onDoubleTap: widget.readOnly
-                ? null
-                : (widget.onEditCell == null && widget.editController == null)
-                    ? null
-                    // When already editing, don't register a double-tap
-                    // handler so the TextField's double-tap (word select)
-                    // wins the gesture arena.
-                    : (widget.editController?.isEditing == true)
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: MouseRegion(
+                  cursor: _currentCursor,
+                  onHover: widget.readOnly
+                      ? null
+                      : (event) {
+                          final hit = _hitTester.hitTest(
+                            position: event.localPosition,
+                            scrollOffset: Offset(
+                              _controller.scrollX,
+                              _controller.scrollY,
+                            ),
+                            zoom: _controller.zoom,
+                            selectionRange:
+                                _controller.selectionController.selectedRange,
+                          );
+                          final newCursor = switch (hit.type) {
+                            HitTestType.rowResizeHandle =>
+                              SystemMouseCursors.resizeRow,
+                            HitTestType.columnResizeHandle =>
+                              SystemMouseCursors.resizeColumn,
+                            HitTestType.fillHandle =>
+                              SystemMouseCursors.precise,
+                            _ => SystemMouseCursors.basic,
+                          };
+                          if (_currentCursor != newCursor) {
+                            setState(() {
+                              _currentCursor = newCursor;
+                            });
+                          }
+                        },
+                  child: Listener(
+                    onPointerDown: widget.readOnly
                         ? null
-                        : () {
-                            final cell = _controller.focusCell;
-                            if (cell == null) return;
-                            // Fire external callback
-                            widget.onEditCell?.call(cell);
-                            // Also start integrated editing if available
-                            if (widget.editController != null) {
-                              _startIntegratedEdit(
-                                cell: cell,
-                                trigger: EditTrigger.doubleTap,
+                        : (event) {
+                            // Only handle primary button (left click) for selection
+                            if (event.buttons == kPrimaryButton) {
+                              // Skip selection when pointer is on a scrollbar
+                              if (_isInScrollbarArea(
+                                event.localPosition,
+                                theme,
+                              )) {
+                                _pointerInScrollbarArea = true;
+                                return;
+                              }
+                              _pointerInScrollbarArea = false;
+
+                              // If editing, check whether the tap is inside the
+                              // editing cell.  If so, let it reach the TextField
+                              // for cursor positioning / text selection.  If outside,
+                              // commit the edit and proceed with normal selection.
+                              final ec = widget.editController;
+                              if (ec != null && ec.isEditing) {
+                                final editingCell = ec.editingCell;
+                                if (editingCell != null) {
+                                  final cellBounds = _controller
+                                      .getCellScreenBounds(editingCell);
+                                  if (cellBounds != null &&
+                                      cellBounds.contains(
+                                        event.localPosition,
+                                      )) {
+                                    return; // tap inside editing cell — hand off to TextField
+                                  }
+                                }
+                                ec.commitEdit(onCommit: _onInternalCommit);
+                              }
+
+                              _gestureHandler.onTapDown(
+                                position: event.localPosition,
+                                scrollOffset: Offset(
+                                  _controller.scrollX,
+                                  _controller.scrollY,
+                                ),
+                                zoom: _controller.zoom,
+                              );
+                              widget.onCellTap?.call(
+                                _controller.focusCell ??
+                                    const CellCoordinate(0, 0),
+                              );
+                              _gestureHandler.onDragStart(
+                                position: event.localPosition,
+                                scrollOffset: Offset(
+                                  _controller.scrollX,
+                                  _controller.scrollY,
+                                ),
+                                zoom: _controller.zoom,
                               );
                             }
                           },
-            child: Stack(
-              children: [
-                // Transparent hit target for the entire area (including headers)
-                // This ensures pointer events are captured everywhere
-                Positioned.fill(
-                  child: Container(color: const Color(0x00000000)),
-                ),
+                    onPointerMove: widget.readOnly
+                        ? null
+                        : (event) {
+                            // Only handle drag when primary button is held
+                            if (event.buttons == kPrimaryButton &&
+                                !_pointerInScrollbarArea) {
+                              _gestureHandler.onDragUpdate(
+                                position: event.localPosition,
+                                scrollOffset: Offset(
+                                  _controller.scrollX,
+                                  _controller.scrollY,
+                                ),
+                                zoom: _controller.zoom,
+                              );
 
-                // Content area (offset by headers, scaled by zoom)
+                              // Auto-scroll when dragging outside the content area
+                              _lastPointerPosition = event.localPosition;
+                              if (_gestureHandler.isSelectingRange ||
+                                  _gestureHandler.isFilling) {
+                                final contentArea = _getContentArea(theme);
+                                final pos = event.localPosition;
+                                if (pos.dx < contentArea.left ||
+                                    pos.dx > contentArea.right ||
+                                    pos.dy < contentArea.top ||
+                                    pos.dy > contentArea.bottom) {
+                                  _startAutoScroll();
+                                }
+                              }
+                            }
+                          },
+                    onPointerUp: widget.readOnly
+                        ? null
+                        : (event) {
+                            _stopAutoScroll();
+                            _pointerInScrollbarArea = false;
+                            _gestureHandler.onDragEnd();
+                          },
+                    child: GestureDetector(
+                      // Use onDoubleTapDown (fires on second pointer-down)
+                      // instead of onDoubleTap (fires after second pointer-up)
+                      // so that editing starts while iOS is still processing
+                      // the touch event, allowing the keyboard to appear.
+                      onDoubleTapDown: widget.readOnly
+                          ? null
+                          : (widget.onEditCell == null &&
+                                widget.editController == null)
+                          ? null
+                          // When already editing, don't register a double-tap
+                          // handler so the TextField's double-tap (word select)
+                          // wins the gesture arena.
+                          : (widget.editController?.isEditing == true)
+                          ? null
+                          : (TapDownDetails details) {
+                              final cell = _controller.focusCell;
+                              if (cell == null) return;
+                              // Fire external callback
+                              widget.onEditCell?.call(cell);
+                              // Also start integrated editing if available
+                              if (widget.editController != null) {
+                                // Focus the offstage trigger TextField
+                                // synchronously within this gesture handler.
+                                // iOS Safari requires focus() to happen
+                                // synchronously with a user gesture for the
+                                // virtual keyboard to appear.
+                                _editorFocusNode.requestFocus();
+                                _startIntegratedEdit(
+                                  cell: cell,
+                                  trigger: EditTrigger.doubleTap,
+                                );
+                              }
+                            },
+                      child: Stack(
+                        children: [
+                          // Transparent hit target for the entire area (including headers)
+                          // This ensures pointer events are captured everywhere
+                          Positioned.fill(
+                            child: Container(color: const Color(0x00000000)),
+                          ),
+
+                          // Content area (offset by headers, scaled by zoom)
+                          Positioned(
+                            left: theme.showHeaders
+                                ? theme.rowHeaderWidth * _controller.zoom
+                                : 0,
+                            top: theme.showHeaders
+                                ? theme.columnHeaderHeight * _controller.zoom
+                                : 0,
+                            right: 0,
+                            bottom: 0,
+                            child: _buildScrollableContent(theme),
+                          ),
+
+                          // Selection layer (painted on top of content)
+                          if (theme.showHeaders && _controller.hasSelection)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: CustomPaint(
+                                  painter: _SelectionPainter(
+                                    layer: _selectionLayer,
+                                    scrollOffset: Offset(
+                                      _controller.scrollX / _controller.zoom,
+                                      _controller.scrollY / _controller.zoom,
+                                    ),
+                                    zoom: _controller.zoom,
+                                    headerOffset: Offset(
+                                      theme.rowHeaderWidth * _controller.zoom,
+                                      theme.columnHeaderHeight *
+                                          _controller.zoom,
+                                    ),
+                                    layoutVersion: _layoutVersion,
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                          // Headers layer (fixed position)
+                          if (theme.showHeaders)
+                            Positioned.fill(
+                              child: IgnorePointer(
+                                child: CustomPaint(
+                                  painter: _HeaderPainter(
+                                    layer: _headerLayer,
+                                    scrollOffset: Offset(
+                                      _controller.scrollX / _controller.zoom,
+                                      _controller.scrollY / _controller.zoom,
+                                    ),
+                                    zoom: _controller.zoom,
+                                    layoutVersion: _layoutVersion,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              // Cell editor overlay placed OUTSIDE Listener/GestureDetector
+              // so touch events (especially on iOS) reach the TextField
+              // directly, ensuring the software keyboard appears.
+              if (widget.editController != null)
+                ListenableBuilder(
+                  listenable: widget.editController!,
+                  builder: (context, _) {
+                    if (!widget.editController!.isEditing) {
+                      return const Positioned(
+                        left: 0,
+                        top: 0,
+                        child: SizedBox.shrink(),
+                      );
+                    }
+                    final cell = widget.editController!.editingCell;
+                    if (cell == null) {
+                      return const Positioned(
+                        left: 0,
+                        top: 0,
+                        child: SizedBox.shrink(),
+                      );
+                    }
+                    final bounds = _controller.getCellScreenBounds(cell);
+                    if (bounds == null) {
+                      return const Positioned(
+                        left: 0,
+                        top: 0,
+                        child: SizedBox.shrink(),
+                      );
+                    }
+                    // Resolve per-cell style the same way tile_painter does
+                    final cellStyle = CellStyle.defaultStyle.merge(
+                      widget.data.getStyle(cell),
+                    );
+                    return CellEditorOverlay(
+                      editController: widget.editController!,
+                      cellBounds: bounds,
+                      onCommit: _onInternalCommit,
+                      onCancel: _onInternalCancel,
+                      onCommitAndNavigate: _onInternalCommitAndNavigate,
+                      zoom: _controller.zoom,
+                      fontSize: cellStyle.fontSize ?? theme.fontSize,
+                      fontFamily: cellStyle.fontFamily ?? theme.fontFamily,
+                      fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
+                      fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
+                      textColor: cellStyle.textColor ?? theme.textColor,
+                      textAlign: _toTextAlign(cellStyle.textAlignment),
+                      cellPadding: theme.cellPadding,
+                      restoreFocusTo: _keyboardFocusNode,
+                    );
+                  },
+                ),
+              // Hidden TextField that acts as a keyboard trigger on iOS Safari.
+              // iOS Safari requires focus() to be synchronous with a user
+              // gesture for the virtual keyboard to appear. This offstage
+              // EditableText provides the text input connection that can be
+              // focused synchronously in the double-tap handler. The visible
+              // CellEditorOverlay's TextField then takes over focus.
+              if (widget.editController != null)
                 Positioned(
-                  left: theme.showHeaders
-                      ? theme.rowHeaderWidth * _controller.zoom
-                      : 0,
-                  top: theme.showHeaders
-                      ? theme.columnHeaderHeight * _controller.zoom
-                      : 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _buildScrollableContent(theme),
+                  left: 0,
+                  top: 0,
+                  width: 1,
+                  height: 1,
+                  child: Offstage(
+                    child: EditableText(
+                      controller: _editorTriggerController,
+                      focusNode: _editorFocusNode,
+                      style: const TextStyle(fontSize: 1),
+                      cursorColor: const Color(0x00000000),
+                      backgroundCursorColor: const Color(0x00000000),
+                    ),
+                  ),
                 ),
-
-                // Selection layer (painted on top of content)
-                if (theme.showHeaders && _controller.hasSelection)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _SelectionPainter(
-                          layer: _selectionLayer,
-                          scrollOffset: Offset(
-                            _controller.scrollX / _controller.zoom,
-                            _controller.scrollY / _controller.zoom,
-                          ),
-                          zoom: _controller.zoom,
-                          headerOffset: Offset(
-                            theme.rowHeaderWidth * _controller.zoom,
-                            theme.columnHeaderHeight * _controller.zoom,
-                          ),
-                          layoutVersion: _layoutVersion,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Headers layer (fixed position)
-                if (theme.showHeaders)
-                  Positioned.fill(
-                    child: IgnorePointer(
-                      child: CustomPaint(
-                        painter: _HeaderPainter(
-                          layer: _headerLayer,
-                          scrollOffset: Offset(
-                            _controller.scrollX / _controller.zoom,
-                            _controller.scrollY / _controller.zoom,
-                          ),
-                          zoom: _controller.zoom,
-                          layoutVersion: _layoutVersion,
-                        ),
-                      ),
-                    ),
-                  ),
-
-                // Internal cell editor overlay (when editController is provided)
-                // All return paths must be Positioned to avoid introducing a
-                // non-positioned child that would collapse the Stack to 0x0.
-                if (widget.editController != null)
-                  ListenableBuilder(
-                    listenable: widget.editController!,
-                    builder: (context, _) {
-                      if (!widget.editController!.isEditing) {
-                        return const Positioned(
-                          left: 0,
-                          top: 0,
-                          child: SizedBox.shrink(),
-                        );
-                      }
-                      final cell = widget.editController!.editingCell;
-                      if (cell == null) {
-                        return const Positioned(
-                          left: 0,
-                          top: 0,
-                          child: SizedBox.shrink(),
-                        );
-                      }
-                      final bounds = _controller.getCellScreenBounds(cell);
-                      if (bounds == null) {
-                        return const Positioned(
-                          left: 0,
-                          top: 0,
-                          child: SizedBox.shrink(),
-                        );
-                      }
-                      // Resolve per-cell style the same way tile_painter does
-                      final cellStyle = CellStyle.defaultStyle.merge(
-                        widget.data.getStyle(cell),
-                      );
-                      return CellEditorOverlay(
-                        editController: widget.editController!,
-                        cellBounds: bounds,
-                        onCommit: _onInternalCommit,
-                        onCancel: _onInternalCancel,
-                        onCommitAndNavigate: _onInternalCommitAndNavigate,
-                        zoom: _controller.zoom,
-                        fontSize: cellStyle.fontSize ?? theme.fontSize,
-                        fontFamily: cellStyle.fontFamily ?? theme.fontFamily,
-                        fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
-                        fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
-                        textColor: cellStyle.textColor ?? theme.textColor,
-                        textAlign: _toTextAlign(cellStyle.textAlignment),
-                        cellPadding: theme.cellPadding,
-                        restoreFocusTo: _keyboardFocusNode,
-                      );
-                    },
-                  ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
-    ),
-    ),
     );
   }
 
@@ -1395,10 +1460,7 @@ class _IntegratedEditCellAction extends Action<EditCellIntent> {
     // Also start integrated editing if available
     final ec = _state.widget.editController;
     if (ec != null) {
-      _state._startIntegratedEdit(
-        cell: focus,
-        trigger: EditTrigger.f2Key,
-      );
+      _state._startIntegratedEdit(cell: focus, trigger: EditTrigger.f2Key);
     }
     return null;
   }

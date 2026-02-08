@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-02-08
+
+### Fixed
+- Virtual keyboard now appears immediately on double-tap editing on iOS Safari — moved cell editor overlay outside gesture interceptors and added synchronous focus trigger to satisfy Safari's user-gesture requirement
+- Cell editor overlay uses dedicated FocusScope to ensure autofocus fires independently of the worksheet's existing focus tree
+
 ## [1.6.2] - 2026-02-06
 
 ### Added

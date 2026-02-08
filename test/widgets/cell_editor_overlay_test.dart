@@ -166,9 +166,10 @@ void main() {
         cellBounds: narrowBounds,
       ));
 
-      // Find the Positioned widget and check its child SizedBox
+      // Find the Positioned > FocusScope > SizedBox
       final positioned = tester.widget<Positioned>(find.byType(Positioned));
-      final sizedBox = positioned.child as SizedBox;
+      final focusScope = positioned.child as FocusScope;
+      final sizedBox = focusScope.child as SizedBox;
 
       // Should use minimum width, not the narrow cell width
       expect(sizedBox.width, greaterThanOrEqualTo(CellEditorOverlay.minWidth));
