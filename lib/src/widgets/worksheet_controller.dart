@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/widgets.dart';
 
 import '../core/geometry/layout_solver.dart';
@@ -34,6 +36,20 @@ class WorksheetController extends ChangeNotifier {
   double _headerWidth = 0.0;
   double _headerHeight = 0.0;
 
+  // Zoom tracking for anchor-preserving scroll adjustment.
+  double _previousZoom;
+
+  /// Whether to automatically adjust scroll when zoom changes so that the
+  /// selected anchor cell stays at the same screen position.
+  ///
+  /// When true and a cell is selected, changing the zoom level will
+  /// adjust the scroll offset to keep the anchor cell visually stable.
+  /// This prevents the selected cell from scrolling out of view during zoom.
+  ///
+  /// The [Worksheet] widget enables this automatically. Set to false to
+  /// disable.
+  bool keepAnchorVisible = false;
+
   /// Whether layout information is available.
   ///
   /// Returns true after the [Worksheet] widget has attached its internal
@@ -66,7 +82,9 @@ class WorksheetController extends ChangeNotifier {
        horizontalScrollController =
            horizontalScrollController ?? ScrollController(),
        verticalScrollController =
-           verticalScrollController ?? ScrollController() {
+           verticalScrollController ?? ScrollController(),
+       _previousZoom = 1.0 {
+    _previousZoom = this.zoomController.value;
     this.selectionController.addListener(_onControllerChanged);
     this.zoomController.addListener(_onControllerChanged);
     this.horizontalScrollController.addListener(_onControllerChanged);
@@ -74,7 +92,94 @@ class WorksheetController extends ChangeNotifier {
   }
 
   void _onControllerChanged() {
+    final newZoom = zoomController.value;
+    if (newZoom != _previousZoom) {
+      if (keepAnchorVisible) {
+        final oldZoom = _previousZoom;
+        _previousZoom = newZoom;
+        _adjustScrollForZoom(oldZoom, newZoom);
+      } else {
+        _previousZoom = newZoom;
+      }
+    }
     notifyListeners();
+  }
+
+  /// Adjusts scroll position so that the anchor cell stays visible and
+  /// at a stable position within the content area after a zoom change.
+  ///
+  /// Two-phase approach:
+  /// 1. Preserve the cell center's pixel offset in the content area.
+  /// 2. Nudge scroll so the entire cell fits — if the cell was near the
+  ///    bottom/right edge, zooming in makes it grow and it can extend past
+  ///    the viewport.
+  void _adjustScrollForZoom(double oldZoom, double newZoom) {
+    final solver = _layoutSolver;
+    if (solver == null) return;
+
+    final anchor = selectionController.anchor;
+    if (anchor == null) return;
+
+    final hController = horizontalScrollController;
+    final vController = verticalScrollController;
+    if (!hController.hasClients || !vController.hasClients) return;
+
+    // Anchor cell center in worksheet coordinates (zoom-independent).
+    final cellCenterX = solver.getColumnLeft(anchor.column) +
+        solver.getColumnWidth(anchor.column) / 2;
+    final cellCenterY = solver.getRowTop(anchor.row) +
+        solver.getRowHeight(anchor.row) / 2;
+
+    // Phase 1: preserve the cell center's content-area position.
+    var newScrollX =
+        cellCenterX * (newZoom - oldZoom) + hController.offset;
+    var newScrollY =
+        cellCenterY * (newZoom - oldZoom) + vController.offset;
+
+    // Estimate new viewport dimensions (headers grow/shrink with zoom).
+    final viewportW = hController.position.viewportDimension;
+    final viewportH = vController.position.viewportDimension;
+    final newViewportW =
+        math.max(0.0, viewportW + _headerWidth * (oldZoom - newZoom));
+    final newViewportH =
+        math.max(0.0, viewportH + _headerHeight * (oldZoom - newZoom));
+
+    // Phase 2: ensure the entire cell is visible in the content area.
+    // The cell's edges in zoomed content-area coordinates.
+    final cellLeft = solver.getColumnLeft(anchor.column) * newZoom;
+    final cellRight =
+        cellLeft + solver.getColumnWidth(anchor.column) * newZoom;
+    final cellTop = solver.getRowTop(anchor.row) * newZoom;
+    final cellBottom =
+        cellTop + solver.getRowHeight(anchor.row) * newZoom;
+
+    // If the cell's right/bottom edge extends past the viewport, scroll more.
+    // Check right/bottom first so that left/top wins if the cell is larger
+    // than the viewport (shows the start of the cell).
+    if (cellRight - newScrollX > newViewportW) {
+      newScrollX = cellRight - newViewportW;
+    }
+    if (cellBottom - newScrollY > newViewportH) {
+      newScrollY = cellBottom - newViewportH;
+    }
+    if (cellLeft < newScrollX) {
+      newScrollX = cellLeft;
+    }
+    if (cellTop < newScrollY) {
+      newScrollY = cellTop;
+    }
+
+    // Clamp to valid scroll range.
+    final totalContentW = hController.position.maxScrollExtent + viewportW;
+    final totalContentH = vController.position.maxScrollExtent + viewportH;
+    final newMaxH = totalContentW * newZoom / oldZoom - newViewportW;
+    final newMaxV = totalContentH * newZoom / oldZoom - newViewportH;
+
+    newScrollX = newScrollX.clamp(0.0, math.max(0.0, newMaxH));
+    newScrollY = newScrollY.clamp(0.0, math.max(0.0, newMaxV));
+
+    hController.jumpTo(newScrollX);
+    vController.jumpTo(newScrollY);
   }
 
   // Selection methods

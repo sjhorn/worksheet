@@ -624,6 +624,355 @@ void main() {
       });
     });
 
+    group('keepAnchorVisible', () {
+      late LayoutSolver solver;
+
+      setUp(() {
+        solver = LayoutSolver(
+          rows: SpanList(count: 100, defaultSize: 20.0),
+          columns: SpanList(count: 26, defaultSize: 80.0),
+        );
+      });
+
+      test('is false by default', () {
+        expect(controller.keepAnchorVisible, isFalse);
+      });
+
+      test('can be set to true', () {
+        controller.keepAnchorVisible = true;
+        expect(controller.keepAnchorVisible, isTrue);
+      });
+
+      testWidgets('adjusts scroll when zoom changes with anchor cell',
+          (tester) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 800,
+              height: 600,
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    controller: controller.horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: const SizedBox(width: 10000, height: 100),
+                  ),
+                  SingleChildScrollView(
+                    controller: controller.verticalScrollController,
+                    child: const SizedBox(width: 100, height: 10000),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+        controller.keepAnchorVisible = true;
+
+        // Select a cell and scroll to it
+        controller.selectCell(const CellCoordinate(20, 10));
+        controller.scrollTo(x: 500, y: 200);
+        await tester.pump();
+
+        // Cell center in worksheet coords
+        // col 10: left = 10*80 = 800, center = 840
+        // row 20: top = 20*20 = 400, center = 410
+        const cellCenterX = 840.0;
+        const cellCenterY = 410.0;
+
+        // Content-area position before zoom (cellCenter * zoom - scroll)
+        final contentPosBefore = Offset(
+          cellCenterX * controller.zoom - controller.scrollX,
+          cellCenterY * controller.zoom - controller.scrollY,
+        );
+
+        // Zoom in
+        controller.setZoom(2.0);
+        await tester.pump();
+
+        // Content-area position after zoom — should be preserved
+        final contentPosAfter = Offset(
+          cellCenterX * controller.zoom - controller.scrollX,
+          cellCenterY * controller.zoom - controller.scrollY,
+        );
+
+        expect(contentPosAfter.dx, closeTo(contentPosBefore.dx, 1.0));
+        expect(contentPosAfter.dy, closeTo(contentPosBefore.dy, 1.0));
+      });
+
+      testWidgets('does not adjust scroll when keepAnchorVisible is false',
+          (tester) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 800,
+              height: 600,
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    controller: controller.horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: const SizedBox(width: 10000, height: 100),
+                  ),
+                  SingleChildScrollView(
+                    controller: controller.verticalScrollController,
+                    child: const SizedBox(width: 100, height: 10000),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+        // keepAnchorVisible is false by default
+
+        controller.selectCell(const CellCoordinate(20, 10));
+        controller.scrollTo(x: 500, y: 200);
+        await tester.pump();
+
+        final scrollXBefore = controller.scrollX;
+        final scrollYBefore = controller.scrollY;
+
+        // Zoom in — scroll should NOT be adjusted
+        controller.setZoom(2.0);
+        await tester.pump();
+
+        // Scroll should remain at the original position
+        expect(controller.scrollX, scrollXBefore);
+        expect(controller.scrollY, scrollYBefore);
+      });
+
+      testWidgets('does nothing without anchor cell', (tester) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 800,
+              height: 600,
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    controller: controller.horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: const SizedBox(width: 10000, height: 100),
+                  ),
+                  SingleChildScrollView(
+                    controller: controller.verticalScrollController,
+                    child: const SizedBox(width: 100, height: 10000),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+        controller.keepAnchorVisible = true;
+
+        // No selection — scroll at origin
+        controller.setZoom(2.0);
+        await tester.pump();
+
+        expect(controller.scrollX, 0.0);
+        expect(controller.scrollY, 0.0);
+      });
+
+      testWidgets('does nothing without layout attached', (tester) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 800,
+              height: 600,
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    controller: controller.horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: const SizedBox(width: 10000, height: 100),
+                  ),
+                  SingleChildScrollView(
+                    controller: controller.verticalScrollController,
+                    child: const SizedBox(width: 100, height: 10000),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        controller.keepAnchorVisible = true;
+        controller.selectCell(const CellCoordinate(10, 5));
+
+        // No layout attached — should not throw
+        controller.setZoom(2.0);
+        await tester.pump();
+
+        expect(controller.scrollX, 0.0);
+        expect(controller.scrollY, 0.0);
+      });
+
+      testWidgets('works with zoom out', (tester) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 800,
+              height: 600,
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    controller: controller.horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: const SizedBox(width: 10000, height: 100),
+                  ),
+                  SingleChildScrollView(
+                    controller: controller.verticalScrollController,
+                    child: const SizedBox(width: 100, height: 10000),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+        controller.keepAnchorVisible = true;
+
+        // Use a cell far enough from origin that zooming out won't clamp
+        // the scroll to 0.
+        controller.selectCell(const CellCoordinate(20, 10));
+        controller.scrollTo(x: 500, y: 300);
+        await tester.pump();
+
+        const cellCenterX = 840.0;
+        const cellCenterY = 410.0;
+
+        final contentPosBefore = Offset(
+          cellCenterX * controller.zoom - controller.scrollX,
+          cellCenterY * controller.zoom - controller.scrollY,
+        );
+
+        // Zoom out
+        controller.setZoom(0.5);
+        await tester.pump();
+
+        // Content-area position should be preserved
+        final contentPosAfter = Offset(
+          cellCenterX * controller.zoom - controller.scrollX,
+          cellCenterY * controller.zoom - controller.scrollY,
+        );
+
+        expect(contentPosAfter.dx, closeTo(contentPosBefore.dx, 1.0));
+        expect(contentPosAfter.dy, closeTo(contentPosBefore.dy, 1.0));
+      });
+
+      testWidgets('ensures full cell visible when near viewport edge',
+          (tester) async {
+        await tester.pumpWidget(
+          Directionality(
+            textDirection: TextDirection.ltr,
+            child: SizedBox(
+              width: 800,
+              height: 600,
+              child: Stack(
+                children: [
+                  SingleChildScrollView(
+                    controller: controller.horizontalScrollController,
+                    scrollDirection: Axis.horizontal,
+                    child: const SizedBox(width: 10000, height: 100),
+                  ),
+                  SingleChildScrollView(
+                    controller: controller.verticalScrollController,
+                    child: const SizedBox(width: 100, height: 10000),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+        controller.keepAnchorVisible = true;
+
+        // Place the cell near the bottom of the viewport so that zooming in
+        // would push its bottom edge past the viewport if not corrected.
+        // Cell (20, 10): top = 400, height = 20, bottom = 420 (ws coords)
+        // At zoom 1.0 with viewport height 600 and headerHeight 20:
+        // content viewport = 600 - 20 = 580
+        // Position cell bottom near viewport bottom:
+        // cellBottom_screen = 420*1 - scrollY → want ≈ 580
+        // scrollY ≈ 420 - 580 = -160 → use 0, cell bottom at 420 < 580
+        // Instead pick cell (28, 10): top = 560, bottom = 580
+        // At scrollY=0, cellBottom = 580 = viewportH exactly.
+        controller.selectCell(const CellCoordinate(28, 10));
+        controller.scrollTo(x: 500, y: 0);
+        await tester.pump();
+
+        // At zoom 1.0, cell bottom = 580. Content viewport = 600 (no real
+        // header in test). Cell just barely fits.
+
+        // Zoom to 2.0: cell top = 560*2 = 1120, bottom = 580*2 = 1160.
+        // Position-preserving scroll would put content top at same offset,
+        // but cell height doubled. Without the nudge, the bottom half of
+        // the cell would be below the viewport.
+        controller.setZoom(2.0);
+        await tester.pump();
+
+        // The entire cell should be visible in the content area.
+        // Cell edges in zoomed coords:
+        final cellTop = solver.getRowTop(28) * controller.zoom;
+        final cellBottom =
+            cellTop + solver.getRowHeight(28) * controller.zoom;
+        final cellLeft = solver.getColumnLeft(10) * controller.zoom;
+        final cellRight =
+            cellLeft + solver.getColumnWidth(10) * controller.zoom;
+
+        // Content-area position of cell edges
+        final contentTop = cellTop - controller.scrollY;
+        final contentBottom = cellBottom - controller.scrollY;
+        final contentLeft = cellLeft - controller.scrollX;
+        final contentRight = cellRight - controller.scrollX;
+
+        // The viewport dimension hasn't actually changed in the test
+        // (SingleChildScrollView doesn't have headers), but we can verify
+        // that cell edges are within [0, viewportDimension].
+        final viewportH =
+            controller.verticalScrollController.position.viewportDimension;
+        final viewportW =
+            controller.horizontalScrollController.position.viewportDimension;
+
+        expect(contentTop, greaterThanOrEqualTo(0.0));
+        expect(contentBottom, lessThanOrEqualTo(viewportH + 1.0));
+        expect(contentLeft, greaterThanOrEqualTo(0.0));
+        expect(contentRight, lessThanOrEqualTo(viewportW + 1.0));
+      });
+    });
+
     group('notifications', () {
       test('notifies when selection changes', () {
         var notifyCount = 0;

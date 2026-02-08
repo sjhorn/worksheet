@@ -297,6 +297,7 @@ class _WorksheetState extends State<Worksheet>
       _controller = WorksheetController();
       _ownsController = true;
     }
+    _controller.keepAnchorVisible = true;
     _controller.addListener(_onControllerChanged);
   }
 
