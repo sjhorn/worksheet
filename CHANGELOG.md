@@ -11,12 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Rewrote date/time formatter with token-based pipeline for correct context-sensitive `m`/`mm` disambiguation
+- Reworked `CellEditorOverlay` to use `Transform.scale` at base font size (matching tile painter's GPU scaling) with glyph-based cursor height
+- Editor overlay now clips behind headers using a positioned Stack
 
 ### Added
 - `mmmmm` format token — first letter of month name
 - `A/P` and `a/p` format tokens — abbreviated AM/PM markers
 - `s` format token — unpadded seconds
 - `mmmm` and `dddd`/`ddd` format tokens now handled via tokenizer (previously worked but fragile)
+- Bundled full Roboto font family (Regular, Bold, Italic, BoldItalic) for bold/italic cell styling
+- `CellStyle.defaultFontFamily` constant and `WorksheetThemeData.resolveFontPackage()` for correct package font resolution
+- `CellStyle.implicitAlignment()` — Excel-like value-type alignment (numbers/dates right, text left) when no explicit alignment is set
 
 ## [1.9.0] - 2026-02-08
 
