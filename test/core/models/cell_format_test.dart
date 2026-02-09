@@ -353,6 +353,47 @@ void main() {
         expect(CellFormat.dateIso.format(CellValue.date(dec)), '2024-12-25');
         expect(CellFormat.dateShort.format(CellValue.date(dec)), '25-Dec-24');
       });
+
+      test('mmmm full month name', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'd mmmm yyyy',
+        );
+        expect(fmt.format(CellValue.date(date)), '15 January 2024');
+      });
+
+      test('mmmmm first letter of month', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'mmmmm',
+        );
+        expect(fmt.format(CellValue.date(date)), 'J');
+        expect(
+          fmt.format(CellValue.date(DateTime(2024, 2, 1))),
+          'F',
+        );
+        expect(
+          fmt.format(CellValue.date(DateTime(2024, 3, 1))),
+          'M',
+        );
+      });
+
+      test('dddd full day name', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'dddd, mmmm d, yyyy',
+        );
+        // 2024-01-15 is a Monday
+        expect(fmt.format(CellValue.date(date)), 'Monday, January 15, 2024');
+      });
+
+      test('ddd abbreviated day name', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'ddd, mmm d',
+        );
+        expect(fmt.format(CellValue.date(date)), 'Mon, Jan 15');
+      });
     });
 
     group('time', () {
@@ -388,6 +429,46 @@ void main() {
       test('handles morning AM', () {
         final morning = DateTime(2024, 1, 1, 9, 5);
         expect(CellFormat.time12.format(CellValue.date(morning)), '9:05 AM');
+      });
+
+      test('s unpadded seconds', () {
+        const fmt = CellFormat(
+          type: CellFormatType.time,
+          formatCode: 'h:mm:s AM/PM',
+        );
+        final date = DateTime(2024, 1, 1, 14, 30, 5);
+        expect(fmt.format(CellValue.date(date)), '2:30:5 PM');
+      });
+
+      test('hh:mm:ss padded', () {
+        const fmt = CellFormat(
+          type: CellFormatType.time,
+          formatCode: 'hh:mm:ss AM/PM',
+        );
+        final date = DateTime(2024, 1, 1, 9, 5, 3);
+        expect(fmt.format(CellValue.date(date)), '09:05:03 AM');
+      });
+
+      test('A/P abbreviated upper', () {
+        const fmt = CellFormat(
+          type: CellFormatType.time,
+          formatCode: 'h:mm A/P',
+        );
+        final pm = DateTime(2024, 1, 1, 14, 30);
+        final am = DateTime(2024, 1, 1, 9, 30);
+        expect(fmt.format(CellValue.date(pm)), '2:30 P');
+        expect(fmt.format(CellValue.date(am)), '9:30 A');
+      });
+
+      test('a/p abbreviated lower', () {
+        const fmt = CellFormat(
+          type: CellFormatType.time,
+          formatCode: 'h:mm a/p',
+        );
+        final pm = DateTime(2024, 1, 1, 14, 30);
+        final am = DateTime(2024, 1, 1, 9, 30);
+        expect(fmt.format(CellValue.date(pm)), '2:30 p');
+        expect(fmt.format(CellValue.date(am)), '9:30 a');
       });
     });
 
@@ -478,6 +559,33 @@ void main() {
         );
         final date = DateTime(2024, 6, 15, 12, 0, 0);
         expect(fmt.format(CellValue.date(date)), '6/15/2024 12:00:00 PM');
+      });
+
+      test('h:mm:ss with date type resolves m to minutes', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'h:mm:ss',
+        );
+        final date = DateTime(2024, 1, 15, 14, 30, 45);
+        expect(fmt.format(CellValue.date(date)), '14:30:45');
+      });
+
+      test('m before s resolves to unpadded minutes', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'yyyy-MM-dd h:m:ss',
+        );
+        final date = DateTime(2024, 1, 15, 14, 5, 45);
+        expect(fmt.format(CellValue.date(date)), '2024-01-15 14:5:45');
+      });
+
+      test('m as month when no hour/second neighbor', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'm/d/yyyy',
+        );
+        final date = DateTime(2024, 3, 5);
+        expect(fmt.format(CellValue.date(date)), '3/5/2024');
       });
     });
 

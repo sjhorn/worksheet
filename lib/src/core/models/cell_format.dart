@@ -647,84 +647,314 @@ class _CellFormatEngine {
 
   static const _dayAbbr = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
-  /// Formats a DateTime value using date/time format codes.
-  static String _formatDateTime(DateTime date, CellFormat fmt) {
-    var code = fmt.formatCode;
-
-    // Determine AM/PM mode
-    final hasAmPm =
-        code.contains('AM/PM') || code.contains('am/pm') || code.contains('A/P');
-    var hour = date.hour;
-    String ampm = '';
-    if (hasAmPm) {
-      ampm = hour >= 12 ? 'PM' : 'AM';
-      hour = hour % 12;
-      if (hour == 0) hour = 12;
-    }
-
-    // Replace tokens from longest to shortest to avoid partial matches.
-    // Use placeholder substitution to prevent double-replacement.
-
-    // Year
-    code = code.replaceAll('yyyy', date.year.toString().padLeft(4, '0'));
-    code = code.replaceAll('yy', (date.year % 100).toString().padLeft(2, '0'));
-
-    // Month (full, abbreviated, 2-digit, 1-digit)
-    // Must handle before single 'm' to avoid partial matches
-    code = code.replaceAll('mmmm', _monthNames[date.month - 1]);
-    code = code.replaceAll('mmm', _monthAbbr[date.month - 1]);
-
-    // Day names (before numeric day replacement)
-    code = code.replaceAll('dddd',
-        _dayNames[date.weekday - 1]); // DateTime.weekday is 1=Mon
-    code = code.replaceAll('ddd', _dayAbbr[date.weekday - 1]);
-
-    // For 'MM' and 'm' — context determines month vs. minute.
-    // In Excel: 'm' after 'h' or before 's' means minutes; otherwise month.
-    // Our approach: for date formats, treat 'mm' and 'm' as month.
-    // For time formats, treat them as minutes.
-    if (fmt.type == CellFormatType.time) {
-      // Time context: mm/m = minutes, H/h = hours, ss/s = seconds
-      code = code.replaceAll('HH', date.hour.toString().padLeft(2, '0'));
-      code = code.replaceAll(RegExp(r'(?<!H)H(?!H)'),
-          date.hour.toString());
-      code = code.replaceAll('hh', hour.toString().padLeft(2, '0'));
-      code = code.replaceAll(RegExp(r'(?<!h)h(?!h)'), hour.toString());
-      code = code.replaceAll('ss', date.second.toString().padLeft(2, '0'));
-      code = code.replaceAll('mm', date.minute.toString().padLeft(2, '0'));
-      code = code.replaceAll('AM/PM', ampm);
-      code = code.replaceAll('am/pm', ampm.toLowerCase());
-    } else {
-      // Date context: MM/mm/m = month, dd/d = day
-      code = code.replaceAll('MM', date.month.toString().padLeft(2, '0'));
-      // Lowercase 'mm' as month — only when NOT adjacent to ':' (time context)
-      code = code.replaceAll(
-        RegExp(r'(?<![\d:])mm(?!:)'),
-        date.month.toString().padLeft(2, '0'),
-      );
-      code = code.replaceAll('dd', date.day.toString().padLeft(2, '0'));
-      // Single 'm' for month (no padding)
-      code = code.replaceAll(RegExp(r'(?<!m)m(?!m)'), date.month.toString());
-      // Single 'd' for day (no padding)
-      code = code.replaceAll(RegExp(r'(?<!d)d(?!d)'), date.day.toString());
-
-      // Handle time tokens in date formats (e.g., 'm/d/yyyy H:mm')
-      if (code.contains('H') || code.contains('h')) {
-        code = code.replaceAll('HH', date.hour.toString().padLeft(2, '0'));
-        code = code.replaceAll(RegExp(r'(?<!H)H(?!H)'),
-            date.hour.toString());
-        code = code.replaceAll('hh', hour.toString().padLeft(2, '0'));
-        code = code.replaceAll(RegExp(r'(?<!h)h(?!h)'), hour.toString());
-        code = code.replaceAll(
-          RegExp(r'(?<=[\d:])mm|mm(?=:)'),
-          date.minute.toString().padLeft(2, '0'),
-        );
-        code = code.replaceAll('ss', date.second.toString().padLeft(2, '0'));
-        code = code.replaceAll('AM/PM', ampm);
-        code = code.replaceAll('am/pm', ampm.toLowerCase());
+  /// Extracts quoted literals (`"..."`) and escape sequences (`\X`) from a
+  /// format string, replacing them with PUA placeholders.
+  /// Returns the processed string and the list of extracted literals.
+  static (String, List<String>) _extractLiterals(String code) {
+    final literals = <String>[];
+    final buf = StringBuffer();
+    var i = 0;
+    while (i < code.length) {
+      if (code[i] == '"') {
+        final end = code.indexOf('"', i + 1);
+        if (end != -1) {
+          final ph = _placeholder(literals.length);
+          literals.add(code.substring(i + 1, end));
+          buf.write(ph);
+          i = end + 1;
+        } else {
+          buf.write(code[i]);
+          i++;
+        }
+      } else if (code[i] == '\\' && i + 1 < code.length) {
+        final ph = _placeholder(literals.length);
+        literals.add(code[i + 1]);
+        buf.write(ph);
+        i += 2;
+      } else {
+        buf.write(code[i]);
+        i++;
       }
     }
-
-    return code;
+    return (buf.toString(), literals);
   }
+
+  /// Case-sensitive substring match at a specific position.
+  static bool _matchAt(String source, int pos, String target) {
+    if (pos + target.length > source.length) return false;
+    for (var i = 0; i < target.length; i++) {
+      if (source.codeUnitAt(pos + i) != target.codeUnitAt(i)) return false;
+    }
+    return true;
+  }
+
+  /// Tokenizes a date/time format string into a list of [_FmtToken]s.
+  /// Uses left-to-right greedy longest-match scanning.
+  static List<_FmtToken> _tokenizeDateFormat(String code) {
+    final tokens = <_FmtToken>[];
+    var i = 0;
+
+    // Ordered by priority: AM/PM markers first (contain '/'), then
+    // longest-to-shortest for each letter group.
+    while (i < code.length) {
+      _FmtToken? matched;
+
+      // AM/PM markers (checked first because they contain '/')
+      for (final entry in _ampmPatterns) {
+        if (_matchAt(code, i, entry.$1)) {
+          matched = _FmtToken(entry.$2, entry.$1);
+          break;
+        }
+      }
+
+      // Date/time token patterns (longest first per group)
+      if (matched == null) {
+        for (final entry in _dateTimePatterns) {
+          if (_matchAt(code, i, entry.$1)) {
+            matched = _FmtToken(entry.$2, entry.$1);
+            break;
+          }
+        }
+      }
+
+      if (matched != null) {
+        tokens.add(matched);
+        i += matched.raw.length;
+      } else {
+        // Literal character (including PUA placeholders)
+        tokens.add(_FmtToken(_DateToken.literal, code[i]));
+        i++;
+      }
+    }
+    return tokens;
+  }
+
+  /// AM/PM pattern table: (pattern, token type), checked first.
+  static const _ampmPatterns = [
+    ('AM/PM', _DateToken.ampmUpper),
+    ('am/pm', _DateToken.ampmLower),
+    ('A/P', _DateToken.apUpper),
+    ('a/p', _DateToken.apLower),
+  ];
+
+  /// Date/time pattern table: (pattern, token type), longest first per group.
+  static const _dateTimePatterns = [
+    // Year
+    ('yyyy', _DateToken.yyyy),
+    ('yy', _DateToken.yy),
+    // Month (5-letter first-letter, then 4/3/2-letter explicit, then ambiguous)
+    ('mmmmm', _DateToken.mmmmm),
+    ('mmmm', _DateToken.mmmm),
+    ('mmm', _DateToken.mmm),
+    ('MM', _DateToken.monthPadded),
+    ('mm', _DateToken.mmAmbig),
+    ('m', _DateToken.mAmbig),
+    // Day
+    ('dddd', _DateToken.dddd),
+    ('ddd', _DateToken.ddd),
+    ('dd', _DateToken.dd),
+    ('d', _DateToken.d),
+    // Hour (24h uppercase)
+    ('HH', _DateToken.hourH24Padded),
+    ('H', _DateToken.hourH24),
+    // Hour (12h lowercase)
+    ('hh', _DateToken.hh),
+    ('h', _DateToken.h),
+    // Seconds
+    ('ss', _DateToken.ss),
+    ('s', _DateToken.s),
+  ];
+
+  /// Resolves ambiguous `m`/`mm` tokens to either month or minute based on
+  /// context: adjacent to hour → minute; adjacent to second → minute;
+  /// otherwise → month. Time format type forces all to minutes.
+  static List<_FmtToken> _resolveAmbiguousM(
+    List<_FmtToken> tokens,
+    CellFormatType type,
+  ) {
+    final result = <_FmtToken>[];
+    for (var i = 0; i < tokens.length; i++) {
+      final t = tokens[i];
+      if (t.type == _DateToken.mmAmbig || t.type == _DateToken.mAmbig) {
+        final padded = t.type == _DateToken.mmAmbig;
+        if (type == CellFormatType.time || _isMinuteContext(tokens, i)) {
+          result.add(_FmtToken(
+            padded ? _DateToken.minPadded : _DateToken.minUnpadded,
+            t.raw,
+          ));
+        } else {
+          result.add(_FmtToken(
+            padded ? _DateToken.monPadded : _DateToken.monUnpadded,
+            t.raw,
+          ));
+        }
+      } else {
+        result.add(t);
+      }
+    }
+    return result;
+  }
+
+  /// Checks whether the ambiguous m/mm at [index] is in a minute context:
+  /// scan left for an hour token (skipping literals), scan right for a
+  /// second token (skipping literals).
+  static bool _isMinuteContext(List<_FmtToken> tokens, int index) {
+    // Scan left for hour token
+    for (var j = index - 1; j >= 0; j--) {
+      final tt = tokens[j].type;
+      if (tt == _DateToken.literal) continue;
+      if (tt == _DateToken.hourH24Padded ||
+          tt == _DateToken.hourH24 ||
+          tt == _DateToken.hh ||
+          tt == _DateToken.h) {
+        return true;
+      }
+      break; // non-literal, non-hour → stop
+    }
+    // Scan right for second token
+    for (var j = index + 1; j < tokens.length; j++) {
+      final tt = tokens[j].type;
+      if (tt == _DateToken.literal) continue;
+      if (tt == _DateToken.ss || tt == _DateToken.s) {
+        return true;
+      }
+      break; // non-literal, non-second → stop
+    }
+    return false;
+  }
+
+  /// Formats a single token into its string representation.
+  static String _formatToken(
+    _FmtToken token,
+    DateTime date,
+    int hour12,
+    bool hasAmPm,
+    bool isPM,
+  ) {
+    switch (token.type) {
+      case _DateToken.yyyy:
+        return date.year.toString().padLeft(4, '0');
+      case _DateToken.yy:
+        return (date.year % 100).toString().padLeft(2, '0');
+      case _DateToken.mmmmm:
+        return _monthNames[date.month - 1][0];
+      case _DateToken.mmmm:
+        return _monthNames[date.month - 1];
+      case _DateToken.mmm:
+        return _monthAbbr[date.month - 1];
+      case _DateToken.monthPadded:
+        return date.month.toString().padLeft(2, '0');
+      case _DateToken.monPadded:
+        return date.month.toString().padLeft(2, '0');
+      case _DateToken.monUnpadded:
+        return date.month.toString();
+      case _DateToken.minPadded:
+        return date.minute.toString().padLeft(2, '0');
+      case _DateToken.minUnpadded:
+        return date.minute.toString();
+      case _DateToken.dddd:
+        return _dayNames[date.weekday - 1];
+      case _DateToken.ddd:
+        return _dayAbbr[date.weekday - 1];
+      case _DateToken.dd:
+        return date.day.toString().padLeft(2, '0');
+      case _DateToken.d:
+        return date.day.toString();
+      case _DateToken.hourH24Padded:
+        return date.hour.toString().padLeft(2, '0');
+      case _DateToken.hourH24:
+        return date.hour.toString();
+      case _DateToken.hh:
+        return (hasAmPm ? hour12 : date.hour).toString().padLeft(2, '0');
+      case _DateToken.h:
+        return (hasAmPm ? hour12 : date.hour).toString();
+      case _DateToken.ss:
+        return date.second.toString().padLeft(2, '0');
+      case _DateToken.s:
+        return date.second.toString();
+      case _DateToken.ampmUpper:
+        return isPM ? 'PM' : 'AM';
+      case _DateToken.ampmLower:
+        return isPM ? 'pm' : 'am';
+      case _DateToken.apUpper:
+        return isPM ? 'P' : 'A';
+      case _DateToken.apLower:
+        return isPM ? 'p' : 'a';
+      case _DateToken.literal:
+        return token.raw;
+      // Ambiguous tokens should be resolved before formatting
+      case _DateToken.mmAmbig:
+      case _DateToken.mAmbig:
+        return token.raw;
+    }
+  }
+
+  /// Formats a DateTime value using date/time format codes.
+  ///
+  /// Uses a 6-step token-based pipeline:
+  /// 1. Extract literals (quoted strings, escape sequences)
+  /// 2. Tokenize left-to-right with greedy longest-match
+  /// 3. Resolve ambiguous m/mm to month or minute by context
+  /// 4. Detect AM/PM mode and compute 12-hour values
+  /// 5. Format each token
+  /// 6. Restore literal placeholders
+  static String _formatDateTime(DateTime date, CellFormat fmt) {
+    // Step 1: Extract literals into PUA placeholders
+    final (stripped, literals) = _extractLiterals(fmt.formatCode);
+
+    // Step 2: Tokenize
+    var tokens = _tokenizeDateFormat(stripped);
+
+    // Step 3: Resolve ambiguous m/mm
+    tokens = _resolveAmbiguousM(tokens, fmt.type);
+
+    // Step 4: Detect AM/PM
+    final hasAmPm = tokens.any((t) =>
+        t.type == _DateToken.ampmUpper ||
+        t.type == _DateToken.ampmLower ||
+        t.type == _DateToken.apUpper ||
+        t.type == _DateToken.apLower);
+    final isPM = date.hour >= 12;
+    var hour12 = date.hour % 12;
+    if (hour12 == 0) hour12 = 12;
+
+    // Step 5: Format each token
+    final buf = StringBuffer();
+    for (final token in tokens) {
+      buf.write(_formatToken(token, date, hour12, hasAmPm, isPM));
+    }
+    var result = buf.toString();
+
+    // Step 6: Restore literal placeholders
+    for (var j = 0; j < literals.length; j++) {
+      result = result.replaceAll(_placeholder(j), literals[j]);
+    }
+
+    return result;
+  }
+}
+
+/// Classifies every token in a date/time format string.
+enum _DateToken {
+  yyyy, yy,
+  mmmmm, mmmm, mmm,
+  monthPadded,  // MM — explicit month, never ambiguous
+  mmAmbig,      // mm — ambiguous, resolved to monPadded or minPadded
+  mAmbig,       // m — ambiguous, resolved to monUnpadded or minUnpadded
+  monPadded, monUnpadded,   // resolved month tokens
+  minPadded, minUnpadded,   // resolved minute tokens
+  dddd, ddd, dd, d,
+  hourH24Padded, hourH24,   // HH, H — 24-hour
+  hh, h,                    // hh, h — 12-hour (or 24-hour without AM/PM)
+  ss, s,
+  ampmUpper, ampmLower,     // AM/PM, am/pm
+  apUpper, apLower,         // A/P, a/p
+  literal,
+}
+
+/// A single token from a date/time format string.
+class _FmtToken {
+  final _DateToken type;
+  final String raw;
+  const _FmtToken(this.type, this.raw);
 }
