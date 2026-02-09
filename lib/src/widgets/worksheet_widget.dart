@@ -232,6 +232,7 @@ class _WorksheetState extends State<Worksheet>
   // Auto-scroll during drag selection
   Timer? _autoScrollTimer;
   Offset? _lastPointerPosition;
+  PointerDeviceKind? _lastPointerKind;
   static const Duration _autoScrollInterval = Duration(milliseconds: 16);
 
   // Timer for keyboard scroll adjustment (cancellable for tests)
@@ -528,6 +529,10 @@ class _WorksheetState extends State<Worksheet>
   }
 
   /// Smoothly scrolls to ensure the focused cell is visible.
+  ///
+  /// Accounts for the virtual keyboard by subtracting [viewInsets.bottom]
+  /// from the viewport height, so cells behind the keyboard are not
+  /// considered "visible".
   void _ensureSelectionVisible() {
     final cell = _controller.selectionController.focus;
     if (cell == null) return;
@@ -535,7 +540,10 @@ class _WorksheetState extends State<Worksheet>
     final size = context.size;
     if (size == null) return;
 
-    _controller.ensureCellVisible(cell, viewportSize: size);
+    final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+    final adjustedSize = Size(size.width, size.height - keyboardHeight);
+
+    _controller.ensureCellVisible(cell, viewportSize: adjustedSize);
   }
 
   /// Scrolls to center the cell vertically in the visible area above the keyboard.
@@ -604,15 +612,22 @@ class _WorksheetState extends State<Worksheet>
     _layoutVersion++;
     setState(() {});
 
-    // Scroll cell into view after keyboard has time to appear.
-    // Cancel any pending timer and start a new one.
-    _keyboardScrollTimer?.cancel();
-    _keyboardScrollTimer = Timer(const Duration(milliseconds: 300), () {
-      if (!mounted) return;
-      final ec = widget.editController;
-      if (ec == null || !ec.isEditing) return;
-      _scrollCellToCenter(cell);
-    });
+    // Scroll strategy depends on whether a virtual keyboard is expected.
+    // Touch input → virtual keyboard will appear, so center the cell after
+    // a short delay (viewInsets.bottom is unreliable on iOS Safari).
+    // Mouse/keyboard input → no virtual keyboard, just ensure visibility.
+    final isTouch = _lastPointerKind == PointerDeviceKind.touch;
+    if (isTouch && trigger == EditTrigger.doubleTap) {
+      _keyboardScrollTimer?.cancel();
+      _keyboardScrollTimer = Timer(const Duration(milliseconds: 300), () {
+        if (!mounted) return;
+        final ec = widget.editController;
+        if (ec == null || !ec.isEditing) return;
+        _scrollCellToCenter(cell);
+      });
+    } else {
+      _ensureSelectionVisible();
+    }
   }
 
   /// Clears the editing cell from the tile painter so tile text re-appears.
@@ -1057,6 +1072,7 @@ class _WorksheetState extends State<Worksheet>
                     onPointerDown: widget.readOnly
                         ? null
                         : (event) {
+                            _lastPointerKind = event.kind;
                             // Only handle primary button (left click) for selection
                             if (event.buttons == kPrimaryButton) {
                               // Skip selection when pointer is on a scrollbar
@@ -1295,7 +1311,13 @@ class _WorksheetState extends State<Worksheet>
                       fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
                       fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
                       textColor: cellStyle.textColor ?? theme.textColor,
-                      textAlign: _toTextAlign(cellStyle.textAlignment),
+                      textAlign: _toTextAlign(
+                        cellStyle.textAlignment ??
+                            (widget.data.getCell(cell) != null
+                                ? CellStyle.implicitAlignment(
+                                    widget.data.getCell(cell)!.type)
+                                : null),
+                      ),
                       cellPadding: theme.cellPadding,
                       restoreFocusTo: _keyboardFocusNode,
                     );
