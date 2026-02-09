@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-02-09
+
+### Changed
+- Rewrote date/time formatter with token-based pipeline for correct context-sensitive `m`/`mm` disambiguation
+
+### Added
+- `mmmmm` format token — first letter of month name
+- `A/P` and `a/p` format tokens — abbreviated AM/PM markers
+- `s` format token — unpadded seconds
+- `mmmm` and `dddd`/`ddd` format tokens now handled via tokenizer (previously worked but fragile)
+
 ## [1.9.0] - 2026-02-08
 
 ### Added

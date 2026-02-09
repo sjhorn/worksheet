@@ -1,5 +1,5 @@
 name: worksheet
-version: 1.9.0
+version: 1.10.0
 
 homepage: https://pub.dev/packages/worksheet
 repository: https://github.com/sjhorn/worksheet
@@ -35,3 +35,10 @@ flutter:
     - family: Roboto
       fonts:
         - asset: assets/fonts/Roboto-Regular.ttf
+        - asset: assets/fonts/Roboto-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Roboto-Italic.ttf
+          style: italic
+        - asset: assets/fonts/Roboto-BoldItalic.ttf
+          weight: 700
+          style: italic
