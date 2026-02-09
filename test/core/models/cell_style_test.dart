@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/models/cell_style.dart';
+import 'package:worksheet/src/core/models/cell_value.dart';
 
 void main() {
   group('BorderStyle', () {
@@ -243,7 +244,7 @@ void main() {
       expect(CellStyle.defaultStyle.fontWeight, FontWeight.normal);
       expect(CellStyle.defaultStyle.fontStyle, FontStyle.normal);
       expect(CellStyle.defaultStyle.textColor, const Color(0xFF000000));
-      expect(CellStyle.defaultStyle.textAlignment, CellTextAlignment.left);
+      expect(CellStyle.defaultStyle.textAlignment, isNull);
       expect(CellStyle.defaultStyle.verticalAlignment, CellVerticalAlignment.middle);
       expect(CellStyle.defaultStyle.borders, CellBorders.none);
       expect(CellStyle.defaultStyle.wrapText, isFalse);
@@ -392,6 +393,74 @@ void main() {
       expect(CellVerticalAlignment.top.index, 0);
       expect(CellVerticalAlignment.middle.index, 1);
       expect(CellVerticalAlignment.bottom.index, 2);
+    });
+  });
+
+  group('CellStyle.implicitAlignment', () {
+    test('numbers align right', () {
+      expect(
+        CellStyle.implicitAlignment(CellValueType.number),
+        CellTextAlignment.right,
+      );
+    });
+
+    test('booleans align right', () {
+      expect(
+        CellStyle.implicitAlignment(CellValueType.boolean),
+        CellTextAlignment.right,
+      );
+    });
+
+    test('dates align right', () {
+      expect(
+        CellStyle.implicitAlignment(CellValueType.date),
+        CellTextAlignment.right,
+      );
+    });
+
+    test('durations align right', () {
+      expect(
+        CellStyle.implicitAlignment(CellValueType.duration),
+        CellTextAlignment.right,
+      );
+    });
+
+    test('text aligns left', () {
+      expect(
+        CellStyle.implicitAlignment(CellValueType.text),
+        CellTextAlignment.left,
+      );
+    });
+
+    test('formulas align left', () {
+      expect(
+        CellStyle.implicitAlignment(CellValueType.formula),
+        CellTextAlignment.left,
+      );
+    });
+
+    test('errors align left', () {
+      expect(
+        CellStyle.implicitAlignment(CellValueType.error),
+        CellTextAlignment.left,
+      );
+    });
+
+    test('explicit textAlignment overrides implicit', () {
+      // When a style has an explicit alignment, it should be used
+      // regardless of value type.
+      const style = CellStyle(textAlignment: CellTextAlignment.center);
+      final merged = CellStyle.defaultStyle.merge(style);
+      // The merged style has an explicit alignment, so it wins.
+      expect(merged.textAlignment, CellTextAlignment.center);
+    });
+
+    test('null textAlignment falls through to implicit', () {
+      // When no explicit alignment is set, implicit should be used.
+      const style = CellStyle();
+      final merged = CellStyle.defaultStyle.merge(style);
+      expect(merged.textAlignment, isNull);
+      // The caller would then use implicitAlignment based on value type.
     });
   });
 }

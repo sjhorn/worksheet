@@ -11,6 +11,7 @@ import '../../core/models/cell_range.dart';
 import '../../core/models/cell_format.dart';
 import '../../core/models/cell_style.dart';
 import '../../core/models/cell_value.dart';
+import '../../widgets/worksheet_theme.dart';
 import '../painters/border_painter.dart';
 import 'tile_coordinate.dart';
 import 'tile_manager.dart';
@@ -71,7 +72,7 @@ class TilePainter implements TileRenderer {
     this.backgroundColor = const Color(0xFFFFFFFF),
     this.defaultTextColor = const Color(0xFF000000),
     this.defaultFontSize = 14.0,
-    this.defaultFontFamily = 'Roboto',
+    this.defaultFontFamily = CellStyle.defaultFontFamily,
     this.cellPadding = 4.0,
     this.devicePixelRatio,
   }) {
@@ -340,12 +341,14 @@ class TilePainter implements TileRenderer {
     final text = format != null ? format.format(value) : value.displayValue;
 
     // Create text painter
+    final fontFamily = mergedStyle.fontFamily ?? defaultFontFamily;
     final textStyle = TextStyle(
       color: _getTextColor(value, mergedStyle),
       fontSize: mergedStyle.fontSize ?? defaultFontSize,
       fontWeight: mergedStyle.fontWeight ?? FontWeight.normal,
       fontStyle: mergedStyle.fontStyle ?? FontStyle.normal,
-      fontFamily: mergedStyle.fontFamily ?? defaultFontFamily,
+      fontFamily: fontFamily,
+      package: WorksheetThemeData.resolveFontPackage(fontFamily),
     );
 
     final textSpan = TextSpan(text: text, style: textStyle);
@@ -361,7 +364,7 @@ class TilePainter implements TileRenderer {
     textPainter.layout(maxWidth: availableWidth > 0 ? availableWidth : 0);
 
     // Calculate position based on alignment
-    final offset = _calculateTextOffset(bounds, textPainter, mergedStyle);
+    final offset = _calculateTextOffset(bounds, textPainter, mergedStyle, value);
 
     // Clip to cell bounds and paint
     canvas.save();
@@ -386,12 +389,13 @@ class TilePainter implements TileRenderer {
     ui.Rect bounds,
     TextPainter textPainter,
     CellStyle style,
+    CellValue value,
   ) {
     double dx;
     double dy;
 
     // Horizontal alignment
-    switch (style.textAlignment ?? CellTextAlignment.left) {
+    switch (style.textAlignment ?? CellStyle.implicitAlignment(value.type)) {
       case CellTextAlignment.left:
         dx = bounds.left + cellPadding;
         break;

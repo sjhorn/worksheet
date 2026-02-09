@@ -2,6 +2,7 @@ import 'dart:ui';
 
 import 'package:flutter/widgets.dart';
 
+import '../core/models/cell_style.dart';
 import '../rendering/painters/header_renderer.dart';
 import '../rendering/painters/selection_renderer.dart';
 
@@ -10,6 +11,15 @@ import '../rendering/painters/selection_renderer.dart';
 /// Contains all configurable visual properties for the worksheet widget.
 @immutable
 class WorksheetThemeData {
+  /// The package name used to resolve bundled font assets.
+  static const String packageName = 'worksheet';
+
+  /// Returns `'worksheet'` when [fontFamily] is the bundled default,
+  /// `null` otherwise (so consumer-provided fonts resolve from the app).
+  static String? resolveFontPackage(String fontFamily) {
+    return fontFamily == CellStyle.defaultFontFamily ? packageName : null;
+  }
+
   /// The selection style (highlight color, border, etc.).
   final SelectionStyle selectionStyle;
 
@@ -63,7 +73,7 @@ class WorksheetThemeData {
     this.cellBackgroundColor = const Color(0xFFFFFFFF),
     this.textColor = const Color(0xFF000000),
     this.fontSize = 14.0,
-    this.fontFamily = 'Roboto',
+    this.fontFamily = CellStyle.defaultFontFamily,
     this.rowHeaderWidth = 50.0,
     this.columnHeaderHeight = 24.0,
     this.defaultRowHeight = 24.0,

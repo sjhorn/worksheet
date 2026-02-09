@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/models/cell_coordinate.dart';
+import '../core/models/cell_style.dart';
 import '../core/models/cell_value.dart';
 import '../interaction/controllers/edit_controller.dart';
+import 'worksheet_theme.dart';
 
 /// Overlay widget that displays an EditableText over the cell being edited.
 ///
@@ -77,7 +79,7 @@ class CellEditorOverlay extends StatefulWidget {
     this.onCommitAndNavigate,
     this.zoom = 1.0,
     this.fontSize = 14.0,
-    this.fontFamily = 'Roboto',
+    this.fontFamily = CellStyle.defaultFontFamily,
     this.fontWeight = FontWeight.normal,
     this.fontStyle = FontStyle.normal,
     this.textColor = const Color(0xFF000000),
@@ -285,38 +287,49 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       return const SizedBox.shrink();
     }
 
-    final width = widget.cellBounds.width < CellEditorOverlay.minWidth
-        ? CellEditorOverlay.minWidth
-        : widget.cellBounds.width;
-
     final zoom = widget.zoom;
-    final scaledFontSize = widget.fontSize * zoom;
-    final scaledPadding = widget.cellPadding * zoom;
+
+    // All sizes at BASE (unzoomed) dimensions, matching the tile painter which
+    // renders at base font size then GPU-scales with canvas.scale(zoom).
+    // We wrap the widget in Transform.scale to achieve the same effect.
+    final unzoomedWidth = widget.cellBounds.width / zoom;
+    final unzoomedHeight = widget.cellBounds.height / zoom;
+
+    final effectiveWidth = unzoomedWidth < CellEditorOverlay.minWidth
+        ? CellEditorOverlay.minWidth
+        : unzoomedWidth;
 
     final textStyle = TextStyle(
-      fontSize: scaledFontSize,
+      fontSize: widget.fontSize,
       fontFamily: widget.fontFamily,
       fontWeight: widget.fontWeight,
       fontStyle: widget.fontStyle,
       color: widget.textColor,
+      package: WorksheetThemeData.resolveFontPackage(widget.fontFamily),
     );
 
-    // Measure text height to match tile painter's vertical centering exactly:
-    // dy = bounds.top + (bounds.height - textPainter.height) / 2
+    // Measure text height at base size to match tile painter's vertical
+    // centering exactly: dy = bounds.top + (bounds.height - textPainter.height) / 2
     final measurer = TextPainter(
       text: TextSpan(text: 'Xg', style: textStyle),
       textDirection: TextDirection.ltr,
       maxLines: 1,
     )..layout();
     final textHeight = measurer.height;
+    // Cursor height uses ascent + descent (glyph bounds) rather than the
+    // full line height which includes leading and looks too tall.
+    final metrics = measurer.computeLineMetrics();
+    final cursorHeight = metrics.isNotEmpty
+        ? metrics.first.ascent + metrics.first.descent
+        : textHeight;
     measurer.dispose();
 
-    final verticalPad = ((widget.cellBounds.height - textHeight) / 2).clamp(
+    final verticalPad = ((unzoomedHeight - textHeight) / 2).clamp(
       0.0,
       double.infinity,
     );
 
-    // Match tile painter's per-alignment horizontal padding:
+    // Match tile painter's per-alignment horizontal padding (at base size):
     //   left:   dx = bounds.left + cellPadding
     //   center: dx = bounds.left + (bounds.width - textWidth) / 2  (no padding)
     //   right:  dx = bounds.right - cellPadding - textWidth
@@ -326,14 +339,14 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       case TextAlign.right:
       case TextAlign.end:
         leftPad = 0;
-        rightPad = scaledPadding;
+        rightPad = widget.cellPadding;
         break;
       case TextAlign.center:
         leftPad = 0;
         rightPad = 0;
         break;
       default:
-        leftPad = scaledPadding;
+        leftPad = widget.cellPadding;
         rightPad = 0;
         break;
     }
@@ -341,30 +354,34 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     return Positioned(
       left: widget.cellBounds.left,
       top: widget.cellBounds.top,
-      child: FocusScope(
-        child: SizedBox(
-          width: width,
-          height: widget.cellBounds.height,
-          child: TextField(
-            controller: _textController,
-            focusNode: _focusNode,
-            autofocus: true,
-            style: textStyle,
-            maxLines: 1,
-            textAlign: widget.textAlign,
-            decoration: InputDecoration(
-              contentPadding: EdgeInsets.fromLTRB(
-                leftPad,
-                verticalPad,
-                rightPad,
-                verticalPad,
+      child: Transform.scale(
+        scale: zoom,
+        alignment: Alignment.topLeft,
+        child: FocusScope(
+          child: SizedBox(
+            width: effectiveWidth,
+            height: unzoomedHeight,
+            child: TextField(
+              controller: _textController,
+              focusNode: _focusNode,
+              autofocus: true,
+              style: textStyle,
+              maxLines: 1,
+              textAlign: widget.textAlign,
+              decoration: InputDecoration(
+                contentPadding: EdgeInsets.fromLTRB(
+                  leftPad,
+                  verticalPad,
+                  rightPad,
+                  verticalPad,
+                ),
+                border: InputBorder.none,
+                isCollapsed: true,
               ),
-              border: InputBorder.none,
-              isCollapsed: true,
+              cursorHeight: cursorHeight,
+              cursorColor: widget.textColor,
+              onChanged: _onTextChanged,
             ),
-            cursorHeight: textHeight,
-            cursorColor: widget.textColor,
-            onChanged: _onTextChanged,
           ),
         ),
       ),

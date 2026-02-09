@@ -12,10 +12,19 @@ void main() {
   const Size surfaceSize = Size(700, 350);
 
   setUpAll(() async {
-    // Load Roboto font for consistent rendering
-    final fontData = File('assets/fonts/Roboto-Regular.ttf').readAsBytesSync();
-    final fontLoader = FontLoader('Roboto')
-      ..addFont(Future.value(ByteData.view(fontData.buffer)));
+    // Load all Roboto variants under the package-resolved name.
+    // When a package declares fonts, Flutter registers them as
+    // 'packages/<package>/<family>', so golden tests must match.
+    final fontLoader = FontLoader('packages/worksheet/Roboto');
+    for (final fileName in [
+      'Roboto-Regular.ttf',
+      'Roboto-Bold.ttf',
+      'Roboto-Italic.ttf',
+      'Roboto-BoldItalic.ttf',
+    ]) {
+      final fontData = File('assets/fonts/$fileName').readAsBytesSync();
+      fontLoader.addFont(Future.value(ByteData.view(fontData.buffer)));
+    }
     await fontLoader.load();
   });
 

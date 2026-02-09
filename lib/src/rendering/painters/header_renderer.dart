@@ -3,6 +3,8 @@ import 'package:flutter/painting.dart';
 import '../../core/geometry/layout_solver.dart';
 import '../../core/geometry/span_list.dart';
 import '../../core/models/cell_range.dart';
+import '../../core/models/cell_style.dart';
+import '../../widgets/worksheet_theme.dart';
 
 /// Configuration for header rendering appearance.
 class HeaderStyle {
@@ -42,7 +44,7 @@ class HeaderStyle {
     this.borderWidth = 1.0,
     this.fontSize = 12.0,
     this.fontWeight = FontWeight.w500,
-    this.fontFamily = 'Roboto',
+    this.fontFamily = CellStyle.defaultFontFamily,
   });
 
   /// Default header style.
@@ -350,6 +352,7 @@ class HeaderRenderer {
       fontSize: scaledFontSize,
       fontWeight: style.fontWeight,
       fontFamily: style.fontFamily,
+      package: WorksheetThemeData.resolveFontPackage(style.fontFamily),
     );
 
     final textSpan = TextSpan(text: text, style: textStyle);

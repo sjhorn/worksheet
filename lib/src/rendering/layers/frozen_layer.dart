@@ -8,6 +8,7 @@ import '../../core/models/cell_format.dart';
 import '../../core/models/cell_style.dart';
 import '../../core/models/cell_value.dart';
 import '../../core/models/freeze_config.dart';
+import '../../widgets/worksheet_theme.dart';
 import '../painters/border_painter.dart';
 import 'render_layer.dart';
 
@@ -61,7 +62,7 @@ class FrozenLayer extends RenderLayer {
     this.separatorWidth = 2.0,
     this.defaultTextColor = const Color(0xFF000000),
     this.defaultFontSize = 14.0,
-    this.defaultFontFamily = 'Roboto',
+    this.defaultFontFamily = CellStyle.defaultFontFamily,
     this.cellPadding = 4.0,
     this.devicePixelRatio,
   })  : _freezeConfig = freezeConfig,
@@ -490,6 +491,7 @@ class FrozenLayer extends RenderLayer {
     final text = format != null ? format.format(value) : value.displayValue;
 
     // Create text painter
+    final fontFamily = mergedStyle.fontFamily ?? defaultFontFamily;
     final textStyle = TextStyle(
       color: value.isError
           ? const Color(0xFFCC0000)
@@ -497,7 +499,8 @@ class FrozenLayer extends RenderLayer {
       fontSize: (mergedStyle.fontSize ?? defaultFontSize) * zoom,
       fontWeight: mergedStyle.fontWeight ?? FontWeight.normal,
       fontStyle: mergedStyle.fontStyle ?? FontStyle.normal,
-      fontFamily: mergedStyle.fontFamily ?? defaultFontFamily,
+      fontFamily: fontFamily,
+      package: WorksheetThemeData.resolveFontPackage(fontFamily),
     );
 
     final textSpan = TextSpan(text: text, style: textStyle);
@@ -514,7 +517,7 @@ class FrozenLayer extends RenderLayer {
     textPainter.layout(maxWidth: availableWidth > 0 ? availableWidth : 0);
 
     // Calculate position
-    final offset = _calculateTextOffset(bounds, textPainter, mergedStyle, padding);
+    final offset = _calculateTextOffset(bounds, textPainter, mergedStyle, padding, value);
 
     // Paint
     canvas.save();
@@ -530,11 +533,12 @@ class FrozenLayer extends RenderLayer {
     TextPainter textPainter,
     CellStyle style,
     double padding,
+    CellValue value,
   ) {
     double dx;
     double dy;
 
-    switch (style.textAlignment ?? CellTextAlignment.left) {
+    switch (style.textAlignment ?? CellStyle.implicitAlignment(value.type)) {
       case CellTextAlignment.left:
         dx = bounds.left + padding;
         break;

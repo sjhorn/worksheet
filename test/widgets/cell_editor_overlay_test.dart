@@ -166,9 +166,10 @@ void main() {
         cellBounds: narrowBounds,
       ));
 
-      // Find the Positioned > FocusScope > SizedBox
+      // Find the Positioned > Transform > FocusScope > SizedBox
       final positioned = tester.widget<Positioned>(find.byType(Positioned));
-      final focusScope = positioned.child as FocusScope;
+      final transform = positioned.child as Transform;
+      final focusScope = transform.child as FocusScope;
       final sizedBox = focusScope.child as SizedBox;
 
       // Should use minimum width, not the narrow cell width

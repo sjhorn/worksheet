@@ -1268,60 +1268,91 @@ class _WorksheetState extends State<Worksheet>
               // Cell editor overlay placed OUTSIDE Listener/GestureDetector
               // so touch events (especially on iOS) reach the TextField
               // directly, ensuring the software keyboard appears.
+              // Wrapped in a clipped Stack covering only the content area
+              // (below and right of headers) so the overlay scrolls behind
+              // headers instead of floating over them.
               if (widget.editController != null)
-                ListenableBuilder(
-                  listenable: widget.editController!,
-                  builder: (context, _) {
-                    if (!widget.editController!.isEditing) {
-                      return const Positioned(
-                        left: 0,
-                        top: 0,
-                        child: SizedBox.shrink(),
-                      );
-                    }
-                    final cell = widget.editController!.editingCell;
-                    if (cell == null) {
-                      return const Positioned(
-                        left: 0,
-                        top: 0,
-                        child: SizedBox.shrink(),
-                      );
-                    }
-                    final bounds = _controller.getCellScreenBounds(cell);
-                    if (bounds == null) {
-                      return const Positioned(
-                        left: 0,
-                        top: 0,
-                        child: SizedBox.shrink(),
-                      );
-                    }
-                    // Resolve per-cell style the same way tile_painter does
-                    final cellStyle = CellStyle.defaultStyle.merge(
-                      widget.data.getStyle(cell),
-                    );
-                    return CellEditorOverlay(
-                      editController: widget.editController!,
-                      cellBounds: bounds,
-                      onCommit: _onInternalCommit,
-                      onCancel: _onInternalCancel,
-                      onCommitAndNavigate: _onInternalCommitAndNavigate,
-                      zoom: _controller.zoom,
-                      fontSize: cellStyle.fontSize ?? theme.fontSize,
-                      fontFamily: cellStyle.fontFamily ?? theme.fontFamily,
-                      fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
-                      fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
-                      textColor: cellStyle.textColor ?? theme.textColor,
-                      textAlign: _toTextAlign(
-                        cellStyle.textAlignment ??
-                            (widget.data.getCell(cell) != null
-                                ? CellStyle.implicitAlignment(
-                                    widget.data.getCell(cell)!.type)
-                                : null),
+                Positioned(
+                  left: theme.showHeaders
+                      ? theme.rowHeaderWidth * _controller.zoom
+                      : 0,
+                  top: theme.showHeaders
+                      ? theme.columnHeaderHeight * _controller.zoom
+                      : 0,
+                  right: 0,
+                  bottom: 0,
+                  child: Stack(
+                    clipBehavior: Clip.hardEdge,
+                    children: [
+                      ListenableBuilder(
+                        listenable: widget.editController!,
+                        builder: (context, _) {
+                          final headerLeft = theme.showHeaders
+                              ? theme.rowHeaderWidth * _controller.zoom
+                              : 0.0;
+                          final headerTop = theme.showHeaders
+                              ? theme.columnHeaderHeight * _controller.zoom
+                              : 0.0;
+                          if (!widget.editController!.isEditing) {
+                            return const Positioned(
+                              left: 0,
+                              top: 0,
+                              child: SizedBox.shrink(),
+                            );
+                          }
+                          final cell = widget.editController!.editingCell;
+                          if (cell == null) {
+                            return const Positioned(
+                              left: 0,
+                              top: 0,
+                              child: SizedBox.shrink(),
+                            );
+                          }
+                          final bounds = _controller.getCellScreenBounds(cell);
+                          if (bounds == null) {
+                            return const Positioned(
+                              left: 0,
+                              top: 0,
+                              child: SizedBox.shrink(),
+                            );
+                          }
+                          // Shift bounds to be relative to the content area
+                          // origin so the clipped Stack hides overflow behind
+                          // headers.
+                          final adjustedBounds = bounds.shift(
+                            Offset(-headerLeft, -headerTop),
+                          );
+                          // Resolve per-cell style the same way tile_painter does
+                          final cellStyle = CellStyle.defaultStyle.merge(
+                            widget.data.getStyle(cell),
+                          );
+                          return CellEditorOverlay(
+                            editController: widget.editController!,
+                            cellBounds: adjustedBounds,
+                            onCommit: _onInternalCommit,
+                            onCancel: _onInternalCancel,
+                            onCommitAndNavigate: _onInternalCommitAndNavigate,
+                            zoom: _controller.zoom,
+                            fontSize: cellStyle.fontSize ?? theme.fontSize,
+                            fontFamily: cellStyle.fontFamily ?? theme.fontFamily,
+                            fontWeight:
+                                cellStyle.fontWeight ?? FontWeight.normal,
+                            fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
+                            textColor: cellStyle.textColor ?? theme.textColor,
+                            textAlign: _toTextAlign(
+                              cellStyle.textAlignment ??
+                                  (widget.data.getCell(cell) != null
+                                      ? CellStyle.implicitAlignment(
+                                          widget.data.getCell(cell)!.type)
+                                      : null),
+                            ),
+                            cellPadding: theme.cellPadding,
+                            restoreFocusTo: _keyboardFocusNode,
+                          );
+                        },
                       ),
-                      cellPadding: theme.cellPadding,
-                      restoreFocusTo: _keyboardFocusNode,
-                    );
-                  },
+                    ],
+                  ),
                 ),
               // Hidden TextField that acts as a keyboard trigger on iOS Safari.
               // iOS Safari requires focus() to be synchronous with a user

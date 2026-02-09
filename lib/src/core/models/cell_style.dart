@@ -4,6 +4,8 @@ import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 
+import 'cell_value.dart';
+
 /// Line style for cell borders, ordered by priority for conflict resolution.
 ///
 /// When adjacent cells share an edge, the border with the higher-priority
@@ -136,6 +138,9 @@ class CellBorders {
 /// Style configuration for a worksheet cell.
 @immutable
 class CellStyle {
+  /// The default font family bundled with the worksheet package.
+  static const String defaultFontFamily = 'Roboto';
+
   /// Background color of the cell.
   final Color? backgroundColor;
 
@@ -185,17 +190,38 @@ class CellStyle {
   });
 
   /// Default style with standard worksheet appearance.
+  ///
+  /// Note: [textAlignment] is intentionally `null` so that implicit
+  /// value-type alignment (numbers right, text left) takes effect
+  /// unless the user sets an explicit alignment.
   static const CellStyle defaultStyle = CellStyle(
-    fontFamily: 'Roboto',
+    fontFamily: defaultFontFamily,
     fontSize: 14.0,
     fontWeight: FontWeight.normal,
     fontStyle: FontStyle.normal,
     textColor: Color(0xFF000000),
-    textAlignment: CellTextAlignment.left,
     verticalAlignment: CellVerticalAlignment.middle,
     borders: CellBorders.none,
     wrapText: false,
   );
+
+  /// Returns the implicit horizontal alignment for a given [CellValueType].
+  ///
+  /// Numbers, booleans, dates, and durations align right (like Excel/Sheets).
+  /// Text, formulas, and errors align left.
+  static CellTextAlignment implicitAlignment(CellValueType type) {
+    switch (type) {
+      case CellValueType.number:
+      case CellValueType.boolean:
+      case CellValueType.date:
+      case CellValueType.duration:
+        return CellTextAlignment.right;
+      case CellValueType.text:
+      case CellValueType.formula:
+      case CellValueType.error:
+        return CellTextAlignment.left;
+    }
+  }
 
   /// Merges this style with [other], with [other] taking precedence.
   CellStyle merge(CellStyle? other) {
