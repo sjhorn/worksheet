@@ -5,6 +5,7 @@ import 'package:worksheet/src/core/data/data_change_event.dart';
 import 'package:worksheet/src/core/data/worksheet_data.dart';
 import 'package:worksheet/src/core/models/cell.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/data/merged_cell_registry.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/core/models/cell_style.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
@@ -94,6 +95,21 @@ class _MinimalWorksheetData extends WorksheetData {
     Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
   ]) {
     // Minimal implementation
+  }
+
+  final MergedCellRegistry _mergedCells = MergedCellRegistry();
+
+  @override
+  MergedCellRegistry get mergedCells => _mergedCells;
+
+  @override
+  void mergeCells(CellRange range) {
+    _mergedCells.merge(range);
+  }
+
+  @override
+  void unmergeCells(CellCoordinate cell) {
+    _mergedCells.unmerge(cell);
   }
 
   // Note: We intentionally do NOT override hasValue to test the default implementation

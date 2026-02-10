@@ -27,6 +27,12 @@ enum DataChangeType {
   /// Column deleted.
   columnDeleted,
 
+  /// Cells were merged.
+  merge,
+
+  /// Cells were unmerged.
+  unmerge,
+
   /// Full data reset/reload.
   reset,
 }
@@ -120,6 +126,22 @@ class DataChangeEvent {
     );
   }
 
+  /// Creates an event for a cell merge.
+  factory DataChangeEvent.merge(CellRange range) {
+    return DataChangeEvent._(
+      type: DataChangeType.merge,
+      range: range,
+    );
+  }
+
+  /// Creates an event for a cell unmerge.
+  factory DataChangeEvent.unmerge(CellRange range) {
+    return DataChangeEvent._(
+      type: DataChangeType.unmerge,
+      range: range,
+    );
+  }
+
   /// Creates an event for a full data reset.
   factory DataChangeEvent.reset() {
     return const DataChangeEvent._(type: DataChangeType.reset);
@@ -144,6 +166,10 @@ class DataChangeEvent {
         return 'DataChangeEvent.columnInserted($columnIndex)';
       case DataChangeType.columnDeleted:
         return 'DataChangeEvent.columnDeleted($columnIndex)';
+      case DataChangeType.merge:
+        return 'DataChangeEvent.merge($range)';
+      case DataChangeType.unmerge:
+        return 'DataChangeEvent.unmerge($range)';
       case DataChangeType.reset:
         return 'DataChangeEvent.reset()';
     }

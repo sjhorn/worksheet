@@ -264,3 +264,119 @@ class FillRightAction extends Action<FillRightIntent> {
     return null;
   }
 }
+
+/// Merges all cells in the current selection into a single merged cell.
+class MergeCellsAction extends Action<MergeCellsIntent> {
+  final WorksheetActionContext _context;
+
+  MergeCellsAction(this._context);
+
+  @override
+  bool isEnabled(MergeCellsIntent intent) {
+    if (_context.readOnly) return false;
+    final range = _context.selectionController.selectedRange;
+    return range != null && range.cellCount >= 2;
+  }
+
+  @override
+  Object? invoke(MergeCellsIntent intent) {
+    final range = _context.selectionController.selectedRange;
+    if (range == null || range.cellCount < 2) return null;
+
+    _context.worksheetData.mergeCells(range);
+    _context.invalidateAndRebuild();
+    return null;
+  }
+}
+
+/// Merges each row of the current selection separately.
+class MergeCellsHorizontallyAction extends Action<MergeCellsHorizontallyIntent> {
+  final WorksheetActionContext _context;
+
+  MergeCellsHorizontallyAction(this._context);
+
+  @override
+  bool isEnabled(MergeCellsHorizontallyIntent intent) {
+    if (_context.readOnly) return false;
+    final range = _context.selectionController.selectedRange;
+    return range != null && range.columnCount >= 2;
+  }
+
+  @override
+  Object? invoke(MergeCellsHorizontallyIntent intent) {
+    final range = _context.selectionController.selectedRange;
+    if (range == null || range.columnCount < 2) return null;
+
+    for (int row = range.startRow; row <= range.endRow; row++) {
+      _context.worksheetData.mergeCells(
+        CellRange(row, range.startColumn, row, range.endColumn),
+      );
+    }
+    _context.invalidateAndRebuild();
+    return null;
+  }
+}
+
+/// Merges each column of the current selection separately.
+class MergeCellsVerticallyAction extends Action<MergeCellsVerticallyIntent> {
+  final WorksheetActionContext _context;
+
+  MergeCellsVerticallyAction(this._context);
+
+  @override
+  bool isEnabled(MergeCellsVerticallyIntent intent) {
+    if (_context.readOnly) return false;
+    final range = _context.selectionController.selectedRange;
+    return range != null && range.rowCount >= 2;
+  }
+
+  @override
+  Object? invoke(MergeCellsVerticallyIntent intent) {
+    final range = _context.selectionController.selectedRange;
+    if (range == null || range.rowCount < 2) return null;
+
+    for (int col = range.startColumn; col <= range.endColumn; col++) {
+      _context.worksheetData.mergeCells(
+        CellRange(range.startRow, col, range.endRow, col),
+      );
+    }
+    _context.invalidateAndRebuild();
+    return null;
+  }
+}
+
+/// Unmerges all merge regions overlapping the current selection.
+class UnmergeCellsAction extends Action<UnmergeCellsIntent> {
+  final WorksheetActionContext _context;
+
+  UnmergeCellsAction(this._context);
+
+  @override
+  bool isEnabled(UnmergeCellsIntent intent) {
+    if (_context.readOnly) return false;
+    final range = _context.selectionController.selectedRange;
+    if (range == null) return false;
+    final mergedCells = _context.worksheetData.mergedCells;
+    return mergedCells.regionsInRange(range).isNotEmpty;
+  }
+
+  @override
+  Object? invoke(UnmergeCellsIntent intent) {
+    final range = _context.selectionController.selectedRange;
+    if (range == null) return null;
+
+    final mergedCells = _context.worksheetData.mergedCells;
+    // Collect anchors first to avoid modifying during iteration
+    final anchors = mergedCells
+        .regionsInRange(range)
+        .map((r) => r.anchor)
+        .toList();
+
+    for (final anchor in anchors) {
+      _context.worksheetData.unmergeCells(anchor);
+    }
+
+    _context.invalidateAndRebuild();
+    return null;
+  }
+}

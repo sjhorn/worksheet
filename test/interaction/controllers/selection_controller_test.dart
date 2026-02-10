@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:worksheet/src/core/data/merged_cell_registry.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/interaction/controllers/selection_controller.dart';
@@ -270,6 +271,123 @@ void main() {
         testController.selectCell(CellCoordinate(0, 0));
         testController.dispose();
         // Should not throw
+      });
+    });
+
+    group('merged cells', () {
+      late MergedCellRegistry mergedCells;
+
+      setUp(() {
+        mergedCells = MergedCellRegistry();
+        controller.mergedCells = mergedCells;
+      });
+
+      test('selectCell resolves to merge anchor', () {
+        mergedCells.merge(CellRange(1, 1, 2, 2));
+        controller.selectCell(const CellCoordinate(2, 2));
+        expect(controller.focus, const CellCoordinate(1, 1));
+        expect(controller.anchor, const CellCoordinate(1, 1));
+      });
+
+      test('selectCell works normally for unmerged cell', () {
+        mergedCells.merge(CellRange(1, 1, 2, 2));
+        controller.selectCell(const CellCoordinate(0, 0));
+        expect(controller.focus, const CellCoordinate(0, 0));
+      });
+
+      test('selectedRange expands to include full merge regions', () {
+        mergedCells.merge(CellRange(1, 1, 3, 3));
+        // Select range that partially overlaps the merge
+        controller.selectCell(const CellCoordinate(0, 0));
+        controller.extendSelection(const CellCoordinate(2, 2));
+        final range = controller.selectedRange!;
+        // Should expand to include full merge (0,0)-(3,3)
+        expect(range.startRow, 0);
+        expect(range.startColumn, 0);
+        expect(range.endRow, 3);
+        expect(range.endColumn, 3);
+      });
+
+      test('selectedRange does not expand without merge overlap', () {
+        mergedCells.merge(CellRange(5, 5, 6, 6));
+        controller.selectCell(const CellCoordinate(0, 0));
+        controller.extendSelection(const CellCoordinate(2, 2));
+        final range = controller.selectedRange!;
+        expect(range.endRow, 2);
+        expect(range.endColumn, 2);
+      });
+
+      test('moveFocus down skips over merge region', () {
+        mergedCells.merge(CellRange(1, 0, 2, 0));
+        controller.selectCell(const CellCoordinate(1, 0));
+        controller.moveFocus(rowDelta: 1, columnDelta: 0, extend: false);
+        // Should skip to row 3 (past the merge end at row 2)
+        expect(controller.focus, const CellCoordinate(3, 0));
+      });
+
+      test('moveFocus up skips over merge region', () {
+        mergedCells.merge(CellRange(1, 0, 2, 0));
+        controller.selectCell(const CellCoordinate(1, 0));
+        controller.moveFocus(rowDelta: -1, columnDelta: 0, extend: false);
+        // Should go to row 0 (before the merge start at row 1)
+        expect(controller.focus, const CellCoordinate(0, 0));
+      });
+
+      test('moveFocus right skips over merge region', () {
+        mergedCells.merge(CellRange(0, 1, 0, 3));
+        controller.selectCell(const CellCoordinate(0, 1));
+        controller.moveFocus(rowDelta: 0, columnDelta: 1, extend: false);
+        // Should skip to col 4 (past the merge end at col 3)
+        expect(controller.focus, const CellCoordinate(0, 4));
+      });
+
+      test('moveFocus left skips over merge region', () {
+        mergedCells.merge(CellRange(0, 1, 0, 3));
+        controller.selectCell(const CellCoordinate(0, 1));
+        controller.moveFocus(rowDelta: 0, columnDelta: -1, extend: false);
+        // Should go to col 0 (before the merge start at col 1)
+        expect(controller.focus, const CellCoordinate(0, 0));
+      });
+
+      test('moveFocus into a merge resolves to anchor', () {
+        mergedCells.merge(CellRange(2, 2, 3, 3));
+        controller.selectCell(const CellCoordinate(1, 2));
+        controller.moveFocus(rowDelta: 1, columnDelta: 0, extend: false);
+        // Should resolve to merge anchor (2, 2)
+        expect(controller.focus, const CellCoordinate(2, 2));
+      });
+
+      test('moveFocus extend does not skip merges', () {
+        mergedCells.merge(CellRange(1, 0, 2, 0));
+        controller.selectCell(const CellCoordinate(0, 0));
+        controller.moveFocus(rowDelta: 1, columnDelta: 0, extend: true);
+        // Extend should not apply merge-skipping logic
+        expect(controller.focus, const CellCoordinate(1, 0));
+      });
+
+      test('moveFocus clamps to bounds with merge', () {
+        mergedCells.merge(CellRange(0, 0, 1, 1));
+        controller.selectCell(const CellCoordinate(0, 0));
+        controller.moveFocus(
+          rowDelta: -1, columnDelta: 0, extend: false,
+          maxRow: 10, maxColumn: 10,
+        );
+        expect(controller.focus, const CellCoordinate(0, 0));
+      });
+
+      test('selectedRange expansion cascades through chained merges', () {
+        // Two adjacent merges that form a chain
+        mergedCells.merge(CellRange(0, 0, 1, 1));
+        mergedCells.merge(CellRange(2, 2, 3, 3));
+        // Select range that overlaps first merge, which expands,
+        // then overlaps second merge
+        controller.selectCell(const CellCoordinate(0, 0));
+        controller.extendSelection(const CellCoordinate(2, 2));
+        final range = controller.selectedRange!;
+        // Should include both merges
+        expect(range.startRow, 0);
+        expect(range.endRow, 3);
+        expect(range.endColumn, 3);
       });
     });
   });

@@ -2,6 +2,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart' hide BorderStyle;
 
+import '../../core/data/merged_cell_registry.dart';
 import '../../core/data/worksheet_data.dart';
 import '../../core/geometry/layout_solver.dart';
 import '../../core/geometry/zoom_transformer.dart';
@@ -53,6 +54,9 @@ class TilePainter implements TileRenderer {
   /// When null, uses logical pixels (strokeWidth = 1.0).
   /// When provided, adjusts strokeWidth to 1.0 / devicePixelRatio for crisp lines.
   final double? devicePixelRatio;
+
+  /// Merged cell registry for merge-aware rendering.
+  MergedCellRegistry? mergedCells;
 
   /// Cell currently being edited, whose text should be skipped during
   /// tile rendering (the overlay TextField renders it instead).
@@ -145,6 +149,7 @@ class TilePainter implements TileRenderer {
     List<TextPainter> textPainters,
   ) {
     final shouldRenderText = _shouldRenderText(zoomBucket);
+    final tileLocalRect = ui.Rect.fromLTWH(0, 0, tileBounds.width, tileBounds.height);
 
     // Clamp cell range to valid bounds
     final maxRow = layoutSolver.rowCount - 1;
@@ -154,10 +159,26 @@ class TilePainter implements TileRenderer {
     final startCol = cellRange.startColumn.clamp(0, maxCol);
     final endCol = cellRange.endColumn.clamp(0, maxCol);
 
+    // Track which merged anchors we've already rendered in this tile,
+    // so we don't render them multiple times.
+    final renderedAnchors = <CellCoordinate>{};
+
     for (var row = startRow; row <= endRow; row++) {
       for (var col = startCol; col <= endCol; col++) {
         final coord = CellCoordinate(row, col);
-        final cellBounds = layoutSolver.getCellBounds(coord);
+
+        // For merged cells, resolve to the anchor so that every tile
+        // overlapping the merge renders the anchor's content.
+        final region = mergedCells?.getRegion(coord);
+        final renderCoord = region?.anchor ?? coord;
+
+        // Skip if we've already rendered this merge anchor in this tile.
+        if (region != null) {
+          if (renderedAnchors.contains(renderCoord)) continue;
+          renderedAnchors.add(renderCoord);
+        }
+
+        final cellBounds = layoutSolver.getCellBounds(renderCoord);
 
         // Convert to tile-local coordinates
         final localBounds = ui.Rect.fromLTWH(
@@ -168,23 +189,40 @@ class TilePainter implements TileRenderer {
         );
 
         // Skip if cell is outside tile bounds
-        if (!_boundsIntersect(localBounds, ui.Rect.fromLTWH(0, 0, tileBounds.width, tileBounds.height))) {
+        if (!_boundsIntersect(localBounds, tileLocalRect)) {
           continue;
         }
 
-        // Render cell background
-        final style = data.getStyle(coord);
-        _renderCellBackground(canvas, localBounds, style);
+        // For merged cells that cross tile boundaries, clip to tile bounds
+        final clippedBounds = region != null
+            ? localBounds.intersect(tileLocalRect)
+            : localBounds;
+
+        // Render cell background (use clipped bounds for painting area)
+        final style = data.getStyle(renderCoord);
+        _renderCellBackground(canvas, clippedBounds, style);
 
         // Render cell content (skip the cell being edited — the overlay
         // TextField renders its text instead).
-        if (shouldRenderText && coord != editingCell) {
-          final value = data.getCell(coord);
+        // Use full localBounds for text layout so text is positioned
+        // relative to the merge region, but clip to tile bounds.
+        if (shouldRenderText && renderCoord != editingCell) {
+          final value = data.getCell(renderCoord);
           if (value != null) {
-            final format = data.getFormat(coord);
-            _renderCellContent(
-                canvas, localBounds, value, style, zoomBucket, format,
-                textPainters);
+            final format = data.getFormat(renderCoord);
+            if (region != null) {
+              // Clip merged cell content to tile boundary
+              canvas.save();
+              canvas.clipRect(tileLocalRect);
+              _renderCellContent(
+                  canvas, localBounds, value, style, zoomBucket, format,
+                  textPainters);
+              canvas.restore();
+            } else {
+              _renderCellContent(
+                  canvas, localBounds, value, style, zoomBucket, format,
+                  textPainters);
+            }
           }
         }
       }
@@ -214,14 +252,26 @@ class TilePainter implements TileRenderer {
 
     final strokeWidth = _getGridlineStrokeWidth(zoomBucket);
 
+    final renderedBorderAnchors = <CellCoordinate>{};
+
     for (var row = startRow; row <= endRow; row++) {
       for (var col = startCol; col <= endCol; col++) {
         final coord = CellCoordinate(row, col);
-        final style = data.getStyle(coord);
+
+        // For merged cells, resolve to anchor for border rendering.
+        final region = mergedCells?.getRegion(coord);
+        final renderCoord = region?.anchor ?? coord;
+
+        if (region != null) {
+          if (renderedBorderAnchors.contains(renderCoord)) continue;
+          renderedBorderAnchors.add(renderCoord);
+        }
+
+        final style = data.getStyle(renderCoord);
         final borders = style?.borders;
         if (borders == null || borders.isNone) continue;
 
-        final cellBounds = layoutSolver.getCellBounds(coord);
+        final cellBounds = layoutSolver.getCellBounds(renderCoord);
         final localBounds = ui.Rect.fromLTWH(
           cellBounds.left - tileBounds.left,
           cellBounds.top - tileBounds.top,
@@ -447,6 +497,11 @@ class TilePainter implements TileRenderer {
     final startCol = cellRange.startColumn.clamp(0, maxCol);
     final endCol = cellRange.endColumn.clamp(0, maxCol - 1);
 
+    // Collect merge regions intersecting this tile for gridline suppression.
+    final mergeRegions = mergedCells != null && mergedCells!.regionCount > 0
+        ? mergedCells!.regionsInRange(cellRange).toList()
+        : const <MergeRegion>[];
+
     // Vertical gridlines - draw ONLY the left edge of each column
     // Do NOT draw trailing edges (they belong to the next tile's leading edge)
     // Skip col 0: its left edge is the worksheet's outer boundary, not a cell separator
@@ -455,9 +510,37 @@ class TilePainter implements TileRenderer {
       // +0.5 centers the 1px stroke on a pixel boundary so it covers exactly
       // one pixel row instead of straddling two (which Impeller renders as gray).
       final x = (layoutSolver.getColumnLeft(col) - tileBounds.left).roundToDouble() + 0.5;
-      if (x >= 0 && x <= tileBounds.width) {
+      if (x < 0 || x > tileBounds.width) continue;
+
+      // Find merge regions whose interior crosses this vertical line
+      // (i.e., the merge spans across this column boundary).
+      final gaps = <MergeRegion>[];
+      for (final region in mergeRegions) {
+        final r = region.range;
+        if (r.startColumn < col && r.endColumn >= col) {
+          gaps.add(region);
+        }
+      }
+
+      if (gaps.isEmpty) {
         path.moveTo(x, 0);
         path.lineTo(x, tileBounds.height);
+      } else {
+        gaps.sort((a, b) => a.range.startRow.compareTo(b.range.startRow));
+        var currentY = 0.0;
+        for (final gap in gaps) {
+          final gapTop = (layoutSolver.getRowTop(gap.range.startRow) - tileBounds.top).roundToDouble();
+          final gapBottom = (layoutSolver.getRowTop(gap.range.endRow + 1) - tileBounds.top).roundToDouble();
+          if (gapTop > currentY) {
+            path.moveTo(x, currentY);
+            path.lineTo(x, gapTop);
+          }
+          currentY = gapBottom;
+        }
+        if (currentY < tileBounds.height) {
+          path.moveTo(x, currentY);
+          path.lineTo(x, tileBounds.height);
+        }
       }
     }
 
@@ -467,9 +550,36 @@ class TilePainter implements TileRenderer {
     for (var row = startRow; row <= endRow; row++) {
       if (row == 0) continue;
       final y = (layoutSolver.getRowTop(row) - tileBounds.top).roundToDouble() + 0.5;
-      if (y >= 0 && y <= tileBounds.height) {
+      if (y < 0 || y > tileBounds.height) continue;
+
+      // Find merge regions whose interior crosses this horizontal line.
+      final gaps = <MergeRegion>[];
+      for (final region in mergeRegions) {
+        final r = region.range;
+        if (r.startRow < row && r.endRow >= row) {
+          gaps.add(region);
+        }
+      }
+
+      if (gaps.isEmpty) {
         path.moveTo(0, y);
         path.lineTo(tileBounds.width, y);
+      } else {
+        gaps.sort((a, b) => a.range.startColumn.compareTo(b.range.startColumn));
+        var currentX = 0.0;
+        for (final gap in gaps) {
+          final gapLeft = (layoutSolver.getColumnLeft(gap.range.startColumn) - tileBounds.left).roundToDouble();
+          final gapRight = (layoutSolver.getColumnLeft(gap.range.endColumn + 1) - tileBounds.left).roundToDouble();
+          if (gapLeft > currentX) {
+            path.moveTo(currentX, y);
+            path.lineTo(gapLeft, y);
+          }
+          currentX = gapRight;
+        }
+        if (currentX < tileBounds.width) {
+          path.moveTo(currentX, y);
+          path.lineTo(tileBounds.width, y);
+        }
       }
     }
 

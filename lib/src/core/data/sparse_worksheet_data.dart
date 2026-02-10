@@ -9,6 +9,7 @@ import '../models/cell_style.dart';
 import '../models/cell_value.dart';
 import 'data_change_event.dart';
 import 'fill_pattern_detector.dart';
+import 'merged_cell_registry.dart';
 import 'worksheet_data.dart';
 
 typedef CellCoordinateRecord = (int row, int col);
@@ -26,6 +27,9 @@ class SparseWorksheetData implements WorksheetData {
 
   /// Cell formats indexed by coordinate.
   final Map<CellCoordinate, CellFormat> _formats = {};
+
+  /// Merged cell registry.
+  final MergedCellRegistry _mergedCells = MergedCellRegistry();
 
   /// Change event stream controller.
   final _changeController = StreamController<DataChangeEvent>.broadcast();
@@ -326,6 +330,39 @@ class SparseWorksheetData implements WorksheetData {
   }
 
   @override
+  MergedCellRegistry get mergedCells => _mergedCells;
+
+  @override
+  void mergeCells(CellRange range) {
+    _checkNotDisposed();
+
+    // Register the merge (validates no overlap, >= 2 cells)
+    _mergedCells.merge(range);
+
+    // Clear values from all non-anchor cells
+    final anchor = range.topLeft;
+    for (final cell in range.cells) {
+      if (cell != anchor) {
+        _values.remove(cell);
+      }
+    }
+
+    _recalculateBounds();
+    _changeController.add(DataChangeEvent.merge(range));
+  }
+
+  @override
+  void unmergeCells(CellCoordinate cell) {
+    _checkNotDisposed();
+
+    final region = _mergedCells.getRegion(cell);
+    if (region == null) return;
+
+    _mergedCells.unmerge(cell);
+    _changeController.add(DataChangeEvent.unmerge(region.range));
+  }
+
+  @override
   void dispose() {
     if (!_disposed) {
       _disposed = true;
@@ -333,6 +370,7 @@ class SparseWorksheetData implements WorksheetData {
       _values.clear();
       _styles.clear();
       _formats.clear();
+      _mergedCells.clear();
     }
   }
 

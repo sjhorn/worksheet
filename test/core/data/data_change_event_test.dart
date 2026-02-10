@@ -165,7 +165,7 @@ void main() {
 
   group('DataChangeType enum', () {
     test('has expected values', () {
-      expect(DataChangeType.values.length, 9);
+      expect(DataChangeType.values.length, 11);
       expect(DataChangeType.cellValue.index, 0);
       expect(DataChangeType.cellStyle.index, 1);
       expect(DataChangeType.cellFormat.index, 2);
@@ -174,7 +174,9 @@ void main() {
       expect(DataChangeType.rowDeleted.index, 5);
       expect(DataChangeType.columnInserted.index, 6);
       expect(DataChangeType.columnDeleted.index, 7);
-      expect(DataChangeType.reset.index, 8);
+      expect(DataChangeType.merge.index, 8);
+      expect(DataChangeType.unmerge.index, 9);
+      expect(DataChangeType.reset.index, 10);
     });
   });
 }

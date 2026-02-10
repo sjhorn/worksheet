@@ -535,4 +535,148 @@ void main() {
       expect(action.isEnabled(const PasteCellsIntent()), true);
     });
   });
+
+  group('MergeCellsAction', () {
+    test('merges selected range', () {
+      data.setCell(const CellCoordinate(0, 0), CellValue.text('anchor'));
+      data.setCell(const CellCoordinate(0, 1), CellValue.text('child'));
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = MergeCellsAction(ctx);
+      action.invoke(const MergeCellsIntent());
+
+      expect(data.mergedCells.isMerged(const CellCoordinate(0, 0)), isTrue);
+      expect(data.mergedCells.isAnchor(const CellCoordinate(0, 0)), isTrue);
+      // Child values should be cleared
+      expect(data.getCell(const CellCoordinate(0, 1)), isNull);
+      // Anchor value preserved
+      expect(data.getCell(const CellCoordinate(0, 0))?.displayValue, 'anchor');
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('is disabled for single cell', () {
+      selectionController.selectCell(const CellCoordinate(0, 0));
+      final action = MergeCellsAction(ctx);
+      expect(action.isEnabled(const MergeCellsIntent()), false);
+    });
+
+    test('is disabled when readOnly', () {
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+      final roCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        readOnly: true,
+      );
+      final action = MergeCellsAction(roCtx);
+      expect(action.isEnabled(const MergeCellsIntent()), false);
+    });
+
+    test('is enabled for multi-cell selection', () {
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+      final action = MergeCellsAction(ctx);
+      expect(action.isEnabled(const MergeCellsIntent()), true);
+    });
+  });
+
+  group('MergeCellsHorizontallyAction', () {
+    test('merges each row separately', () {
+      selectionController.selectRange(const CellRange(0, 0, 1, 2));
+
+      final action = MergeCellsHorizontallyAction(ctx);
+      action.invoke(const MergeCellsHorizontallyIntent());
+
+      // Row 0 should be merged
+      expect(data.mergedCells.getRegion(const CellCoordinate(0, 0))?.range,
+          const CellRange(0, 0, 0, 2));
+      // Row 1 should be merged separately
+      expect(data.mergedCells.getRegion(const CellCoordinate(1, 0))?.range,
+          const CellRange(1, 0, 1, 2));
+      expect(data.mergedCells.regionCount, 2);
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('is disabled for single column', () {
+      selectionController.selectRange(const CellRange(0, 0, 2, 0));
+      final action = MergeCellsHorizontallyAction(ctx);
+      expect(action.isEnabled(const MergeCellsHorizontallyIntent()), false);
+    });
+  });
+
+  group('MergeCellsVerticallyAction', () {
+    test('merges each column separately', () {
+      selectionController.selectRange(const CellRange(0, 0, 2, 1));
+
+      final action = MergeCellsVerticallyAction(ctx);
+      action.invoke(const MergeCellsVerticallyIntent());
+
+      // Col 0 should be merged
+      expect(data.mergedCells.getRegion(const CellCoordinate(0, 0))?.range,
+          const CellRange(0, 0, 2, 0));
+      // Col 1 should be merged separately
+      expect(data.mergedCells.getRegion(const CellCoordinate(0, 1))?.range,
+          const CellRange(0, 1, 2, 1));
+      expect(data.mergedCells.regionCount, 2);
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('is disabled for single row', () {
+      selectionController.selectRange(const CellRange(0, 0, 0, 2));
+      final action = MergeCellsVerticallyAction(ctx);
+      expect(action.isEnabled(const MergeCellsVerticallyIntent()), false);
+    });
+  });
+
+  group('UnmergeCellsAction', () {
+    test('unmerges regions overlapping selection', () {
+      data.mergeCells(const CellRange(0, 0, 1, 1));
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = UnmergeCellsAction(ctx);
+      action.invoke(const UnmergeCellsIntent());
+
+      expect(data.mergedCells.isEmpty, isTrue);
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('unmerges multiple overlapping regions', () {
+      data.mergeCells(const CellRange(0, 0, 1, 1));
+      data.mergeCells(const CellRange(0, 2, 1, 3));
+      selectionController.selectRange(const CellRange(0, 0, 1, 3));
+
+      final action = UnmergeCellsAction(ctx);
+      action.invoke(const UnmergeCellsIntent());
+
+      expect(data.mergedCells.isEmpty, isTrue);
+    });
+
+    test('is disabled when no merges overlap selection', () {
+      data.mergeCells(const CellRange(5, 5, 6, 6));
+      selectionController.selectCell(const CellCoordinate(0, 0));
+
+      final action = UnmergeCellsAction(ctx);
+      expect(action.isEnabled(const UnmergeCellsIntent()), false);
+    });
+
+    test('is enabled when merges overlap selection', () {
+      data.mergeCells(const CellRange(0, 0, 1, 1));
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = UnmergeCellsAction(ctx);
+      expect(action.isEnabled(const UnmergeCellsIntent()), true);
+    });
+
+    test('preserves anchor value after unmerge', () {
+      data.setCell(const CellCoordinate(0, 0), CellValue.text('kept'));
+      data.mergeCells(const CellRange(0, 0, 1, 1));
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = UnmergeCellsAction(ctx);
+      action.invoke(const UnmergeCellsIntent());
+
+      expect(data.getCell(const CellCoordinate(0, 0))?.displayValue, 'kept');
+    });
+  });
 }

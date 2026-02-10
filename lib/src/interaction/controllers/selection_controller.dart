@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/data/merged_cell_registry.dart';
 import '../../core/models/cell_coordinate.dart';
 import '../../core/models/cell_range.dart';
 
@@ -26,6 +27,9 @@ class SelectionController extends ChangeNotifier {
   CellCoordinate? _focus;
   SelectionMode _mode = SelectionMode.none;
 
+  /// Optional merged cell registry for merge-aware selection.
+  MergedCellRegistry? mergedCells;
+
   /// The anchor cell (start of selection).
   CellCoordinate? get anchor => _anchor;
 
@@ -41,23 +45,52 @@ class SelectionController extends ChangeNotifier {
   /// The currently selected range, or null if no selection.
   ///
   /// Normalizes anchor and focus so start <= end.
+  /// If merged cells are present, expands the range to include any
+  /// partially-overlapping merge regions.
   CellRange? get selectedRange {
     if (_anchor == null || _focus == null) return null;
 
-    return CellRange(
+    var range = CellRange(
       math.min(_anchor!.row, _focus!.row),
       math.min(_anchor!.column, _focus!.column),
       math.max(_anchor!.row, _focus!.row),
       math.max(_anchor!.column, _focus!.column),
     );
+
+    if (mergedCells != null) {
+      range = _expandRangeForMerges(range);
+    }
+
+    return range;
+  }
+
+  /// Expands a range to include full merge regions that partially overlap.
+  ///
+  /// Iterates until stable (no more partial overlaps).
+  CellRange _expandRangeForMerges(CellRange range) {
+    var current = range;
+    bool changed = true;
+    while (changed) {
+      changed = false;
+      for (final region in mergedCells!.regionsInRange(current)) {
+        final expanded = current.union(region.range);
+        if (expanded != current) {
+          current = expanded;
+          changed = true;
+        }
+      }
+    }
+    return current;
   }
 
   /// Selects a single cell.
   ///
   /// Sets both anchor and focus to the given cell.
+  /// If the cell is part of a merged region, resolves to the anchor cell.
   void selectCell(CellCoordinate cell) {
-    _anchor = cell;
-    _focus = cell;
+    final resolved = mergedCells?.resolveAnchor(cell) ?? cell;
+    _anchor = resolved;
+    _focus = resolved;
     _mode = SelectionMode.single;
     notifyListeners();
   }
@@ -113,6 +146,8 @@ class SelectionController extends ChangeNotifier {
   /// entire selection.
   ///
   /// [maxRow] and [maxColumn] are used to clamp the new position.
+  /// When merged cells are present, skips over merge children so that
+  /// arrow navigation lands on the next non-child cell.
   void moveFocus({
     required int rowDelta,
     required int columnDelta,
@@ -122,8 +157,37 @@ class SelectionController extends ChangeNotifier {
   }) {
     if (_focus == null) return;
 
-    final newRow = (_focus!.row + rowDelta).clamp(0, maxRow - 1);
-    final newCol = (_focus!.column + columnDelta).clamp(0, maxColumn - 1);
+    var newRow = (_focus!.row + rowDelta).clamp(0, maxRow - 1);
+    var newCol = (_focus!.column + columnDelta).clamp(0, maxColumn - 1);
+
+    // When not extending and merged cells exist, skip over merge children
+    if (!extend && mergedCells != null) {
+      // If current focus is in a merge, step out from the merge boundary
+      final currentRegion = mergedCells!.getRegion(_focus!);
+      if (currentRegion != null) {
+        if (rowDelta > 0) {
+          newRow = (currentRegion.range.endRow + rowDelta)
+              .clamp(0, maxRow - 1);
+        } else if (rowDelta < 0) {
+          newRow = (currentRegion.range.startRow + rowDelta)
+              .clamp(0, maxRow - 1);
+        }
+        if (columnDelta > 0) {
+          newCol = (currentRegion.range.endColumn + columnDelta)
+              .clamp(0, maxColumn - 1);
+        } else if (columnDelta < 0) {
+          newCol = (currentRegion.range.startColumn + columnDelta)
+              .clamp(0, maxColumn - 1);
+        }
+      }
+
+      // Resolve through merge anchor at destination
+      final destCoord = CellCoordinate(newRow, newCol);
+      final resolved = mergedCells!.resolveAnchor(destCoord);
+      newRow = resolved.row;
+      newCol = resolved.column;
+    }
+
     final newFocus = CellCoordinate(newRow, newCol);
 
     if (extend) {

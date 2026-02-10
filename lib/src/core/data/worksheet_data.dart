@@ -73,6 +73,24 @@ abstract class WorksheetData {
     Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
   ]);
 
+  /// The merged cell registry for this worksheet.
+  ///
+  /// Provides access to merged cell regions for layout and rendering.
+  MergedCellRegistry get mergedCells;
+
+  /// Merges cells in [range] into a single merged cell.
+  ///
+  /// The anchor (top-left) cell keeps its value; all other cell values
+  /// in the range are cleared. Throws if the range overlaps an existing
+  /// merge or contains fewer than 2 cells.
+  void mergeCells(CellRange range);
+
+  /// Unmerges the merge region containing [cell].
+  ///
+  /// The anchor cell's value is preserved. Does nothing if [cell] is
+  /// not part of a merged region.
+  void unmergeCells(CellCoordinate cell);
+
   /// Releases resources.
   void dispose();
 }

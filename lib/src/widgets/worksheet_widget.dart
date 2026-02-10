@@ -291,6 +291,10 @@ class _WorksheetState extends State<Worksheet>
     ClearCellsIntent: ClearCellsAction(this),
     FillDownIntent: FillDownAction(this),
     FillRightIntent: FillRightAction(this),
+    MergeCellsIntent: MergeCellsAction(this),
+    MergeCellsHorizontallyIntent: MergeCellsHorizontallyAction(this),
+    MergeCellsVerticallyIntent: MergeCellsVerticallyAction(this),
+    UnmergeCellsIntent: UnmergeCellsAction(this),
   };
 
   @override
@@ -323,7 +327,11 @@ class _WorksheetState extends State<Worksheet>
         defaultSize: theme.defaultColumnWidth,
         customSizes: widget.customColumnWidths,
       ),
+      mergedCells: widget.data.mergedCells,
     );
+
+    // Wire merged cells into the selection controller
+    _controller.selectionController.mergedCells = widget.data.mergedCells;
 
     _hitTester = WorksheetHitTester(
       layoutSolver: _layoutSolver,
@@ -351,7 +359,7 @@ class _WorksheetState extends State<Worksheet>
       defaultFontFamily: theme.fontFamily,
       cellPadding: theme.cellPadding,
       devicePixelRatio: devicePixelRatio,
-    );
+    )..mergedCells = widget.data.mergedCells;
 
     _tileManager = TileManager(
       renderer: _tilePainter,
@@ -848,6 +856,11 @@ class _WorksheetState extends State<Worksheet>
           );
         }
       case DataChangeType.range:
+        if (event.range != null) {
+          _tileManager.invalidateRange(event.range!);
+        }
+      case DataChangeType.merge:
+      case DataChangeType.unmerge:
         if (event.range != null) {
           _tileManager.invalidateRange(event.range!);
         }

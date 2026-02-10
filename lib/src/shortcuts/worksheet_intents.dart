@@ -139,3 +139,35 @@ class FillDownIntent extends Intent {
 class FillRightIntent extends Intent {
   const FillRightIntent();
 }
+
+/// Merges all cells in the current selection into a single merged cell.
+///
+/// The anchor (top-left) cell keeps its value; all other values are cleared.
+/// Typically triggered from a toolbar button (no default keyboard shortcut).
+class MergeCellsIntent extends Intent {
+  const MergeCellsIntent();
+}
+
+/// Merges each row of the current selection separately.
+///
+/// For a selection spanning rows 1-3 and columns A-C, creates three separate
+/// horizontal merges: A1:C1, A2:C2, A3:C3.
+class MergeCellsHorizontallyIntent extends Intent {
+  const MergeCellsHorizontallyIntent();
+}
+
+/// Merges each column of the current selection separately.
+///
+/// For a selection spanning rows 1-3 and columns A-C, creates three separate
+/// vertical merges: A1:A3, B1:B3, C1:C3.
+class MergeCellsVerticallyIntent extends Intent {
+  const MergeCellsVerticallyIntent();
+}
+
+/// Unmerges all merge regions overlapping the current selection.
+///
+/// Anchor cell values are preserved. No-op if no merge regions overlap
+/// the selection.
+class UnmergeCellsIntent extends Intent {
+  const UnmergeCellsIntent();
+}

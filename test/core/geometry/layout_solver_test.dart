@@ -1,9 +1,11 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:worksheet/src/core/data/merged_cell_registry.dart';
 import 'package:worksheet/src/core/geometry/layout_solver.dart';
 import 'package:worksheet/src/core/geometry/span_list.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_range.dart';
 
 void main() {
   group('LayoutSolver', () {
@@ -271,6 +273,100 @@ void main() {
         expect(bounds.top, 125.0);
         expect(bounds.width, 100.0);
         expect(bounds.height, 25.0);
+      });
+    });
+
+    group('merged cells', () {
+      late MergedCellRegistry mergedCells;
+      late LayoutSolver mergeSolver;
+
+      setUp(() {
+        mergedCells = MergedCellRegistry();
+        mergeSolver = LayoutSolver(
+          rows: SpanList(count: 100, defaultSize: 25.0),
+          columns: SpanList(count: 26, defaultSize: 100.0),
+          mergedCells: mergedCells,
+        );
+      });
+
+      test('getCellBounds returns merged bounds for anchor cell', () {
+        mergedCells.merge(CellRange(1, 1, 2, 3));
+        final bounds = mergeSolver.getCellBounds(const CellCoordinate(1, 1));
+        // cols 1-3 = 100+100+100=300, rows 1-2 = 25+25=50
+        expect(bounds.left, 100.0);
+        expect(bounds.top, 25.0);
+        expect(bounds.width, 300.0);
+        expect(bounds.height, 50.0);
+      });
+
+      test('getCellBounds returns merged bounds for non-anchor cell', () {
+        mergedCells.merge(CellRange(1, 1, 2, 3));
+        final bounds = mergeSolver.getCellBounds(const CellCoordinate(2, 2));
+        // Same bounds as anchor
+        expect(bounds.left, 100.0);
+        expect(bounds.top, 25.0);
+        expect(bounds.width, 300.0);
+        expect(bounds.height, 50.0);
+      });
+
+      test('getCellBounds returns normal bounds for unmerged cell', () {
+        mergedCells.merge(CellRange(1, 1, 2, 3));
+        final bounds = mergeSolver.getCellBounds(const CellCoordinate(0, 0));
+        expect(bounds.left, 0.0);
+        expect(bounds.top, 0.0);
+        expect(bounds.width, 100.0);
+        expect(bounds.height, 25.0);
+      });
+
+      test('getCellAt resolves to anchor for merged region', () {
+        mergedCells.merge(CellRange(1, 1, 2, 3));
+        // Position in cell (2, 2) should resolve to anchor (1, 1)
+        final coord = mergeSolver.getCellAt(const Offset(250, 55));
+        expect(coord, const CellCoordinate(1, 1));
+      });
+
+      test('getCellAt returns unmerged cell normally', () {
+        mergedCells.merge(CellRange(1, 1, 2, 3));
+        final coord = mergeSolver.getCellAt(const Offset(50, 10));
+        expect(coord, const CellCoordinate(0, 0));
+      });
+
+      test('getCellAt returns null for out-of-bounds position', () {
+        mergedCells.merge(CellRange(1, 1, 2, 3));
+        expect(mergeSolver.getCellAt(const Offset(-1, 0)), isNull);
+      });
+
+      test('getCellBounds works with custom sizes in merge', () {
+        mergeSolver.setRowHeight(1, 50.0);
+        mergedCells.merge(CellRange(1, 1, 2, 2));
+        final bounds = mergeSolver.getCellBounds(const CellCoordinate(1, 1));
+        // row 1: 50, row 2: 25 = 75 height
+        // col 1: 100, col 2: 100 = 200 width
+        expect(bounds.height, 75.0);
+        expect(bounds.width, 200.0);
+      });
+
+      test('getCellBounds without mergedCells behaves normally', () {
+        final plainSolver = LayoutSolver(
+          rows: SpanList(count: 100, defaultSize: 25.0),
+          columns: SpanList(count: 26, defaultSize: 100.0),
+        );
+        final bounds = plainSolver.getCellBounds(const CellCoordinate(1, 1));
+        expect(bounds.width, 100.0);
+        expect(bounds.height, 25.0);
+      });
+
+      test('mergedCells can be set after construction', () {
+        final plainSolver = LayoutSolver(
+          rows: SpanList(count: 100, defaultSize: 25.0),
+          columns: SpanList(count: 26, defaultSize: 100.0),
+        );
+        final registry = MergedCellRegistry();
+        registry.merge(CellRange(0, 0, 1, 1));
+        plainSolver.mergedCells = registry;
+        final bounds = plainSolver.getCellBounds(const CellCoordinate(1, 1));
+        expect(bounds.width, 200.0);
+        expect(bounds.height, 50.0);
       });
     });
   });

@@ -1,5 +1,6 @@
 import 'dart:ui';
 
+import '../data/merged_cell_registry.dart';
 import '../models/cell_coordinate.dart';
 import 'span_list.dart';
 
@@ -15,10 +16,14 @@ class LayoutSolver {
   /// The column sizes and positions.
   final SpanList _columns;
 
+  /// Optional merged cell registry for merge-aware layout.
+  MergedCellRegistry? mergedCells;
+
   /// Creates a layout solver with the given row and column span lists.
   LayoutSolver({
     required SpanList rows,
     required SpanList columns,
+    this.mergedCells,
   })  : _rows = rows,
         _columns = columns;
 
@@ -44,7 +49,20 @@ class LayoutSolver {
   Size get totalSize => Size(totalWidth, totalHeight);
 
   /// Returns the bounds of the cell at [coord].
+  ///
+  /// If the cell is part of a merged region, returns the bounds of the
+  /// entire merge region.
   Rect getCellBounds(CellCoordinate coord) {
+    final region = mergedCells?.getRegion(coord);
+    if (region != null) {
+      return getRangeBounds(
+        startRow: region.range.startRow,
+        startColumn: region.range.startColumn,
+        endRow: region.range.endRow,
+        endColumn: region.range.endColumn,
+      );
+    }
+
     final left = _columns.positionAt(coord.column);
     final top = _rows.positionAt(coord.row);
     final width = _columns.sizeAt(coord.column);
@@ -55,13 +73,20 @@ class LayoutSolver {
 
   /// Returns the cell coordinate at the given [position], or null if
   /// the position is outside the content bounds.
+  ///
+  /// If the position falls within a merged region, returns the anchor
+  /// (top-left) cell of the merge.
   CellCoordinate? getCellAt(Offset position) {
     final row = getRowAt(position.dy);
     final column = getColumnAt(position.dx);
 
     if (row < 0 || column < 0) return null;
 
-    return CellCoordinate(row, column);
+    final coord = CellCoordinate(row, column);
+    if (mergedCells != null) {
+      return mergedCells!.resolveAnchor(coord);
+    }
+    return coord;
   }
 
   /// Returns the row index at the given y [position], or -1 if invalid.

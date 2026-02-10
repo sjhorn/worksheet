@@ -1,6 +1,8 @@
 import 'package:flutter/painting.dart' hide BorderStyle;
 
+import '../../core/data/merged_cell_registry.dart';
 import '../../core/data/worksheet_data.dart';
+import '../../core/models/cell_range.dart';
 import '../../core/geometry/layout_solver.dart';
 import '../../core/models/border_resolver.dart';
 import '../../core/models/cell_coordinate.dart';
@@ -29,6 +31,9 @@ class FrozenLayer extends RenderLayer {
   final WorksheetData data;
   final LayoutSolver layoutSolver;
   final FrozenLayerNeedsPaintCallback? onNeedsPaint;
+
+  /// Merged cell registry for merge-aware rendering.
+  MergedCellRegistry? mergedCells;
 
   // Style configuration
   final Color backgroundColor;
@@ -194,17 +199,26 @@ class FrozenLayer extends RenderLayer {
     canvas.drawRect(bounds, _backgroundPaint);
 
     // Paint cells in corner region
+    final cornerRendered = <CellCoordinate>{};
     for (int row = 0; row < _freezeConfig.frozenRows; row++) {
       for (int col = 0; col < _freezeConfig.frozenColumns; col++) {
         final coord = CellCoordinate(row, col);
-        final cellBounds = layoutSolver.getCellBounds(coord);
+
+        final region = mergedCells?.getRegion(coord);
+        final renderCoord = region?.anchor ?? coord;
+        if (region != null) {
+          if (cornerRendered.contains(renderCoord)) continue;
+          cornerRendered.add(renderCoord);
+        }
+
+        final cellBounds = layoutSolver.getCellBounds(renderCoord);
         final scaledBounds = Rect.fromLTWH(
           cellBounds.left * zoom,
           cellBounds.top * zoom,
           cellBounds.width * zoom,
           cellBounds.height * zoom,
         );
-        _paintCell(canvas, coord, scaledBounds, zoom);
+        _paintCell(canvas, renderCoord, scaledBounds, zoom);
       }
     }
 
@@ -248,10 +262,19 @@ class FrozenLayer extends RenderLayer {
     final endCol = (visibleColEnd + 1).clamp(0, layoutSolver.columnCount - 1);
 
     // Paint cells
+    final frozenRowsRendered = <CellCoordinate>{};
     for (int row = 0; row < _freezeConfig.frozenRows; row++) {
       for (int col = startCol; col <= endCol; col++) {
         final coord = CellCoordinate(row, col);
-        final cellBounds = layoutSolver.getCellBounds(coord);
+
+        final region = mergedCells?.getRegion(coord);
+        final renderCoord = region?.anchor ?? coord;
+        if (region != null) {
+          if (frozenRowsRendered.contains(renderCoord)) continue;
+          frozenRowsRendered.add(renderCoord);
+        }
+
+        final cellBounds = layoutSolver.getCellBounds(renderCoord);
         final scaledBounds = Rect.fromLTWH(
           (cellBounds.left - scrollX) * zoom + bounds.left,
           cellBounds.top * zoom,
@@ -260,7 +283,7 @@ class FrozenLayer extends RenderLayer {
         );
 
         if (scaledBounds.right > bounds.left && scaledBounds.left < bounds.right) {
-          _paintCell(canvas, coord, scaledBounds, zoom);
+          _paintCell(canvas, renderCoord, scaledBounds, zoom);
         }
       }
     }
@@ -306,10 +329,19 @@ class FrozenLayer extends RenderLayer {
     final endRow = (visibleRowEnd + 1).clamp(0, layoutSolver.rowCount - 1);
 
     // Paint cells
+    final frozenColsRendered = <CellCoordinate>{};
     for (int row = startRow; row <= endRow; row++) {
       for (int col = 0; col < _freezeConfig.frozenColumns; col++) {
         final coord = CellCoordinate(row, col);
-        final cellBounds = layoutSolver.getCellBounds(coord);
+
+        final region = mergedCells?.getRegion(coord);
+        final renderCoord = region?.anchor ?? coord;
+        if (region != null) {
+          if (frozenColsRendered.contains(renderCoord)) continue;
+          frozenColsRendered.add(renderCoord);
+        }
+
+        final cellBounds = layoutSolver.getCellBounds(renderCoord);
         final scaledBounds = Rect.fromLTWH(
           cellBounds.left * zoom,
           (cellBounds.top - scrollY) * zoom + bounds.top,
@@ -318,7 +350,7 @@ class FrozenLayer extends RenderLayer {
         );
 
         if (scaledBounds.bottom > bounds.top && scaledBounds.top < bounds.bottom) {
-          _paintCell(canvas, coord, scaledBounds, zoom);
+          _paintCell(canvas, renderCoord, scaledBounds, zoom);
         }
       }
     }
@@ -594,21 +626,81 @@ class FrozenLayer extends RenderLayer {
   }) {
     final path = Path();
 
+    // Collect merge regions intersecting the visible range for gap suppression.
+    final cellRange = CellRange(startRow, startCol, endRow, endCol);
+    final mergeRegions = mergedCells != null && mergedCells!.regionCount > 0
+        ? mergedCells!.regionsInRange(cellRange).toList()
+        : const <MergeRegion>[];
+
     // Vertical gridlines
     for (int col = startCol; col <= endCol + 1; col++) {
       final x = ((layoutSolver.getColumnLeft(col) - scrollX) * zoom + offsetX).roundToDouble() + 0.5;
-      if (x >= bounds.left && x <= bounds.right) {
+      if (x < bounds.left || x > bounds.right) continue;
+
+      // Find merge regions whose interior crosses this vertical line.
+      final gaps = <MergeRegion>[];
+      for (final region in mergeRegions) {
+        final r = region.range;
+        if (r.startColumn < col && r.endColumn >= col) {
+          gaps.add(region);
+        }
+      }
+
+      if (gaps.isEmpty) {
         path.moveTo(x, bounds.top);
         path.lineTo(x, bounds.bottom);
+      } else {
+        gaps.sort((a, b) => a.range.startRow.compareTo(b.range.startRow));
+        var currentY = bounds.top;
+        for (final gap in gaps) {
+          final gapTop = ((layoutSolver.getRowTop(gap.range.startRow) - scrollY) * zoom + offsetY).roundToDouble();
+          final gapBottom = ((layoutSolver.getRowTop(gap.range.endRow + 1) - scrollY) * zoom + offsetY).roundToDouble();
+          if (gapTop > currentY) {
+            path.moveTo(x, currentY);
+            path.lineTo(x, gapTop);
+          }
+          if (gapBottom > currentY) currentY = gapBottom;
+        }
+        if (currentY < bounds.bottom) {
+          path.moveTo(x, currentY);
+          path.lineTo(x, bounds.bottom);
+        }
       }
     }
 
     // Horizontal gridlines
     for (int row = startRow; row <= endRow + 1; row++) {
       final y = ((layoutSolver.getRowTop(row) - scrollY) * zoom + offsetY).roundToDouble() + 0.5;
-      if (y >= bounds.top && y <= bounds.bottom) {
+      if (y < bounds.top || y > bounds.bottom) continue;
+
+      // Find merge regions whose interior crosses this horizontal line.
+      final gaps = <MergeRegion>[];
+      for (final region in mergeRegions) {
+        final r = region.range;
+        if (r.startRow < row && r.endRow >= row) {
+          gaps.add(region);
+        }
+      }
+
+      if (gaps.isEmpty) {
         path.moveTo(bounds.left, y);
         path.lineTo(bounds.right, y);
+      } else {
+        gaps.sort((a, b) => a.range.startColumn.compareTo(b.range.startColumn));
+        var currentX = bounds.left;
+        for (final gap in gaps) {
+          final gapLeft = ((layoutSolver.getColumnLeft(gap.range.startColumn) - scrollX) * zoom + offsetX).roundToDouble();
+          final gapRight = ((layoutSolver.getColumnLeft(gap.range.endColumn + 1) - scrollX) * zoom + offsetX).roundToDouble();
+          if (gapLeft > currentX) {
+            path.moveTo(currentX, y);
+            path.lineTo(gapLeft, y);
+          }
+          if (gapRight > currentX) currentX = gapRight;
+        }
+        if (currentX < bounds.right) {
+          path.moveTo(currentX, y);
+          path.lineTo(bounds.right, y);
+        }
       }
     }
 
