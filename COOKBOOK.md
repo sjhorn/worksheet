@@ -17,7 +17,8 @@ Practical recipes for common worksheet tasks.
 11. [Custom Column Widths](#custom-column-widths)
 12. [Cell Value Validation](#cell-value-validation)
 13. [Automatic Date Detection](#automatic-date-detection)
-14. [Multi-Select Resize](#multi-select-resize)
+14. [Locale-Aware Formatting](#locale-aware-formatting)
+15. [Multi-Select Resize](#multi-select-resize)
 
 ---
 
@@ -166,9 +167,13 @@ class _EditableDataGridState extends State<EditableDataGrid> {
     );
   }
 
-  void _onCommit(CellCoordinate cell, CellValue? value) {
+  void _onCommit(CellCoordinate cell, CellValue? value,
+      {CellFormat? detectedFormat}) {
     setState(() {
       _data.setCell(cell, value);
+      if (detectedFormat != null && _data.getFormat(cell) == null) {
+        _data.setFormat(cell, detectedFormat);
+      }
       _editingCellBounds = null;
       _hasUnsavedChanges = true;
     });
@@ -303,6 +308,13 @@ data[(0, 0)] = Cell.number(
 | `CellFormat.dateIso` | `2024-01-15` |
 | `CellFormat.dateUs` | `1/15/2024` |
 | `CellFormat.dateShort` | `15-Jan-24` |
+| `CellFormat.dateShortLong` | `15-Jan-2024` |
+| `CellFormat.dateLong` | `15 January 2024` |
+| `CellFormat.dateEu` | `15/1/2024` |
+| `CellFormat.dateUsDash` | `1-15-2024` |
+| `CellFormat.dateEuDash` | `15-1-2024` |
+| `CellFormat.dateUsDot` | `1.15.2024` |
+| `CellFormat.dateEuDot` | `15.1.2024` |
 | `CellFormat.dateMonthYear` | `Jan-24` |
 | `CellFormat.time24` | `14:30` |
 | `CellFormat.time24Seconds` | `14:30:05` |
@@ -1398,6 +1410,89 @@ final safe = CellValue.parse(userInput, allowFormulas: false);
 final parser = AnyDate(info: DateParserInfo(dayFirst: true));
 final parsed = CellValue.parse(userInput, dateParser: parser);
 ```
+
+---
+
+## Locale-Aware Formatting
+
+Format numbers and dates with locale-specific separators, currency symbols, and month names:
+
+### Number Formatting with Locale
+
+```dart
+// German: period for thousands, comma for decimals, euro symbol
+final result = CellFormat.currency.formatRich(
+  CellValue.number(1234.56),
+  locale: FormatLocale.deDe,
+);
+// result.text == "1.234,56 €"
+
+// French: space for thousands, comma for decimals
+final fr = CellFormat.number.formatRich(
+  CellValue.number(1234.56),
+  locale: FormatLocale.frFr,
+);
+// fr.text == "1 234,56"
+```
+
+### Date Format Auto-Detection
+
+When a user types a date, the format is preserved automatically:
+
+```dart
+Worksheet(
+  data: data,
+  formatLocale: FormatLocale.enUs,  // US: month/day/year
+)
+// User types "1/15/2024" → displayed as "1/15/2024" (not "2024-01-15")
+// User types "15-Jan-24" → displayed as "15-Jan-24"
+// User types "2024-01-15" → displayed as "2024-01-15"
+```
+
+For UK/European date ordering:
+
+```dart
+Worksheet(
+  data: data,
+  formatLocale: FormatLocale.enGb,  // UK: day/month/year
+)
+// User types "15/1/2024" → detected as d/m/yyyy, displayed as "15/1/2024"
+```
+
+### Conditional Format Codes with Colors
+
+Use Excel-style conditional sections and color codes:
+
+```dart
+// Red for negative, blue for positive
+const colorFormat = CellFormat(
+  type: CellFormatType.custom,
+  formatCode: '[Blue]#,##0.00;[Red]-#,##0.00',
+);
+
+final positive = colorFormat.formatRich(CellValue.number(42));
+// positive.text == "42.00", positive.color == Color(0xFF0000FF)
+
+final negative = colorFormat.formatRich(CellValue.number(-42));
+// negative.text == "-42.00", negative.color == Color(0xFFFF0000)
+
+// Conditional thresholds
+const threshold = CellFormat(
+  type: CellFormatType.custom,
+  formatCode: '[Red][<0]#,##0;[Green][>1000]#,##0;#,##0',
+);
+```
+
+### Available FormatLocale Presets
+
+| Locale | Example Number | Example Currency |
+|--------|---------------|-----------------|
+| `FormatLocale.enUs` | `1,234.56` | `$1,234.56` |
+| `FormatLocale.enGb` | `1,234.56` | `£1,234.56` |
+| `FormatLocale.deDe` | `1.234,56` | `1.234,56 €` |
+| `FormatLocale.frFr` | `1 234,56` | `1 234,56 €` |
+| `FormatLocale.jaJp` | `1,234.56` | `¥1,234.56` |
+| `FormatLocale.zhCn` | `1,234.56` | `¥1,234.56` |
 
 ---
 

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Auto-detect date format from user input — when a date like `1/15/2024` or `15-Jan-24` is typed, the display format is preserved via round-trip matching against candidate `CellFormat`s
+- `DateFormatDetector` utility class for detecting which `CellFormat` matches a user-typed date string
+- `FormatLocale.dayFirst` field — resolves ambiguous numeric dates (e.g., `01/02/2024` → Jan 2 in US, Feb 1 in UK)
+- `Worksheet.formatLocale` parameter — passes locale to `EditController` for date format detection
+- 7 new date format presets: `dateShortLong` (`d-mmm-yyyy`), `dateLong` (`d mmmm yyyy`), `dateEu` (`d/m/yyyy`), `dateUsDash` (`m-d-yyyy`), `dateEuDash` (`d-m-yyyy`), `dateUsDot` (`m.d.yyyy`), `dateEuDot` (`d.m.yyyy`)
+- `CellFormatResult` class — rich formatting result with optional color override from format codes like `[Red]` or `[Color3]`
+- `CellFormat.formatRich()` method — returns `CellFormatResult` with text and optional color (vs `format()` which returns plain text)
+- `FormatLocale` class with 6 built-in locales (`enUs`, `enGb`, `deDe`, `frFr`, `jaJp`, `zhCn`) — locale-aware decimal/thousands separators, currency symbols, and month/day names
+- Comprehensive Excel custom format engine: conditional sections (`[>100]`), color codes (`[Red]`, `[Color3]`), bracket metadata (`[$EUR]` currency override), comma-as-scaler, `*` repeat fill, fractional seconds, fraction denominator constraints
+
+### Changed
+- `onCommit` callback signature now includes optional `{CellFormat? detectedFormat}` parameter across `EditController`, `CellEditorOverlay`, and `Worksheet`
+- `Worksheet` commit handlers auto-apply detected date format via `data.setFormat()` when no explicit format exists
+
 ## [1.10.0] - 2026-02-09
 
 ### Changed

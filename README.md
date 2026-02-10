@@ -117,10 +117,21 @@ final data = SparseWorksheetData(rowCount: 100, columnCount: 10, cells: {
 });
 ```
 
-20 built-in presets cover common formats. For custom codes, create your own:
+27 built-in presets cover common formats. For custom codes, create your own:
 
 ```dart
 const custom = CellFormat(type: CellFormatType.number, formatCode: '#,##0.000');
+```
+
+Format with locale-aware separators and currency symbols:
+
+```dart
+// German locale: period for thousands, comma for decimals
+final result = CellFormat.currency.formatRich(
+  CellValue.number(1234.56),
+  locale: FormatLocale.deDe,
+);
+// result.text == "1.234,56 €"
 ```
 
 ## Automatic Date Detection
@@ -141,6 +152,21 @@ Worksheet(
 ```
 
 `AnyDate` and `DateParserInfo` are re-exported from `package:worksheet/worksheet.dart`.
+
+### Preserving the Format You Typed
+
+When you type a date like `1/15/2024`, the cell displays it as `1/15/2024` — not the default ISO format. The widget auto-detects the format via round-trip matching and stores it as a `CellFormat`:
+
+```dart
+// Configure locale for ambiguous dates (e.g., 01/02/2024)
+Worksheet(
+  data: data,
+  formatLocale: FormatLocale.enUs,  // US: month/day/year (default)
+  // formatLocale: FormatLocale.enGb,  // UK: day/month/year
+)
+```
+
+Supports ISO (`2024-01-15`), US (`1/15/2024`), EU (`15/1/2024`), named months (`15-Jan-24`, `15 January 2024`), and separator variants (slashes, dashes, dots).
 
 ## Style Your Data
 

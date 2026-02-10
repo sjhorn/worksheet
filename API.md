@@ -193,11 +193,17 @@ typedef OnResizeColumnCallback = void Function(int column, double newWidth);
 
 ```dart
 /// Called when edit is committed
-typedef OnCommitCallback = void Function(CellCoordinate cell, CellValue? value);
+typedef OnCommitCallback = void Function(
+  CellCoordinate cell,
+  CellValue? value, {
+  CellFormat? detectedFormat,
+});
 
 /// Called when edit is cancelled
 typedef OnCancelCallback = void Function();
 ```
+
+The `detectedFormat` parameter is populated when the user types a date — the format they typed (e.g., `m/d/yyyy` for `1/15/2024`) is detected via round-trip matching and passed to the callback so the cell can display the date in the format it was entered.
 
 ### Worksheet Date Parsing
 
@@ -599,6 +605,13 @@ const CellFormat({required CellFormatType type, required String formatCode})
 | `CellFormat.dateIso` | `yyyy-MM-dd` | `2024-01-15` | `2024-01-15` |
 | `CellFormat.dateUs` | `m/d/yyyy` | `2024-01-15` | `1/15/2024` |
 | `CellFormat.dateShort` | `d-mmm-yy` | `2024-01-15` | `15-Jan-24` |
+| `CellFormat.dateShortLong` | `d-mmm-yyyy` | `2024-01-15` | `15-Jan-2024` |
+| `CellFormat.dateLong` | `d mmmm yyyy` | `2024-01-15` | `15 January 2024` |
+| `CellFormat.dateEu` | `d/m/yyyy` | `2024-01-15` | `15/1/2024` |
+| `CellFormat.dateUsDash` | `m-d-yyyy` | `2024-01-15` | `1-15-2024` |
+| `CellFormat.dateEuDash` | `d-m-yyyy` | `2024-01-15` | `15-1-2024` |
+| `CellFormat.dateUsDot` | `m.d.yyyy` | `2024-01-15` | `1.15.2024` |
+| `CellFormat.dateEuDot` | `d.m.yyyy` | `2024-01-15` | `15.1.2024` |
 | `CellFormat.dateMonthYear` | `mmm-yy` | `2024-01-15` | `Jan-24` |
 | `CellFormat.time24` | `H:mm` | `14:30` | `14:30` |
 | `CellFormat.time24Seconds` | `H:mm:ss` | `14:30:05` | `14:30:05` |
@@ -628,6 +641,114 @@ const myFormat = CellFormat(type: CellFormatType.number, formatCode: '#,##0.000'
 final cell = Cell.number(42, format: CellFormat.currency);
 cell.displayValue  // "$42.00"
 ```
+
+### CellFormatResult
+
+Rich formatting result returned by `formatRich()`, containing text and optional color override:
+
+```dart
+class CellFormatResult {
+  final String text;
+  final Color? color;
+}
+```
+
+### formatRich()
+
+Returns a `CellFormatResult` with both formatted text and optional color from format codes like `[Red]` or `[Color3]`:
+
+```dart
+// Plain text formatting
+final text = CellFormat.currency.format(CellValue.number(1234.56));
+// text == "$1,234.56"
+
+// Rich formatting with color
+final result = CellFormat(
+  type: CellFormatType.custom,
+  formatCode: '[Red]#,##0.00;[Blue]-#,##0.00',
+).formatRich(CellValue.number(-42));
+// result.text == "-42.00", result.color == Color(0xFF0000FF)
+
+// Locale-aware formatting
+final de = CellFormat.currency.formatRich(
+  CellValue.number(1234.56),
+  locale: FormatLocale.deDe,
+);
+// de.text == "1.234,56 €"
+```
+
+### FormatLocale
+
+Locale configuration for number/date formatting with 6 built-in locales:
+
+| Locale | Decimal | Thousands | Currency | dayFirst |
+|--------|---------|-----------|----------|----------|
+| `FormatLocale.enUs` | `.` | `,` | `$` | `false` |
+| `FormatLocale.enGb` | `.` | `,` | `£` | `true` |
+| `FormatLocale.deDe` | `,` | `.` | `€` | `true` |
+| `FormatLocale.frFr` | `,` | ` ` | `€` | `true` |
+| `FormatLocale.jaJp` | `.` | `,` | `¥` | `false` |
+| `FormatLocale.zhCn` | `.` | `,` | `¥` | `false` |
+
+```dart
+// Use locale with formatting
+final result = CellFormat.number.formatRich(
+  CellValue.number(1234.56),
+  locale: FormatLocale.deDe,
+);
+// result.text == "1.234,56"
+
+// Resolve by LCID tag
+final locale = FormatLocale.fromTag('de-DE');  // FormatLocale.deDe
+```
+
+### DateFormatDetector
+
+Detects which `CellFormat` matches a user-typed date string via round-trip matching:
+
+```dart
+static CellFormat? detect(
+  String input,
+  DateTime parsed, {
+  bool dayFirst = false,
+  FormatLocale locale = FormatLocale.enUs,
+})
+```
+
+**Usage:**
+```dart
+final dt = DateTime(2024, 1, 15);
+
+DateFormatDetector.detect('1/15/2024', dt)
+// → CellFormat.dateUs
+
+DateFormatDetector.detect('15-Jan-24', dt)
+// → CellFormat.dateShort
+
+DateFormatDetector.detect('2024-01-15', dt)
+// → CellFormat.dateIso
+
+DateFormatDetector.detect('15/1/2024', dt, dayFirst: true)
+// → CellFormat.dateEu
+
+DateFormatDetector.detect('hello', dt)
+// → null (no match)
+```
+
+The `Worksheet` widget calls this automatically during commit when a date is entered. The detected format is passed to `onCommit` via the `detectedFormat` parameter and applied via `data.setFormat()`.
+
+### Worksheet.formatLocale
+
+Pass a `FormatLocale` to the `Worksheet` widget to configure date format detection:
+
+```dart
+Worksheet(
+  data: data,
+  formatLocale: FormatLocale.enGb,  // UK: day/month/year
+)
+```
+
+When `formatLocale` is set, `FormatLocale.dayFirst` is used by `DateFormatDetector` to resolve ambiguous numeric dates.
 
 ---
 

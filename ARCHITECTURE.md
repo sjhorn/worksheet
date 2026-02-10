@@ -70,6 +70,7 @@ lib/
     │   │   ├── border_resolver.dart    # Adjacent cell border conflict resolution
     │   │   ├── cell_coordinate.dart    # (row, column) position
     │   │   ├── cell_range.dart         # Rectangular cell range
+    │   │   ├── cell_format.dart         # Format codes, FormatLocale, DateFormatDetector
     │   │   ├── cell_style.dart         # Fonts, colors, alignment, borders
     │   │   ├── cell_value.dart         # Text, number, formula, error
     │   │   └── freeze_config.dart      # Frozen rows/columns config
@@ -365,8 +366,12 @@ User types and presses Enter
         ▼
 EditController.commitEdit(onCommit: callback)
         │
+        ├── If date value: DateFormatDetector.detect(input, parsed, dayFirst: locale.dayFirst)
+        │   └── Passes detectedFormat to onCommit callback
+        │
         ▼
 WorksheetData.setCell(coord, newValue)
+  + if detectedFormat != null: WorksheetData.setFormat(coord, detectedFormat)
         │
         ▼
 DataChangeEvent emitted
@@ -634,7 +639,10 @@ abstract class TileRenderer {
 abstract class WorksheetData {
   CellValue? getCell(CellCoordinate coord);
   CellStyle? getStyle(CellCoordinate coord);
+  CellFormat? getFormat(CellCoordinate coord);
   void setCell(CellCoordinate coord, CellValue? value);
+  void setStyle(CellCoordinate coord, CellStyle? style);
+  void setFormat(CellCoordinate coord, CellFormat? format);
   Stream<DataChangeEvent> get changes;
 }
 ```

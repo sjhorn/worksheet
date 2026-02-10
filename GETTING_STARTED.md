@@ -262,9 +262,13 @@ class _MyWidgetState extends State<MyWidget> {
     );
   }
 
-  void _onCommit(CellCoordinate cell, CellValue? value) {
+  void _onCommit(CellCoordinate cell, CellValue? value,
+      {CellFormat? detectedFormat}) {
     setState(() {
       _data.setCell(cell, value);
+      if (detectedFormat != null && _data.getFormat(cell) == null) {
+        _data.setFormat(cell, detectedFormat);
+      }
       _editingCellBounds = null;
     });
   }
