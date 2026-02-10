@@ -26,7 +26,7 @@ void main() {
       expect(style.selectedBackgroundColor, const Color(0xFFE0E0E0));
       expect(style.textColor, const Color(0xFF616161));
       expect(style.selectedTextColor, const Color(0xFF212121));
-      expect(style.borderColor, const Color(0xFFD0D0D0)); // Match cell gridlines
+      expect(style.borderColor, const Color(0xFFD0D0D0));
       expect(style.borderWidth, 1.0);
       expect(style.fontSize, 12.0);
       expect(style.fontWeight, FontWeight.w500);

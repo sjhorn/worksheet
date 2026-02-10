@@ -40,7 +40,7 @@ class HeaderStyle {
     this.selectedBackgroundColor = const Color(0xFFE0E0E0),
     this.textColor = const Color(0xFF616161),
     this.selectedTextColor = const Color(0xFF212121),
-    this.borderColor = const Color(0xFFD0D0D0), // Match cell gridlines
+    this.borderColor = const Color(0xFFD0D0D0),
     this.borderWidth = 1.0,
     this.fontSize = 12.0,
     this.fontWeight = FontWeight.w500,
@@ -133,21 +133,23 @@ class HeaderRenderer {
     final selectedStartCol = selectedRange?.startColumn;
     final selectedEndCol = selectedRange?.endColumn;
 
+    // Two-pass rendering: backgrounds + text first, then borders on top.
+    // This prevents a selected header's background from painting over
+    // the adjacent header's border line.
+
+    // Pass 1: backgrounds and text
     for (var col = visibleColumns.startIndex; col <= visibleColumns.endIndex; col++) {
       final left = layoutSolver.getColumnLeft(col);
       final width = layoutSolver.getColumnWidth(col);
 
-      // Convert to screen coordinates (offset by scaled header width)
       final screenLeft = (left - viewportOffset.dx) * zoom + scaledRowHeaderWidth;
       final screenWidth = width * zoom;
 
-      // Check if column is selected
       final isSelected = selectedStartCol != null &&
           selectedEndCol != null &&
           col >= selectedStartCol &&
           col <= selectedEndCol;
 
-      // Draw background
       final cellRect = Rect.fromLTWH(
         screenLeft,
         0,
@@ -159,8 +161,18 @@ class HeaderRenderer {
         canvas.drawRect(cellRect, _selectedBackgroundPaint);
       }
 
-      // Draw right border - match tile gridline calculation exactly
-      // Simulate: (tileBounds.left - scrollX + (colLeft - tileBounds.left).round()) * zoom + headerOffset
+      final letter = _columnIndexToLetter(col);
+      _drawCenteredText(
+        canvas,
+        letter,
+        cellRect,
+        isSelected ? style.selectedTextColor : style.textColor,
+        zoom: zoom,
+      );
+    }
+
+    // Pass 2: borders (drawn last so they're never obscured)
+    for (var col = visibleColumns.startIndex; col <= visibleColumns.endIndex; col++) {
       final colLeft = layoutSolver.getColumnLeft(col + 1);
       final tileSize = 256.0; // TileConfig default
       final tileBoundsLeft = (colLeft ~/ tileSize) * tileSize;
@@ -170,16 +182,6 @@ class HeaderRenderer {
         Offset(borderX, 0),
         Offset(borderX, scaledColumnHeaderHeight),
         _borderPaint,
-      );
-
-      // Draw column letter
-      final letter = _columnIndexToLetter(col);
-      _drawCenteredText(
-        canvas,
-        letter,
-        cellRect,
-        isSelected ? style.selectedTextColor : style.textColor,
-        zoom: zoom,
       );
     }
   }
@@ -216,21 +218,23 @@ class HeaderRenderer {
     final selectedStartRow = selectedRange?.startRow;
     final selectedEndRow = selectedRange?.endRow;
 
+    // Two-pass rendering: backgrounds + text first, then borders on top.
+    // This prevents a selected header's background from painting over
+    // the adjacent header's border line.
+
+    // Pass 1: backgrounds and text
     for (var row = visibleRows.startIndex; row <= visibleRows.endIndex; row++) {
       final top = layoutSolver.getRowTop(row);
       final height = layoutSolver.getRowHeight(row);
 
-      // Convert to screen coordinates (offset by scaled header height)
       final screenTop = (top - viewportOffset.dy) * zoom + scaledColumnHeaderHeight;
       final screenHeight = height * zoom;
 
-      // Check if row is selected
       final isSelected = selectedStartRow != null &&
           selectedEndRow != null &&
           row >= selectedStartRow &&
           row <= selectedEndRow;
 
-      // Draw background
       final cellRect = Rect.fromLTWH(
         0,
         screenTop,
@@ -242,10 +246,18 @@ class HeaderRenderer {
         canvas.drawRect(cellRect, _selectedBackgroundPaint);
       }
 
-      // Draw bottom border - match tile gridline calculation exactly
-      // The issue: tiles round in tile-local coords, then the rounded value gets scaled
-      // We need to simulate: (tileBounds.top - scrollY + (rowTop - tileBounds.top).round()) * zoom + headerOffset
-      // For a row, we need to find which tile it belongs to and calculate accordingly
+      final rowNumber = (row + 1).toString();
+      _drawCenteredText(
+        canvas,
+        rowNumber,
+        cellRect,
+        isSelected ? style.selectedTextColor : style.textColor,
+        zoom: zoom,
+      );
+    }
+
+    // Pass 2: borders (drawn last so they're never obscured)
+    for (var row = visibleRows.startIndex; row <= visibleRows.endIndex; row++) {
       final rowTop = layoutSolver.getRowTop(row + 1);
       final tileSize = 256.0; // TileConfig default
       final tileBoundsTop = (rowTop ~/ tileSize) * tileSize;
@@ -255,16 +267,6 @@ class HeaderRenderer {
         Offset(0, borderY),
         Offset(scaledRowHeaderWidth, borderY),
         _borderPaint,
-      );
-
-      // Draw row number (1-based)
-      final rowNumber = (row + 1).toString();
-      _drawCenteredText(
-        canvas,
-        rowNumber,
-        cellRect,
-        isSelected ? style.selectedTextColor : style.textColor,
-        zoom: zoom,
       );
     }
   }
