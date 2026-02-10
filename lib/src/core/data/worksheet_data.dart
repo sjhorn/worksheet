@@ -1,3 +1,5 @@
+import 'package:flutter/painting.dart';
+
 import 'package:worksheet/worksheet.dart';
 
 /// Abstract interface for worksheet data access.
@@ -28,6 +30,15 @@ abstract class WorksheetData {
   ///
   /// Pass null to use General format.
   void setFormat(CellCoordinate coord, CellFormat? format) {}
+
+  /// Gets the rich text spans for the cell at [coord], or null if none.
+  List<TextSpan>? getRichText(CellCoordinate coord) => null;
+
+  /// Sets the rich text spans for the cell at [coord].
+  ///
+  /// Pass null to clear rich text (cell renders plain text from value).
+  /// The concatenation of span texts must equal the cell's plain text value.
+  void setRichText(CellCoordinate coord, List<TextSpan>? richText) {}
 
   /// Performs batch updates atomically.
   ///
@@ -105,6 +116,9 @@ abstract class WorksheetDataBatch {
 
   /// Sets a cell format within the batch.
   void setFormat(CellCoordinate coord, CellFormat? format) {}
+
+  /// Sets rich text spans within the batch.
+  void setRichText(CellCoordinate coord, List<TextSpan>? richText) {}
 
   /// Clears a range within the batch.
   void clearRange(CellRange range);

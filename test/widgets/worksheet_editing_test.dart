@@ -315,7 +315,7 @@ void main() {
       expect(controller.focusCell, const CellCoordinate(2, 2));
     });
 
-    testWidgets('ArrowRight commits and moves selection right',
+    testWidgets('ArrowRight moves text cursor, stays in edit mode',
         (tester) async {
       await tester.pumpWidget(buildWorksheet(ec: editController));
       selectCell(2, 2);
@@ -330,11 +330,12 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.pump();
 
-      expect(editController.isEditing, isFalse);
-      expect(controller.focusCell, const CellCoordinate(2, 3));
+      expect(editController.isEditing, isTrue);
+      expect(controller.focusCell, const CellCoordinate(2, 2));
     });
 
-    testWidgets('ArrowLeft commits and moves selection left', (tester) async {
+    testWidgets('ArrowLeft moves text cursor, stays in edit mode',
+        (tester) async {
       await tester.pumpWidget(buildWorksheet(ec: editController));
       selectCell(2, 3);
       await tester.pump();
@@ -348,8 +349,8 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
       await tester.pump();
 
-      expect(editController.isEditing, isFalse);
-      expect(controller.focusCell, const CellCoordinate(2, 2));
+      expect(editController.isEditing, isTrue);
+      expect(controller.focusCell, const CellCoordinate(2, 3));
     });
 
     testWidgets('Escape cancels edit, does not navigate', (tester) async {

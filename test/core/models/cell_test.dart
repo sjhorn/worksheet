@@ -1,5 +1,4 @@
-import 'dart:ui';
-
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/models/cell.dart';
 import 'package:worksheet/src/core/models/cell_format.dart';
@@ -246,6 +245,62 @@ void main() {
         final copied = original.copyWithFormat(null);
         expect(copied.format, isNull);
         expect(copied.value, original.value);
+      });
+
+      test('preserves richText through copyWithFormat', () {
+        final spans = [
+          const TextSpan(text: '42', style: TextStyle(fontWeight: FontWeight.bold)),
+        ];
+        final original = Cell.number(42, richText: spans);
+        final copied = original.copyWithFormat(CellFormat.currency);
+        expect(copied.richText, spans);
+      });
+    });
+
+    group('richText', () {
+      test('default constructor has null richText', () {
+        const cell = Cell();
+        expect(cell.richText, isNull);
+        expect(cell.hasRichText, isFalse);
+      });
+
+      test('constructor with richText', () {
+        const spans = [TextSpan(text: 'hello')];
+        const cell = Cell(
+          value: CellValue.text('hello'),
+          richText: spans,
+        );
+        expect(cell.richText, spans);
+        expect(cell.hasRichText, isTrue);
+        expect(cell.isEmpty, isFalse);
+      });
+
+      test('Cell.text accepts richText', () {
+        const spans = [
+          TextSpan(
+            text: 'he',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          TextSpan(text: 'llo'),
+        ];
+        final cell = Cell.text('hello', richText: spans);
+        expect(cell.richText, spans);
+        expect(cell.hasRichText, isTrue);
+      });
+
+      test('equality considers richText', () {
+        const spans = [TextSpan(text: 'hi')];
+        const a = Cell(value: CellValue.text('hi'), richText: spans);
+        const b = Cell(value: CellValue.text('hi'), richText: spans);
+        expect(a, equals(b));
+
+        final c = Cell.text('hi');
+        expect(a, isNot(equals(c)));
+      });
+
+      test('isEmpty considers richText', () {
+        const cell = Cell(richText: [TextSpan(text: 'x')]);
+        expect(cell.isEmpty, isFalse);
       });
     });
   });

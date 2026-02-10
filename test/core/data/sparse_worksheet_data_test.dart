@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:ui';
 
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/data_change_event.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
@@ -1086,6 +1086,108 @@ void main() {
           () => data.setCell(CellCoordinate(0, 0), CellValue.text('test')),
           throwsStateError,
         );
+      });
+    });
+
+    group('richText', () {
+      test('getRichText returns null by default', () {
+        expect(data.getRichText(CellCoordinate(0, 0)), isNull);
+      });
+
+      test('setRichText stores and retrieves spans', () {
+        const spans = [
+          TextSpan(
+              text: 'Bold',
+              style: TextStyle(fontWeight: FontWeight.bold)),
+          TextSpan(text: ' text'),
+        ];
+        data.setRichText(CellCoordinate(0, 0), spans);
+        expect(data.getRichText(CellCoordinate(0, 0)), spans);
+      });
+
+      test('setRichText null clears spans', () {
+        const spans = [TextSpan(text: 'hello')];
+        data.setRichText(CellCoordinate(0, 0), spans);
+        data.setRichText(CellCoordinate(0, 0), null);
+        expect(data.getRichText(CellCoordinate(0, 0)), isNull);
+      });
+
+      test('setRichText emits change event', () async {
+        final events = <DataChangeEvent>[];
+        data.changes.listen(events.add);
+
+        data.setRichText(CellCoordinate(1, 2), const [TextSpan(text: 'hi')]);
+        await Future.delayed(Duration.zero);
+
+        expect(events, isNotEmpty);
+        expect(events.last.type, DataChangeType.cellValue);
+      });
+
+      test('clearRange clears richText', () {
+        data.setRichText(
+            CellCoordinate(0, 0), const [TextSpan(text: 'hello')]);
+        data.clearRange(CellRange(0, 0, 0, 0));
+        expect(data.getRichText(CellCoordinate(0, 0)), isNull);
+      });
+
+      test('operator[] includes richText', () {
+        const spans = [TextSpan(text: 'hi')];
+        data[(0, 0)] = const Cell(
+          value: CellValue.text('hi'),
+          richText: spans,
+        );
+        final cell = data[(0, 0)];
+        expect(cell, isNotNull);
+        expect(cell!.richText, spans);
+      });
+
+      test('operator[]= null clears richText', () {
+        data[(0, 0)] = const Cell(
+          value: CellValue.text('hi'),
+          richText: [TextSpan(text: 'hi')],
+        );
+        data[(0, 0)] = null;
+        expect(data.getRichText(CellCoordinate(0, 0)), isNull);
+      });
+
+      test('constructor initializes richText from cells map', () {
+        final d = SparseWorksheetData(
+          rowCount: 10,
+          columnCount: 10,
+          cells: {
+            (0, 0): const Cell(
+              value: CellValue.text('test'),
+              richText: [TextSpan(text: 'test')],
+            ),
+          },
+        );
+        expect(d.getRichText(CellCoordinate(0, 0)), isNotNull);
+        d.dispose();
+      });
+
+      test('cells getter includes richText', () {
+        data.setRichText(
+            CellCoordinate(0, 0), const [TextSpan(text: 'hello')]);
+        data.setCell(CellCoordinate(0, 0), CellValue.text('hello'));
+        final cells = data.cells;
+        expect(cells[CellCoordinate(0, 0)]?.richText, isNotNull);
+      });
+
+      test('batch setRichText works', () {
+        data.batchUpdate((batch) {
+          batch.setRichText(
+              CellCoordinate(0, 0), const [TextSpan(text: 'hi')]);
+        });
+        expect(data.getRichText(CellCoordinate(0, 0)), isNotNull);
+      });
+
+      test('batch clearValues clears richText', () {
+        data.setRichText(
+            CellCoordinate(0, 0), const [TextSpan(text: 'hello')]);
+        data.batchUpdate((batch) {
+          batch.clearValues(CellRange(0, 0, 0, 0));
+        });
+        expect(data.getRichText(CellCoordinate(0, 0)), isNull);
       });
     });
   });

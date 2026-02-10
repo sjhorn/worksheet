@@ -207,6 +207,8 @@ void main() {
       expect(style.verticalAlignment, isNull);
       expect(style.borders, isNull);
       expect(style.wrapText, isNull);
+      expect(style.underline, isNull);
+      expect(style.strikethrough, isNull);
       expect(style.numberFormat, isNull);
     });
 
@@ -248,6 +250,8 @@ void main() {
       expect(CellStyle.defaultStyle.verticalAlignment, CellVerticalAlignment.middle);
       expect(CellStyle.defaultStyle.borders, CellBorders.none);
       expect(CellStyle.defaultStyle.wrapText, isFalse);
+      expect(CellStyle.defaultStyle.underline, isFalse);
+      expect(CellStyle.defaultStyle.strikethrough, isFalse);
     });
 
     group('merge', () {
@@ -461,6 +465,66 @@ void main() {
       final merged = CellStyle.defaultStyle.merge(style);
       expect(merged.textAlignment, isNull);
       // The caller would then use implicitAlignment based on value type.
+    });
+  });
+
+  group('CellStyle underline and strikethrough', () {
+    test('underline can be set to true', () {
+      const style = CellStyle(underline: true);
+      expect(style.underline, isTrue);
+    });
+
+    test('strikethrough can be set to true', () {
+      const style = CellStyle(strikethrough: true);
+      expect(style.strikethrough, isTrue);
+    });
+
+    test('merge preserves underline from other', () {
+      const base = CellStyle(underline: false);
+      const overlay = CellStyle(underline: true);
+      final merged = base.merge(overlay);
+      expect(merged.underline, isTrue);
+    });
+
+    test('merge preserves strikethrough from other', () {
+      const base = CellStyle(strikethrough: false);
+      const overlay = CellStyle(strikethrough: true);
+      final merged = base.merge(overlay);
+      expect(merged.strikethrough, isTrue);
+    });
+
+    test('merge falls back to base when other is null', () {
+      const base = CellStyle(underline: true, strikethrough: true);
+      const overlay = CellStyle();
+      final merged = base.merge(overlay);
+      expect(merged.underline, isTrue);
+      expect(merged.strikethrough, isTrue);
+    });
+
+    test('copyWith updates underline', () {
+      const original = CellStyle(underline: false);
+      final copy = original.copyWith(underline: true);
+      expect(copy.underline, isTrue);
+    });
+
+    test('copyWith updates strikethrough', () {
+      const original = CellStyle(strikethrough: false);
+      final copy = original.copyWith(strikethrough: true);
+      expect(copy.strikethrough, isTrue);
+    });
+
+    test('equality includes underline and strikethrough', () {
+      const a = CellStyle(underline: true, strikethrough: false);
+      const b = CellStyle(underline: true, strikethrough: false);
+      const c = CellStyle(underline: false, strikethrough: true);
+      expect(a, b);
+      expect(a == c, isFalse);
+    });
+
+    test('hashCode includes underline and strikethrough', () {
+      const a = CellStyle(underline: true, strikethrough: true);
+      const b = CellStyle(underline: true, strikethrough: true);
+      expect(a.hashCode, b.hashCode);
     });
   });
 }

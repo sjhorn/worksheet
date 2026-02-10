@@ -216,12 +216,12 @@ class TilePainter implements TileRenderer {
               canvas.clipRect(tileLocalRect);
               _renderCellContent(
                   canvas, localBounds, value, style, zoomBucket, format,
-                  textPainters);
+                  textPainters, coord: renderCoord);
               canvas.restore();
             } else {
               _renderCellContent(
                   canvas, localBounds, value, style, zoomBucket, format,
-                  textPainters);
+                  textPainters, coord: renderCoord);
             }
           }
         }
@@ -385,8 +385,9 @@ class TilePainter implements TileRenderer {
     CellStyle? style,
     ZoomBucket zoomBucket,
     CellFormat? format,
-    List<TextPainter> textPainters,
-  ) {
+    List<TextPainter> textPainters, {
+    CellCoordinate? coord,
+  }) {
     final mergedStyle = CellStyle.defaultStyle.merge(style);
     final availableWidth = bounds.width - (cellPadding * 2);
     final CellFormatResult? formatResult;
@@ -408,9 +409,18 @@ class TilePainter implements TileRenderer {
       fontStyle: mergedStyle.fontStyle ?? FontStyle.normal,
       fontFamily: fontFamily,
       package: WorksheetThemeData.resolveFontPackage(fontFamily),
+      decoration: _resolveDecoration(mergedStyle),
     );
 
-    final textSpan = TextSpan(text: text, style: textStyle);
+    // Use rich text spans when available for inline styling
+    final TextSpan textSpan;
+    final richText = coord != null ? data.getRichText(coord) : null;
+    if (richText != null && richText.isNotEmpty) {
+      textSpan = TextSpan(style: textStyle, children: richText);
+    } else {
+      textSpan = TextSpan(text: text, style: textStyle);
+    }
+
     final textPainter = TextPainter(
       text: textSpan,
       textDirection: TextDirection.ltr,
@@ -663,6 +673,20 @@ class TilePainter implements TileRenderer {
       case ZoomBucket.quadruple:
         return true;
     }
+  }
+
+  /// Resolves underline/strikethrough from [CellStyle] into a [TextDecoration].
+  static TextDecoration? _resolveDecoration(CellStyle style) {
+    final u = style.underline == true;
+    final s = style.strikethrough == true;
+    if (!u && !s) return null;
+    if (u && s) {
+      return TextDecoration.combine([
+        TextDecoration.underline,
+        TextDecoration.lineThrough,
+      ]);
+    }
+    return u ? TextDecoration.underline : TextDecoration.lineThrough;
   }
 
   bool _boundsIntersect(ui.Rect a, ui.Rect b) {

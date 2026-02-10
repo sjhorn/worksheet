@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/painting.dart';
+
 import '../models/cell.dart';
 import '../models/cell_coordinate.dart';
 import '../models/cell_format.dart';
@@ -27,6 +29,9 @@ class SparseWorksheetData implements WorksheetData {
 
   /// Cell formats indexed by coordinate.
   final Map<CellCoordinate, CellFormat> _formats = {};
+
+  /// Rich text spans indexed by coordinate.
+  final Map<CellCoordinate, List<TextSpan>> _richText = {};
 
   /// Merged cell registry.
   final MergedCellRegistry _mergedCells = MergedCellRegistry();
@@ -83,6 +88,9 @@ class SparseWorksheetData implements WorksheetData {
         if (entry.value.format != null) {
           _formats[coord] = entry.value.format!;
         }
+        if (entry.value.richText != null) {
+          _richText[coord] = entry.value.richText!;
+        }
       }
     }
   }
@@ -133,19 +141,22 @@ class SparseWorksheetData implements WorksheetData {
   @override
   bool hasValue(CellCoordinate coord) => _values.containsKey(coord);
 
-  /// Gets the [Cell] at [x, y], or null if the cell has no value, style, or format.
+  /// Gets the [Cell] at [x, y], or null if the cell has no value, style, format, or rich text.
   Cell? operator [](CellCoordinateRecord record) {
     final coord = CellCoordinate(record.$1, record.$2);
     final value = _values[coord];
     final style = _styles[coord];
     final format = _formats[coord];
-    if (value == null && style == null && format == null) return null;
-    return Cell(value: value, style: style, format: format);
+    final richText = _richText[coord];
+    if (value == null && style == null && format == null && richText == null) {
+      return null;
+    }
+    return Cell(value: value, style: style, format: format, richText: richText);
   }
 
-  /// Sets the [Cell] at [(x, y)], updating value, style, and format.
+  /// Sets the [Cell] at [(x, y)], updating value, style, format, and rich text.
   ///
-  /// Pass null to clear value, style, and format.
+  /// Pass null to clear value, style, format, and rich text.
   void operator []=(CellCoordinateRecord record, Cell? cell) {
     final coord = CellCoordinate(record.$1, record.$2);
     _checkNotDisposed();
@@ -153,11 +164,13 @@ class SparseWorksheetData implements WorksheetData {
       final hadValue = _values.containsKey(coord);
       final hadStyle = _styles.containsKey(coord);
       final hadFormat = _formats.containsKey(coord);
+      final hadRichText = _richText.containsKey(coord);
       if (hadValue) _values.remove(coord);
       if (hadStyle) _styles.remove(coord);
       if (hadFormat) _formats.remove(coord);
+      if (hadRichText) _richText.remove(coord);
       if (hadValue) _recalculateBounds();
-      if (hadValue || hadStyle || hadFormat) {
+      if (hadValue || hadStyle || hadFormat || hadRichText) {
         _changeController.add(DataChangeEvent.cellValue(coord));
       }
     } else {
@@ -178,21 +191,32 @@ class SparseWorksheetData implements WorksheetData {
       } else if (_formats.containsKey(coord)) {
         _formats.remove(coord);
       }
+      if (cell.richText != null) {
+        _richText[coord] = cell.richText!;
+      } else if (_richText.containsKey(coord)) {
+        _richText.remove(coord);
+      }
       _changeController.add(DataChangeEvent.cellValue(coord));
     }
   }
 
   /// Returns a snapshot of all populated cells as a map.
   ///
-  /// A cell is included if it has a value, a style, a format, or any combination.
+  /// A cell is included if it has a value, a style, a format, rich text, or any combination.
   Map<CellCoordinate, Cell> get cells {
-    final allCoords = {..._values.keys, ..._styles.keys, ..._formats.keys};
+    final allCoords = {
+      ..._values.keys,
+      ..._styles.keys,
+      ..._formats.keys,
+      ..._richText.keys,
+    };
     return {
       for (final coord in allCoords)
         coord: Cell(
           value: _values[coord],
           style: _styles[coord],
           format: _formats[coord],
+          richText: _richText[coord],
         ),
     };
   }
@@ -243,6 +267,26 @@ class SparseWorksheetData implements WorksheetData {
     } else {
       _formats[coord] = format;
       _changeController.add(DataChangeEvent.cellFormat(coord));
+    }
+  }
+
+  @override
+  List<TextSpan>? getRichText(CellCoordinate coord) {
+    return _richText[coord];
+  }
+
+  @override
+  void setRichText(CellCoordinate coord, List<TextSpan>? richText) {
+    _checkNotDisposed();
+
+    if (richText == null) {
+      if (_richText.containsKey(coord)) {
+        _richText.remove(coord);
+        _changeController.add(DataChangeEvent.cellValue(coord));
+      }
+    } else {
+      _richText[coord] = richText;
+      _changeController.add(DataChangeEvent.cellValue(coord));
     }
   }
 
@@ -325,6 +369,18 @@ class SparseWorksheetData implements WorksheetData {
       _formats.remove(coord);
     }
 
+    // Also clear rich text
+    final richTextToRemove = <CellCoordinate>[];
+    for (final coord in _richText.keys) {
+      if (range.contains(coord)) {
+        richTextToRemove.add(coord);
+      }
+    }
+
+    for (final coord in richTextToRemove) {
+      _richText.remove(coord);
+    }
+
     _recalculateBounds();
     _changeController.add(DataChangeEvent.range(range));
   }
@@ -370,6 +426,7 @@ class SparseWorksheetData implements WorksheetData {
       _values.clear();
       _styles.clear();
       _formats.clear();
+      _richText.clear();
       _mergedCells.clear();
     }
   }
@@ -379,8 +436,16 @@ class SparseWorksheetData implements WorksheetData {
     final value = _values[coord];
     final style = _styles[coord];
     final format = _formats[coord];
-    if (value == null && style == null && format == null) return null;
-    return Cell(value: value, style: style, format: format);
+    final richText = _richText[coord];
+    if (value == null && style == null && format == null && richText == null) {
+      return null;
+    }
+    return Cell(
+      value: value,
+      style: style,
+      format: format,
+      richText: richText,
+    );
   }
 
   @override
@@ -630,6 +695,16 @@ class _BatchImpl implements WorksheetDataBatch {
   }
 
   @override
+  void setRichText(CellCoordinate coord, List<TextSpan>? richText) {
+    if (richText == null) {
+      _data._richText.remove(coord);
+    } else {
+      _data._richText[coord] = richText;
+    }
+    _expandRange(coord);
+  }
+
+  @override
   void clearRange(CellRange range) {
     for (final coord in _data._values.keys.toList()) {
       if (range.contains(coord)) {
@@ -644,6 +719,11 @@ class _BatchImpl implements WorksheetDataBatch {
     for (final coord in _data._formats.keys.toList()) {
       if (range.contains(coord)) {
         _data._formats.remove(coord);
+      }
+    }
+    for (final coord in _data._richText.keys.toList()) {
+      if (range.contains(coord)) {
+        _data._richText.remove(coord);
       }
     }
     if (_affectedRange == null) {
@@ -698,6 +778,11 @@ class _BatchImpl implements WorksheetDataBatch {
         setCell(coord, null);
       }
     }
+    for (final coord in _data._richText.keys.toList()) {
+      if (range.contains(coord)) {
+        setRichText(coord, null);
+      }
+    }
   }
 
   @override
@@ -718,6 +803,7 @@ class _BatchImpl implements WorksheetDataBatch {
         final value = _data.getCell(sourceCell);
         final style = _data.getStyle(sourceCell);
         final format = _data.getFormat(sourceCell);
+        final richText = _data.getRichText(sourceCell);
 
         if (value != null) {
           _data._values[destCell] = value;
@@ -728,6 +814,9 @@ class _BatchImpl implements WorksheetDataBatch {
         }
         if (format != null) {
           _data._formats[destCell] = format;
+        }
+        if (richText != null) {
+          _data._richText[destCell] = richText;
         }
       }
     }

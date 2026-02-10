@@ -6,6 +6,7 @@ import '../core/models/cell_format.dart';
 import '../core/models/cell_style.dart';
 import '../core/models/cell_value.dart';
 import '../interaction/controllers/edit_controller.dart';
+import '../interaction/controllers/rich_text_editing_controller.dart';
 import 'worksheet_theme.dart';
 
 /// Overlay widget that displays an EditableText over the cell being edited.
@@ -24,6 +25,7 @@ class CellEditorOverlay extends StatefulWidget {
     CellCoordinate cell,
     CellValue? value, {
     CellFormat? detectedFormat,
+    List<TextSpan>? richText,
   }) onCommit;
 
   /// Called when the edit is cancelled.
@@ -40,6 +42,7 @@ class CellEditorOverlay extends StatefulWidget {
     int rowDelta,
     int columnDelta, {
     CellFormat? detectedFormat,
+    List<TextSpan>? richText,
   })?
   onCommitAndNavigate;
 
@@ -68,6 +71,12 @@ class CellEditorOverlay extends StatefulWidget {
   /// The cell padding used by the tile painter (in worksheet coordinates).
   final double cellPadding;
 
+  /// Rich text spans for the cell being edited.
+  ///
+  /// When non-null, the editor displays styled text and supports
+  /// inline formatting via Ctrl+B/I/U/Shift+S.
+  final List<TextSpan>? richText;
+
   /// Focus node to restore when editing completes. If null, attempts to
   /// find the parent focus node automatically.
   final FocusNode? restoreFocusTo;
@@ -91,6 +100,7 @@ class CellEditorOverlay extends StatefulWidget {
     this.textColor = const Color(0xFF000000),
     this.textAlign = TextAlign.left,
     this.cellPadding = 4.0,
+    this.richText,
     this.restoreFocusTo,
   });
 
@@ -99,7 +109,7 @@ class CellEditorOverlay extends StatefulWidget {
 }
 
 class _CellEditorOverlayState extends State<CellEditorOverlay> {
-  late TextEditingController _textController;
+  late RichTextEditingController _textController;
   late FocusNode _focusNode;
 
   /// When true, a controller listener guards against select-all that the
@@ -110,9 +120,14 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   void initState() {
     super.initState();
 
-    _textController = TextEditingController(
+    _textController = RichTextEditingController(
       text: widget.editController.currentText,
     );
+
+    // Initialize from rich text spans if available
+    if (widget.richText != null && widget.richText!.isNotEmpty) {
+      _textController.initFromSpans(widget.richText!);
+    }
     _focusNode = FocusNode(onKeyEvent: _handleKeyEvent);
 
     // Listen for changes from edit controller
@@ -217,19 +232,36 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     widget.editController.updateText(text);
   }
 
+  List<TextSpan>? _extractRichText() {
+    if (!_textController.hasRichStyles) return null;
+    return _textController.toSpans();
+  }
+
   void _commit() {
-    widget.editController.commitEdit(onCommit: widget.onCommit);
+    final spans = _extractRichText();
+    widget.editController.commitEdit(
+      onCommit: (cell, value, {CellFormat? detectedFormat}) {
+        widget.onCommit(
+          cell,
+          value,
+          detectedFormat: detectedFormat,
+          richText: spans,
+        );
+      },
+    );
   }
 
   void _commitAndNavigate({required int rowDelta, required int columnDelta}) {
     if (widget.onCommitAndNavigate != null) {
       final cell = widget.editController.editingCell;
       if (cell == null) return;
+      final spans = _extractRichText();
       widget.editController.commitEdit(
         onCommit: (commitCell, value, {CellFormat? detectedFormat}) {
           widget.onCommitAndNavigate!(
             commitCell, value, rowDelta, columnDelta,
             detectedFormat: detectedFormat,
+            richText: spans,
           );
         },
       );
@@ -247,6 +279,29 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) {
       return KeyEventResult.ignored;
+    }
+
+    // Rich text formatting shortcuts (Ctrl/Cmd + key)
+    final isModifier = HardwareKeyboard.instance.isControlPressed ||
+        HardwareKeyboard.instance.isMetaPressed;
+    if (isModifier) {
+      if (event.logicalKey == LogicalKeyboardKey.keyB) {
+        _textController.toggleBold();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.keyI) {
+        _textController.toggleItalic();
+        return KeyEventResult.handled;
+      }
+      if (event.logicalKey == LogicalKeyboardKey.keyU) {
+        _textController.toggleUnderline();
+        return KeyEventResult.handled;
+      }
+      if (HardwareKeyboard.instance.isShiftPressed &&
+          event.logicalKey == LogicalKeyboardKey.keyS) {
+        _textController.toggleStrikethrough();
+        return KeyEventResult.handled;
+      }
     }
 
     if (event.logicalKey == LogicalKeyboardKey.escape) {
@@ -274,16 +329,6 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
     if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
       _commitAndNavigate(rowDelta: -1, columnDelta: 0);
-      return KeyEventResult.handled;
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
-      _commitAndNavigate(rowDelta: 0, columnDelta: 1);
-      return KeyEventResult.handled;
-    }
-
-    if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
-      _commitAndNavigate(rowDelta: 0, columnDelta: -1);
       return KeyEventResult.handled;
     }
 

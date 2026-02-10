@@ -390,7 +390,8 @@ class FrozenLayer extends RenderLayer {
     final value = data.getCell(coord);
     if (value != null && zoom >= 0.25) {
       final format = data.getFormat(coord);
-      _paintCellContent(canvas, bounds, value, style, zoom, format);
+      _paintCellContent(canvas, bounds, value, style, zoom, format,
+          coord: coord);
     }
 
     // Paint borders (coordinates are already zoom-scaled)
@@ -517,8 +518,9 @@ class FrozenLayer extends RenderLayer {
     CellValue value,
     CellStyle? style,
     double zoom,
-    CellFormat? format,
-  ) {
+    CellFormat? format, {
+    CellCoordinate? coord,
+  }) {
     final mergedStyle = CellStyle.defaultStyle.merge(style);
     final padding = cellPadding * zoom;
     final availableWidth = bounds.width - (padding * 2);
@@ -549,9 +551,29 @@ class FrozenLayer extends RenderLayer {
       fontStyle: mergedStyle.fontStyle ?? FontStyle.normal,
       fontFamily: fontFamily,
       package: WorksheetThemeData.resolveFontPackage(fontFamily),
+      decoration: _resolveDecoration(mergedStyle),
     );
 
-    final textSpan = TextSpan(text: text, style: textStyle);
+    // Use rich text spans when available for inline styling
+    final TextSpan textSpan;
+    final richText = coord != null ? data.getRichText(coord) : null;
+    if (richText != null && richText.isNotEmpty) {
+      // Scale child span font sizes by zoom to match frozen layer rendering
+      final scaledChildren = richText.map((span) {
+        final spanStyle = span.style;
+        if (spanStyle != null && spanStyle.fontSize != null) {
+          return TextSpan(
+            text: span.text,
+            style: spanStyle.copyWith(fontSize: spanStyle.fontSize! * zoom),
+          );
+        }
+        return span;
+      }).toList();
+      textSpan = TextSpan(style: textStyle, children: scaledChildren);
+    } else {
+      textSpan = TextSpan(text: text, style: textStyle);
+    }
+
     final textPainter = TextPainter(
       text: textSpan,
       textDirection: TextDirection.ltr,
@@ -732,6 +754,20 @@ class FrozenLayer extends RenderLayer {
         _separatorPaint,
       );
     }
+  }
+
+  /// Resolves underline/strikethrough from [CellStyle] into a [TextDecoration].
+  static TextDecoration? _resolveDecoration(CellStyle style) {
+    final u = style.underline == true;
+    final s = style.strikethrough == true;
+    if (!u && !s) return null;
+    if (u && s) {
+      return TextDecoration.combine([
+        TextDecoration.underline,
+        TextDecoration.lineThrough,
+      ]);
+    }
+    return u ? TextDecoration.underline : TextDecoration.lineThrough;
   }
 
   @override

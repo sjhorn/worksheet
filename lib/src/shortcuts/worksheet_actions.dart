@@ -14,6 +14,10 @@ class MoveSelectionAction extends Action<MoveSelectionIntent> {
   MoveSelectionAction(this._context);
 
   @override
+  bool isEnabled(MoveSelectionIntent intent) =>
+      _context.editController?.isEditing != true;
+
+  @override
   Object? invoke(MoveSelectionIntent intent) {
     _context.selectionController.moveFocus(
       rowDelta: intent.rowDelta,

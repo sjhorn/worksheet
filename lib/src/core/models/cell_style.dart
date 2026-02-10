@@ -171,6 +171,12 @@ class CellStyle {
   /// Whether text should wrap within the cell.
   final bool? wrapText;
 
+  /// Whether text should be underlined.
+  final bool? underline;
+
+  /// Whether text should have a strikethrough.
+  final bool? strikethrough;
+
   /// Number format pattern (e.g., "#,##0.00", "0%").
   @Deprecated('Use CellFormat on Cell instead. See cell_format.dart.')
   final String? numberFormat;
@@ -186,6 +192,8 @@ class CellStyle {
     this.verticalAlignment,
     this.borders,
     this.wrapText,
+    this.underline,
+    this.strikethrough,
     this.numberFormat,
   });
 
@@ -203,6 +211,8 @@ class CellStyle {
     verticalAlignment: CellVerticalAlignment.middle,
     borders: CellBorders.none,
     wrapText: false,
+    underline: false,
+    strikethrough: false,
   );
 
   /// Returns the implicit horizontal alignment for a given [CellValueType].
@@ -238,6 +248,8 @@ class CellStyle {
       verticalAlignment: other.verticalAlignment ?? verticalAlignment,
       borders: other.borders ?? borders,
       wrapText: other.wrapText ?? wrapText,
+      underline: other.underline ?? underline,
+      strikethrough: other.strikethrough ?? strikethrough,
       numberFormat: other.numberFormat ?? numberFormat,
     );
   }
@@ -254,6 +266,8 @@ class CellStyle {
     CellVerticalAlignment? verticalAlignment,
     CellBorders? borders,
     bool? wrapText,
+    bool? underline,
+    bool? strikethrough,
     String? numberFormat,
   }) {
     return CellStyle(
@@ -267,6 +281,8 @@ class CellStyle {
       verticalAlignment: verticalAlignment ?? this.verticalAlignment,
       borders: borders ?? this.borders,
       wrapText: wrapText ?? this.wrapText,
+      underline: underline ?? this.underline,
+      strikethrough: strikethrough ?? this.strikethrough,
       numberFormat: numberFormat ?? this.numberFormat,
     );
   }
@@ -285,6 +301,8 @@ class CellStyle {
         other.verticalAlignment == verticalAlignment &&
         other.borders == borders &&
         other.wrapText == wrapText &&
+        other.underline == underline &&
+        other.strikethrough == strikethrough &&
         other.numberFormat == numberFormat;
   }
 
@@ -300,6 +318,8 @@ class CellStyle {
         verticalAlignment,
         borders,
         wrapText,
+        underline,
+        strikethrough,
         numberFormat,
       );
 }

@@ -48,6 +48,7 @@ export 'src/scrolling/worksheet_scroll_delegate.dart';
 export 'src/interaction/controllers/zoom_controller.dart';
 export 'src/interaction/controllers/selection_controller.dart';
 export 'src/interaction/controllers/edit_controller.dart';
+export 'src/interaction/controllers/rich_text_editing_controller.dart';
 
 // Interaction - Hit Testing
 export 'src/interaction/hit_testing/hit_test_result.dart';

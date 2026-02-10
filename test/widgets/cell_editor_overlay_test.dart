@@ -23,10 +23,10 @@ void main() {
   Widget buildTestWidget({
     required EditController controller,
     Rect cellBounds = const Rect.fromLTWH(100, 50, 80, 24),
-    void Function(CellCoordinate, CellValue?, {CellFormat? detectedFormat})? onCommit,
+    void Function(CellCoordinate, CellValue?, {CellFormat? detectedFormat, List<TextSpan>? richText})? onCommit,
     VoidCallback? onCancel,
     FocusNode? parentFocusNode,
-    void Function(CellCoordinate, CellValue?, int, int, {CellFormat? detectedFormat})? onCommitAndNavigate,
+    void Function(CellCoordinate, CellValue?, int, int, {CellFormat? detectedFormat, List<TextSpan>? richText})? onCommitAndNavigate,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -42,7 +42,7 @@ void main() {
             CellEditorOverlay(
               editController: controller,
               cellBounds: cellBounds,
-              onCommit: onCommit ?? (_, _, {CellFormat? detectedFormat}) {},
+              onCommit: onCommit ?? (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {},
               onCancel: onCancel ?? () {},
               onCommitAndNavigate: onCommitAndNavigate,
             ),
@@ -100,7 +100,7 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget(
         controller: editController,
-        onCommit: (cell, value, {CellFormat? detectedFormat}) {
+        onCommit: (cell, value, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
           committedCell = cell;
           committedValue = value;
         },
@@ -183,7 +183,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget(controller: editController));
       expect(find.byType(EditableText), findsOneWidget);
 
-      editController.commitEdit(onCommit: (_, _, {CellFormat? detectedFormat}) {});
+      editController.commitEdit(onCommit: (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {});
       await tester.pump();
 
       expect(find.byType(EditableText), findsNothing);
@@ -196,7 +196,7 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget(
         controller: editController,
-        onCommit: (_, value, {CellFormat? detectedFormat}) => committedValue = value,
+        onCommit: (_, value, {CellFormat? detectedFormat, List<TextSpan>? richText}) => committedValue = value,
       ));
 
       await tester.enterText(find.byType(EditableText), '42.5');
@@ -214,7 +214,7 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget(
         controller: editController,
-        onCommit: (_, value, {CellFormat? detectedFormat}) => committedValue = value,
+        onCommit: (_, value, {CellFormat? detectedFormat, List<TextSpan>? richText}) => committedValue = value,
       ));
 
       await tester.enterText(find.byType(EditableText), '=SUM(A1:A10)');
@@ -249,7 +249,7 @@ void main() {
       Widget buildConditionalOverlay({
         required EditController controller,
         required FocusNode parentFocusNode,
-        void Function(CellCoordinate, CellValue?, {CellFormat? detectedFormat})? onCommit,
+        void Function(CellCoordinate, CellValue?, {CellFormat? detectedFormat, List<TextSpan>? richText})? onCommit,
         VoidCallback? onCancel,
       }) {
         return MaterialApp(
@@ -268,7 +268,7 @@ void main() {
                       CellEditorOverlay(
                         editController: controller,
                         cellBounds: const Rect.fromLTWH(100, 50, 80, 24),
-                        onCommit: onCommit ?? (_, _, {CellFormat? detectedFormat}) {},
+                        onCommit: onCommit ?? (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {},
                         onCancel: onCancel ?? () {},
                       ),
                   ],
@@ -374,7 +374,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
             navCell = cell;
             navRowDelta = rowDelta;
             navColDelta = colDelta;
@@ -401,7 +401,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -428,7 +428,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -453,7 +453,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -480,7 +480,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+          onCommit: (cell, value, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
             committedCell = cell;
           },
           // onCommitAndNavigate is null
@@ -502,7 +502,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
             navigateCalled = true;
           },
         ));
@@ -524,7 +524,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
             navRowDelta = rowDelta;
           },
         ));
@@ -546,7 +546,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -570,7 +570,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -584,19 +584,20 @@ void main() {
         expect(navColDelta, 0);
       });
 
-      testWidgets('ArrowRight commits and navigates right', (tester) async {
+      testWidgets('ArrowRight moves text cursor instead of navigating',
+          (tester) async {
         editController.startEdit(
           cell: const CellCoordinate(3, 2),
+          currentValue: const CellValue.text('abc'),
         );
 
-        int? navRowDelta;
-        int? navColDelta;
+        bool navigated = false;
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
-            navRowDelta = rowDelta;
-            navColDelta = colDelta;
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta,
+              {CellFormat? detectedFormat, List<TextSpan>? richText}) {
+            navigated = true;
           },
         ));
         await tester.pump();
@@ -604,23 +605,24 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
         await tester.pump();
 
-        expect(navRowDelta, 0);
-        expect(navColDelta, 1);
+        expect(navigated, isFalse);
+        expect(editController.isEditing, isTrue);
       });
 
-      testWidgets('ArrowLeft commits and navigates left', (tester) async {
+      testWidgets('ArrowLeft moves text cursor instead of navigating',
+          (tester) async {
         editController.startEdit(
           cell: const CellCoordinate(3, 2),
+          currentValue: const CellValue.text('abc'),
         );
 
-        int? navRowDelta;
-        int? navColDelta;
+        bool navigated = false;
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
-            navRowDelta = rowDelta;
-            navColDelta = colDelta;
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta,
+              {CellFormat? detectedFormat, List<TextSpan>? richText}) {
+            navigated = true;
           },
         ));
         await tester.pump();
@@ -628,8 +630,8 @@ void main() {
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
         await tester.pump();
 
-        expect(navRowDelta, 0);
-        expect(navColDelta, -1);
+        expect(navigated, isFalse);
+        expect(editController.isEditing, isTrue);
       });
     });
 

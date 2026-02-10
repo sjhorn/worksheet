@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 
 import 'cell_format.dart';
 import 'cell_style.dart';
@@ -40,37 +41,49 @@ class Cell {
   /// ```
   final CellFormat? format;
 
-  /// Creates a cell with an optional [value], [style], and [format].
-  const Cell({this.value, this.style, this.format});
+  /// Rich text spans for inline styling within the cell.
+  ///
+  /// When non-null, the concatenation of all span texts must equal the
+  /// cell's plain text value. Each span can carry its own [TextStyle]
+  /// for bold, italic, underline, color, etc.
+  final List<TextSpan>? richText;
+
+  /// Creates a cell with an optional [value], [style], [format], and [richText].
+  const Cell({this.value, this.style, this.format, this.richText});
 
   /// Creates a cell with a text value.
-  Cell.text(String text, {this.style, this.format})
+  Cell.text(String text, {this.style, this.format, this.richText})
       : value = CellValue.text(text);
 
   /// Creates a cell with a numeric value.
-  Cell.number(num n, {this.style, this.format})
+  Cell.number(num n, {this.style, this.format, this.richText})
       : value = CellValue.number(n);
 
   /// Creates a cell with a boolean value.
   Cell.boolean(bool b, {this.style, this.format})
-      : value = CellValue.boolean(b);
+      : value = CellValue.boolean(b),
+        richText = null;
 
   /// Creates a cell with a formula.
   Cell.formula(String formula, {this.style, this.format})
-      : value = CellValue.formula(formula);
+      : value = CellValue.formula(formula),
+        richText = null;
 
   /// Creates a cell with a date value.
   Cell.date(DateTime date, {this.style, this.format})
-      : value = CellValue.date(date);
+      : value = CellValue.date(date),
+        richText = null;
 
   /// Creates a cell with a duration value.
   Cell.duration(Duration duration, {this.style, this.format})
-      : value = CellValue.duration(duration);
+      : value = CellValue.duration(duration),
+        richText = null;
 
   /// Creates a cell with only a style (no value).
   const Cell.withStyle(CellStyle this.style)
       : value = null,
-        format = null;
+        format = null,
+        richText = null;
 
   /// Whether this cell has a value.
   bool get hasValue => value != null;
@@ -81,8 +94,12 @@ class Cell {
   /// Whether this cell has a non-null format.
   bool get hasFormat => format != null;
 
-  /// Whether this cell is completely empty (no value, style, or format).
-  bool get isEmpty => value == null && style == null && format == null;
+  /// Whether this cell has rich text spans.
+  bool get hasRichText => richText != null;
+
+  /// Whether this cell is completely empty (no value, style, format, or rich text).
+  bool get isEmpty =>
+      value == null && style == null && format == null && richText == null;
 
   /// The display string for this cell's value, using the [format] if present.
   ///
@@ -95,7 +112,7 @@ class Cell {
 
   /// Returns a copy of this cell with the given [format].
   Cell copyWithFormat(CellFormat? format) =>
-      Cell(value: value, style: style, format: format);
+      Cell(value: value, style: style, format: format, richText: richText);
 
   @override
   bool operator ==(Object other) =>
@@ -103,13 +120,25 @@ class Cell {
       other is Cell &&
           value == other.value &&
           style == other.style &&
-          format == other.format;
+          format == other.format &&
+          _richTextEquals(richText, other.richText);
 
   @override
-  int get hashCode => Object.hash(value, style, format);
+  int get hashCode => Object.hash(value, style, format, richText?.length);
 
   @override
-  String toString() => 'Cell(value: $value, style: $style, format: $format)';
+  String toString() =>
+      'Cell(value: $value, style: $style, format: $format, richText: $richText)';
+
+  static bool _richTextEquals(List<TextSpan>? a, List<TextSpan>? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null) return false;
+    if (a.length != b.length) return false;
+    for (int i = 0; i < a.length; i++) {
+      if (a[i].text != b[i].text || a[i].style != b[i].style) return false;
+    }
+    return true;
+  }
 }
 
 extension WorksheetString on String {

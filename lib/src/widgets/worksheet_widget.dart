@@ -667,12 +667,14 @@ class _WorksheetState extends State<Worksheet>
     CellCoordinate cell,
     CellValue? value, {
     CellFormat? detectedFormat,
+    List<TextSpan>? richText,
   }) {
     _clearEditingCell();
     widget.data.setCell(cell, value);
     if (detectedFormat != null && widget.data.getFormat(cell) == null) {
       widget.data.setFormat(cell, detectedFormat);
     }
+    widget.data.setRichText(cell, richText);
     invalidateAndRebuild();
   }
 
@@ -702,12 +704,14 @@ class _WorksheetState extends State<Worksheet>
     int rowDelta,
     int colDelta, {
     CellFormat? detectedFormat,
+    List<TextSpan>? richText,
   }) {
     _clearEditingCell();
     widget.data.setCell(cell, value);
     if (detectedFormat != null && widget.data.getFormat(cell) == null) {
       widget.data.setFormat(cell, detectedFormat);
     }
+    widget.data.setRichText(cell, richText);
     selectionController.moveFocus(
       rowDelta: rowDelta,
       columnDelta: colDelta,
@@ -1386,6 +1390,7 @@ class _WorksheetState extends State<Worksheet>
                                       : null),
                             ),
                             cellPadding: theme.cellPadding,
+                            richText: widget.data.getRichText(cell),
                             restoreFocusTo: _keyboardFocusNode,
                           );
                         },
