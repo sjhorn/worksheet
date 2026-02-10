@@ -368,6 +368,18 @@ class CellFormat {
   static const dateEuDot =
       CellFormat(type: CellFormatType.date, formatCode: 'd.m.yyyy');
 
+  /// US date zero-padded: 01/15/2024
+  static const dateUsPadded =
+      CellFormat(type: CellFormatType.date, formatCode: 'mm/dd/yyyy');
+
+  /// EU date zero-padded: 15/01/2024
+  static const dateEuPadded =
+      CellFormat(type: CellFormatType.date, formatCode: 'dd/mm/yyyy');
+
+  /// Year-month-day with abbreviated month: 2024-Jan-15
+  static const dateYearMonthDay =
+      CellFormat(type: CellFormatType.date, formatCode: 'yyyy-mmm-dd');
+
   /// Month-year: Jan-24
   static const dateMonthYear =
       CellFormat(type: CellFormatType.date, formatCode: 'mmm-yy');
@@ -459,29 +471,35 @@ class DateFormatDetector {
   static List<CellFormat> _candidates({required bool dayFirst}) {
     if (dayFirst) {
       return const [
-        CellFormat.dateIso,       // yyyy-MM-dd
-        CellFormat.dateShort,     // d-mmm-yy
-        CellFormat.dateShortLong, // d-mmm-yyyy
-        CellFormat.dateLong,      // d mmmm yyyy
-        CellFormat.dateEu,        // d/m/yyyy
-        CellFormat.dateUs,        // m/d/yyyy
-        CellFormat.dateEuDash,    // d-m-yyyy
-        CellFormat.dateUsDash,    // m-d-yyyy
-        CellFormat.dateEuDot,     // d.m.yyyy
-        CellFormat.dateUsDot,     // m.d.yyyy
+        CellFormat.dateIso,           // yyyy-MM-dd
+        CellFormat.dateYearMonthDay,  // yyyy-mmm-dd
+        CellFormat.dateShort,         // d-mmm-yy
+        CellFormat.dateShortLong,     // d-mmm-yyyy
+        CellFormat.dateLong,          // d mmmm yyyy
+        CellFormat.dateEuPadded,      // dd/mm/yyyy
+        CellFormat.dateEu,            // d/m/yyyy
+        CellFormat.dateUsPadded,      // mm/dd/yyyy
+        CellFormat.dateUs,            // m/d/yyyy
+        CellFormat.dateEuDash,        // d-m-yyyy
+        CellFormat.dateUsDash,        // m-d-yyyy
+        CellFormat.dateEuDot,         // d.m.yyyy
+        CellFormat.dateUsDot,         // m.d.yyyy
       ];
     }
     return const [
-      CellFormat.dateIso,       // yyyy-MM-dd
-      CellFormat.dateShort,     // d-mmm-yy
-      CellFormat.dateShortLong, // d-mmm-yyyy
-      CellFormat.dateLong,      // d mmmm yyyy
-      CellFormat.dateUs,        // m/d/yyyy
-      CellFormat.dateEu,        // d/m/yyyy
-      CellFormat.dateUsDash,    // m-d-yyyy
-      CellFormat.dateEuDash,    // d-m-yyyy
-      CellFormat.dateUsDot,     // m.d.yyyy
-      CellFormat.dateEuDot,     // d.m.yyyy
+      CellFormat.dateIso,           // yyyy-MM-dd
+      CellFormat.dateYearMonthDay,  // yyyy-mmm-dd
+      CellFormat.dateShort,         // d-mmm-yy
+      CellFormat.dateShortLong,     // d-mmm-yyyy
+      CellFormat.dateLong,          // d mmmm yyyy
+      CellFormat.dateUsPadded,      // mm/dd/yyyy
+      CellFormat.dateUs,            // m/d/yyyy
+      CellFormat.dateEuPadded,      // dd/mm/yyyy
+      CellFormat.dateEu,            // d/m/yyyy
+      CellFormat.dateUsDash,        // m-d-yyyy
+      CellFormat.dateEuDash,        // d-m-yyyy
+      CellFormat.dateUsDot,         // m.d.yyyy
+      CellFormat.dateEuDot,         // d.m.yyyy
     ];
   }
 

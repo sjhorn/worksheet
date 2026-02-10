@@ -1599,6 +1599,81 @@ void main() {
         );
         expect(result, '15.1.2024');
       });
+
+      test('dateUsPadded formats correctly', () {
+        final result = CellFormat.dateUsPadded.format(
+          CellValue.date(DateTime(1977, 12, 1)),
+        );
+        expect(result, '12/01/1977');
+      });
+
+      test('dateEuPadded formats correctly', () {
+        final result = CellFormat.dateEuPadded.format(
+          CellValue.date(DateTime(1977, 12, 1)),
+        );
+        expect(result, '01/12/1977');
+      });
+
+      test('dateYearMonthDay formats correctly', () {
+        final result = CellFormat.dateYearMonthDay.format(
+          CellValue.date(DateTime(2026, 1, 1)),
+        );
+        expect(result, '2026-Jan-01');
+      });
+    });
+
+    group('zero-padded US/EU dates', () {
+      test('detects mm/dd/yyyy (zero-padded US)', () {
+        final result = DateFormatDetector.detect(
+          '12/01/1977', DateTime(1977, 12, 1),
+        );
+        expect(result, CellFormat.dateUsPadded);
+      });
+
+      test('detects mm/dd/yyyy with both padded', () {
+        final result = DateFormatDetector.detect(
+          '01/05/2024', DateTime(2024, 1, 5),
+        );
+        expect(result, CellFormat.dateUsPadded);
+      });
+
+      test('detects dd/mm/yyyy (zero-padded EU) with dayFirst', () {
+        final result = DateFormatDetector.detect(
+          '01/12/1977', DateTime(1977, 12, 1), dayFirst: true,
+        );
+        expect(result, CellFormat.dateEuPadded);
+      });
+
+      test('non-padded still detected as m/d/yyyy', () {
+        // 12/1/1977 without padding should still match dateUs
+        final result = DateFormatDetector.detect(
+          '12/1/1977', DateTime(1977, 12, 1),
+        );
+        expect(result, CellFormat.dateUs);
+      });
+    });
+
+    group('yyyy-mmm-dd format', () {
+      test('detects yyyy-mmm-dd', () {
+        final result = DateFormatDetector.detect(
+          '2026-Jan-01', DateTime(2026, 1, 1),
+        );
+        expect(result, CellFormat.dateYearMonthDay);
+      });
+
+      test('detects yyyy-mmm-dd case insensitive', () {
+        final result = DateFormatDetector.detect(
+          '2026-jan-01', DateTime(2026, 1, 1),
+        );
+        expect(result, CellFormat.dateYearMonthDay);
+      });
+
+      test('detects yyyy-mmm-dd with different month', () {
+        final result = DateFormatDetector.detect(
+          '2024-Mar-15', DateTime(2024, 3, 15),
+        );
+        expect(result, CellFormat.dateYearMonthDay);
+      });
     });
   });
 }

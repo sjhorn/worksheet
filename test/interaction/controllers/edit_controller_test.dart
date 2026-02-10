@@ -405,6 +405,34 @@ void main() {
         expect(detected, CellFormat.dateLong);
       });
 
+      test('detects zero-padded US date format on commit', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('12/01/1977');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, CellFormat.dateUsPadded);
+      });
+
+      test('detects yyyy-mmm-dd format on commit', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('2026-Jan-01');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, CellFormat.dateYearMonthDay);
+      });
+
       test('null detected for unrecognized date format', () {
         controller.startEdit(cell: const CellCoordinate(0, 0));
         // AnyDate may or may not parse "Jan 15, 2024" — if it does,
