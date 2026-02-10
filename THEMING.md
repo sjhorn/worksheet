@@ -80,7 +80,43 @@ const WorksheetThemeData({
 
 ## Light and Dark Mode Themes
 
-### Light Theme (Default)
+### Built-in Theme Presets
+
+The widget ships with two ready-to-use theme presets:
+
+```dart
+// Light theme (default) — light gray headers, white cells
+WorksheetTheme(
+  data: WorksheetThemeData.defaultTheme,
+  child: Worksheet(...),
+)
+
+// Dark theme — dark headers, white cells
+WorksheetTheme(
+  data: WorksheetThemeData.darkTheme,
+  child: Worksheet(...),
+)
+```
+
+`WorksheetThemeData.darkTheme` uses `HeaderStyle.darkStyle` for dark header backgrounds, text, and borders. Cell area (background, gridlines, selection) remains unchanged — only headers switch to dark mode, matching Excel's dark mode behavior.
+
+### Toggle Dark/Light at Runtime
+
+```dart
+bool _isDark = false;
+
+WorksheetTheme(
+  data: _isDark
+      ? WorksheetThemeData.darkTheme
+      : WorksheetThemeData.defaultTheme,
+  child: Worksheet(...),
+)
+// Call setState(() => _isDark = !_isDark) to switch
+```
+
+See `example/darklight.dart` for a complete working example.
+
+### Custom Light Theme
 
 ```dart
 const lightTheme = WorksheetThemeData(
@@ -107,7 +143,7 @@ const lightTheme = WorksheetThemeData(
 );
 ```
 
-### Dark Theme
+### Custom Dark Theme
 
 ```dart
 const darkTheme = WorksheetThemeData(
@@ -153,7 +189,9 @@ class AdaptiveWorksheet extends StatelessWidget {
     final isDark = brightness == Brightness.dark;
 
     return WorksheetTheme(
-      data: isDark ? darkTheme : lightTheme,
+      data: isDark
+          ? WorksheetThemeData.darkTheme
+          : WorksheetThemeData.defaultTheme,
       child: Worksheet(
         data: data,
         controller: controller,
@@ -235,6 +273,24 @@ const HeaderStyle({
   this.fontWeight = FontWeight.w500,
   this.fontFamily = 'Roboto',
 })
+```
+
+### Built-in Presets
+
+| Preset | Description |
+|--------|-------------|
+| `HeaderStyle.defaultStyle` | Light gray headers (default) |
+| `HeaderStyle.darkStyle` | Dark headers for dark mode |
+
+### copyWith
+
+Create a modified copy of a header style:
+
+```dart
+final custom = HeaderStyle.darkStyle.copyWith(
+  fontSize: 14.0,
+  fontWeight: FontWeight.bold,
+);
 ```
 
 ### Excel-Like Headers

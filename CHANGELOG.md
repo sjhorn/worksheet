@@ -12,6 +12,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `WorksheetThemeData.darkTheme` — dark mode theme preset (dark headers, white cells)
 - `HeaderStyle.copyWith()`, `operator ==`, `hashCode`
 - `SelectionStyle.copyWith()`, `operator ==`, `hashCode`
+- Runtime theme switching — `WorksheetTheme` data changes now rebuild renderers and layers automatically
+- `example/darklight.dart` — toggle between light and dark mode with a button
+
+### Fixed
+- Header background rects used non-finite dimensions (`double.infinity`) which some renderers silently skip — now uses viewport-sized rects
+- `_HeaderPainter` and `_SelectionPainter` `shouldRepaint` did not detect new layers after theme change
 
 ## [2.1.0] - 2026-02-10
 

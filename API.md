@@ -1109,6 +1109,13 @@ const WorksheetThemeData({
   bool showGridlines,
   bool showHeaders,
 })
+
+// Presets
+static const WorksheetThemeData defaultTheme;  // Light theme
+static const WorksheetThemeData darkTheme;     // Dark headers, white cells
+
+// Methods
+WorksheetThemeData copyWith({...})
 ```
 
 ### SelectionStyle
@@ -1122,6 +1129,12 @@ const SelectionStyle({
   Color focusBorderColor,    // Focus cell border
   double focusBorderWidth,
 })
+
+// Presets
+static const SelectionStyle defaultStyle;
+
+// Methods
+SelectionStyle copyWith({...})
 ```
 
 ### HeaderStyle
@@ -1138,6 +1151,13 @@ const HeaderStyle({
   FontWeight fontWeight,
   String fontFamily,
 })
+
+// Presets
+static const HeaderStyle defaultStyle;   // Light gray headers
+static const HeaderStyle darkStyle;      // Dark mode headers
+
+// Methods
+HeaderStyle copyWith({...})
 ```
 
 ### WorksheetTheme (InheritedWidget)
