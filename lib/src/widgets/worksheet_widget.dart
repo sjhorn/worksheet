@@ -1391,6 +1391,7 @@ class _WorksheetState extends State<Worksheet>
                             ),
                             cellPadding: theme.cellPadding,
                             richText: widget.data.getRichText(cell),
+                            wrapText: cellStyle.wrapText == true,
                             restoreFocusTo: _keyboardFocusNode,
                           );
                         },

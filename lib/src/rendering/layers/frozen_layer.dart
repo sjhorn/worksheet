@@ -574,11 +574,12 @@ class FrozenLayer extends RenderLayer {
       textSpan = TextSpan(text: text, style: textStyle);
     }
 
+    final wrapText = mergedStyle.wrapText == true;
     final textPainter = TextPainter(
       text: textSpan,
       textDirection: TextDirection.ltr,
-      maxLines: 1,
-      ellipsis: '\u2026',
+      maxLines: wrapText ? null : 1,
+      ellipsis: wrapText ? null : '\u2026',
     );
 
     // Layout text

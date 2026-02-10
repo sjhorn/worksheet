@@ -27,6 +27,7 @@ void main() {
     VoidCallback? onCancel,
     FocusNode? parentFocusNode,
     void Function(CellCoordinate, CellValue?, int, int, {CellFormat? detectedFormat, List<TextSpan>? richText})? onCommitAndNavigate,
+    bool wrapText = false,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -45,6 +46,7 @@ void main() {
               onCommit: onCommit ?? (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {},
               onCancel: onCancel ?? () {},
               onCommitAndNavigate: onCommitAndNavigate,
+              wrapText: wrapText,
             ),
           ],
         ),
@@ -167,14 +169,14 @@ void main() {
         cellBounds: narrowBounds,
       ));
 
-      // Find the Positioned > Transform > FocusScope > SizedBox
+      // Find the Positioned > Transform > FocusScope > ConstrainedBox
       final positioned = tester.widget<Positioned>(find.byType(Positioned));
       final transform = positioned.child as Transform;
       final focusScope = transform.child as FocusScope;
-      final sizedBox = focusScope.child as SizedBox;
+      final constrainedBox = focusScope.child as ConstrainedBox;
 
       // Should use minimum width, not the narrow cell width
-      expect(sizedBox.width, greaterThanOrEqualTo(CellEditorOverlay.minWidth));
+      expect(constrainedBox.constraints.minWidth, greaterThanOrEqualTo(CellEditorOverlay.minWidth));
     });
 
     testWidgets('hides when editing completes', (tester) async {
@@ -632,6 +634,172 @@ void main() {
 
         expect(navigated, isFalse);
         expect(editController.isEditing, isTrue);
+      });
+    });
+
+    group('multi-line editing (wrapText)', () {
+      testWidgets('maxLines is null when wrapText is true', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          wrapText: true,
+        ));
+
+        final textField = tester.widget<TextField>(find.byType(TextField));
+        expect(textField.maxLines, isNull);
+      });
+
+      testWidgets('maxLines is 1 when wrapText is false', (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          wrapText: false,
+        ));
+
+        final textField = tester.widget<TextField>(find.byType(TextField));
+        expect(textField.maxLines, 1);
+      });
+
+      testWidgets('Alt+Enter inserts newline when wrapText is true',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Line1'),
+        );
+
+        var committed = false;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          wrapText: true,
+          onCommit: (_, value, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
+            committed = true;
+          },
+        ));
+        await tester.pump();
+
+        // Place cursor at end
+        final editableText = find.byType(EditableText);
+        await tester.tap(editableText);
+        await tester.pump();
+
+        // Alt+Enter should insert newline, not commit
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        await tester.pump();
+
+        expect(committed, isFalse);
+        expect(editController.isEditing, isTrue);
+        expect(editController.currentText, contains('\n'));
+      });
+
+      testWidgets('plain Enter still commits when wrapText is true',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        var committed = false;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          wrapText: true,
+          onCommit: (_, value, {CellFormat? detectedFormat, List<TextSpan>? richText}) {
+            committed = true;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.pump();
+
+        expect(committed, isTrue);
+      });
+
+      testWidgets('Shift+Enter still commits upward when wrapText is true',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(3, 2),
+        );
+
+        int? navRowDelta;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          wrapText: true,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta,
+              {CellFormat? detectedFormat, List<TextSpan>? richText}) {
+            navRowDelta = rowDelta;
+          },
+        ));
+        await tester.pump();
+
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+        await tester.pump();
+
+        expect(navRowDelta, -1);
+      });
+
+      testWidgets('Alt+Enter does not insert newline when wrapText is false',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        var committed = false;
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          wrapText: false,
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta,
+              {CellFormat? detectedFormat, List<TextSpan>? richText}) {
+            committed = true;
+          },
+        ));
+        await tester.pump();
+
+        // Alt+Enter when wrapText is false should commit (Alt is ignored)
+        await tester.sendKeyDownEvent(LogicalKeyboardKey.altLeft);
+        await tester.sendKeyEvent(LogicalKeyboardKey.enter);
+        await tester.sendKeyUpEvent(LogicalKeyboardKey.altLeft);
+        await tester.pump();
+
+        expect(committed, isTrue);
+      });
+
+      testWidgets('editor uses ConstrainedBox that can grow when wrapText is true',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          cellBounds: const Rect.fromLTWH(100, 50, 120, 30),
+          wrapText: true,
+        ));
+
+        // Navigate widget tree: Positioned > Transform > FocusScope > ConstrainedBox
+        final positioned = tester.widget<Positioned>(find.byType(Positioned));
+        final transform = positioned.child as Transform;
+        final focusScope = transform.child as FocusScope;
+        final constrainedBox = focusScope.child as ConstrainedBox;
+        expect(constrainedBox.constraints.maxHeight, double.infinity);
+        expect(constrainedBox.constraints.minHeight, 30.0);
       });
     });
 

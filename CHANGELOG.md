@@ -5,9 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.0] - 2026-02-10
 
 ### Added
+- **Cell merging** — `WorksheetData.mergeCells(CellRange)` / `unmergeCells(CellCoordinate)` with `MergedCellRegistry` for merge-aware rendering. Anchor cell keeps its value; non-anchor cells are cleared. Gridlines suppressed across merge interiors. Rendering spans the full merged bounds.
+- **Rich text spans** — `Cell.text('...', richText: [TextSpan(...)])` for inline bold, italic, underline, color, and strikethrough within a single cell. `WorksheetData.getRichText()` / `setRichText()` API. Inline editing with Ctrl+B/I/U/Shift+S formatting shortcuts.
+- **Multi-line cell text** — `CellStyle.wrapText` now fully supported end-to-end: TilePainter, FrozenLayer, and cell editor all respect `wrapText`. Alt+Enter inserts a newline during editing when `wrapText` is true. Editor grows vertically to fit content.
 - Auto-detect date format from user input — when a date like `1/15/2024` or `15-Jan-24` is typed, the display format is preserved via round-trip matching against candidate `CellFormat`s
 - `DateFormatDetector` utility class for detecting which `CellFormat` matches a user-typed date string
 - `FormatLocale.dayFirst` field — resolves ambiguous numeric dates (e.g., `01/02/2024` → Jan 2 in US, Feb 1 in UK)
@@ -18,9 +21,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `FormatLocale` class with 6 built-in locales (`enUs`, `enGb`, `deDe`, `frFr`, `jaJp`, `zhCn`) — locale-aware decimal/thousands separators, currency symbols, and month/day names
 - Comprehensive Excel custom format engine: conditional sections (`[>100]`), color codes (`[Red]`, `[Color3]`), bracket metadata (`[$EUR]` currency override), comma-as-scaler, `*` repeat fill, fractional seconds, fraction denominator constraints
 
+### Fixed
+- Zero-padded date formats (e.g., `01/02/2024`) and `yyyy-mmm-dd` patterns now detected correctly by `DateFormatDetector`
+
 ### Changed
 - `onCommit` callback signature now includes optional `{CellFormat? detectedFormat}` parameter across `EditController`, `CellEditorOverlay`, and `Worksheet`
 - `Worksheet` commit handlers auto-apply detected date format via `data.setFormat()` when no explicit format exists
+- FrozenLayer now respects `CellStyle.wrapText` (previously hardcoded `maxLines: 1`)
 
 ## [1.10.0] - 2026-02-09
 

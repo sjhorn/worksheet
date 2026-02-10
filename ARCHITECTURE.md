@@ -82,6 +82,7 @@ lib/
     │   └── data/
     │       ├── worksheet_data.dart     # Abstract data interface
     │       ├── sparse_worksheet_data.dart  # Map-based implementation
+    │       ├── merged_cell_registry.dart   # Merge region tracking
     │       └── data_change_event.dart  # Change notifications
     │
     ├── rendering/              # Tile system, painters
@@ -114,7 +115,8 @@ lib/
     │   ├── controllers/
     │   │   ├── selection_controller.dart  # Selection state
     │   │   ├── zoom_controller.dart       # Zoom level + animation
-    │   │   └── edit_controller.dart       # Cell editing state
+    │   │   ├── edit_controller.dart       # Cell editing state
+    │   │   └── rich_text_editing_controller.dart  # Inline span formatting
     │   ├── gestures/
     │   │   ├── keyboard_handler.dart   # (Deprecated) Arrow keys, shortcuts
     │   │   └── scale_handler.dart      # Pinch-to-zoom
@@ -657,11 +659,16 @@ abstract class RenderLayer {
 
 ---
 
+## Implemented Features
+
+1. **Cell Merging** - `MergedCellRegistry` tracks merged regions; `TilePainter` and `FrozenLayer` render content spanning merged bounds with gridlines suppressed across merge interiors
+2. **Rich Text Spans** - Inline `TextSpan` styling per cell with Ctrl+B/I/U/Shift+S editing shortcuts via `RichTextEditingController`
+3. **Multi-Line Text** - `CellStyle.wrapText` enables word wrap in tiles, frozen panes, and the cell editor; Alt+Enter inserts newlines during editing
+4. **Clipboard Operations** - Copy/cut/paste with TSV serialization and type detection
+
 ## Future Considerations
 
 1. **Frozen Panes** - `FrozenLayer` infrastructure exists but not fully wired
-2. **Cell Merging** - Would require `MergedCellRegistry` in `LayoutSolver`
-3. **Formula Engine** - `CellValue.formula` type exists, needs evaluation
-4. **Clipboard Operations** - Copy/paste with range serialization
-5. **Undo/Redo** - Command pattern with `DataChangeEvent` history
-6. **Virtual Scrolling** - For 1M+ row sheets (current: 50K comfortable)
+2. **Formula Engine** - `CellValue.formula` type exists, needs evaluation
+3. **Undo/Redo** - Command pattern with `DataChangeEvent` history
+4. **Virtual Scrolling** - For 1M+ row sheets (current: 50K comfortable)

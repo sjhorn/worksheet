@@ -10,15 +10,18 @@ Practical recipes for common worksheet tasks.
 4. [Duration Formatting](#duration-formatting)
 5. [Custom Cell Styling (Conditional Formatting)](#custom-cell-styling-conditional-formatting)
 6. [Cell Borders](#cell-borders)
-7. [Large Dataset Loading](#large-dataset-loading)
-8. [Keyboard Navigation](#keyboard-navigation)
-9. [Programmatic Scrolling to Cells](#programmatic-scrolling-to-cells)
-10. [Export Data to CSV](#export-data-to-csv)
-11. [Custom Column Widths](#custom-column-widths)
-12. [Cell Value Validation](#cell-value-validation)
-13. [Automatic Date Detection](#automatic-date-detection)
-14. [Locale-Aware Formatting](#locale-aware-formatting)
-15. [Multi-Select Resize](#multi-select-resize)
+7. [Rich Text Spans](#rich-text-spans)
+8. [Cell Merging](#cell-merging)
+9. [Multi-Line Text (wrapText)](#multi-line-text-wraptext)
+10. [Large Dataset Loading](#large-dataset-loading)
+11. [Keyboard Navigation](#keyboard-navigation)
+12. [Programmatic Scrolling to Cells](#programmatic-scrolling-to-cells)
+13. [Export Data to CSV](#export-data-to-csv)
+14. [Custom Column Widths](#custom-column-widths)
+15. [Cell Value Validation](#cell-value-validation)
+16. [Automatic Date Detection](#automatic-date-detection)
+17. [Locale-Aware Formatting](#locale-aware-formatting)
+18. [Multi-Select Resize](#multi-select-resize)
 
 ---
 
@@ -605,6 +608,219 @@ void addTableOutline(SparseWorksheetData data, CellRange range) {
 ### Adjacent Cell Border Behavior
 
 When two adjacent cells both define a border on a shared edge, the thicker/higher-priority border wins. Priority order: thicker width > `double` > `solid` > `dashed` > `dotted`. If all attributes are equal, the right/bottom cell's border takes precedence.
+
+---
+
+## Rich Text Spans
+
+Style individual words within a cell using Flutter's `TextSpan`:
+
+### Inline Bold, Italic, and Color
+
+```dart
+final data = SparseWorksheetData(
+  rowCount: 100,
+  columnCount: 10,
+  cells: {
+    // Bold + normal text in one cell
+    (0, 0): Cell.text('Total Revenue', richText: const [
+      TextSpan(text: 'Total ', style: TextStyle(fontWeight: FontWeight.bold)),
+      TextSpan(text: 'Revenue'),
+    ]),
+    // Italic + colored
+    (1, 0): Cell.text('Status: Active', richText: const [
+      TextSpan(text: 'Status: '),
+      TextSpan(
+        text: 'Active',
+        style: TextStyle(
+          fontStyle: FontStyle.italic,
+          color: Color(0xFF4CAF50),
+        ),
+      ),
+    ]),
+    // Underline + strikethrough
+    (2, 0): Cell.text('New Old', richText: const [
+      TextSpan(
+        text: 'New',
+        style: TextStyle(decoration: TextDecoration.underline),
+      ),
+      TextSpan(text: ' '),
+      TextSpan(
+        text: 'Old',
+        style: TextStyle(decoration: TextDecoration.lineThrough),
+      ),
+    ]),
+  },
+);
+```
+
+### Setting Rich Text via Data Layer
+
+```dart
+data.setRichText(const CellCoordinate(0, 0), const [
+  TextSpan(text: 'Hello ', style: TextStyle(fontWeight: FontWeight.bold)),
+  TextSpan(text: 'world'),
+]);
+
+// Read back
+final spans = data.getRichText(const CellCoordinate(0, 0));
+
+// Clear rich text (reverts to plain text rendering)
+data.setRichText(const CellCoordinate(0, 0), null);
+```
+
+### Inline Editing with Formatting Shortcuts
+
+When editing a cell with `editController`, use keyboard shortcuts to apply inline formatting:
+
+| Key | Action |
+|-----|--------|
+| Ctrl+B | Toggle bold on selection |
+| Ctrl+I | Toggle italic on selection |
+| Ctrl+U | Toggle underline on selection |
+| Ctrl+Shift+S | Toggle strikethrough on selection |
+
+The `onCommit` callback receives `richText: List<TextSpan>?` with the edited spans.
+
+See `example/rich_text.dart` for a complete working example.
+
+---
+
+## Cell Merging
+
+Merge ranges of cells into a single logical cell:
+
+### Basic Merging
+
+```dart
+final data = SparseWorksheetData(
+  rowCount: 100,
+  columnCount: 10,
+  cells: {
+    (0, 0): Cell.text('Title Row',
+        style: const CellStyle(
+          fontWeight: FontWeight.bold,
+          textAlignment: CellTextAlignment.center,
+        )),
+    (2, 0): Cell.text('Region A'),
+    (4, 0): Cell.text('Region B'),
+  },
+);
+
+// Horizontal merge: title spans A1:D1
+data.mergeCells(CellRange(0, 0, 0, 3));
+
+// Vertical merge: region labels span two rows
+data.mergeCells(CellRange(2, 0, 3, 0));  // A3:A4
+data.mergeCells(CellRange(4, 0, 5, 0));  // A5:A6
+```
+
+### Unmerging
+
+```dart
+// Unmerge by passing any cell in the merged region
+data.unmergeCells(const CellCoordinate(0, 0));
+```
+
+### Querying Merged Regions
+
+```dart
+final registry = data.mergedCells;
+
+// Check if a cell is merged
+print(registry.isMerged(const CellCoordinate(0, 1)));  // true (part of A1:D1)
+
+// Get the merge region
+final region = registry.getRegion(const CellCoordinate(0, 1));
+print(region?.anchor);  // CellCoordinate(0, 0)
+print(region?.range);   // CellRange(0, 0, 0, 3)
+
+// Find all merges in a range
+final merges = registry.regionsInRange(CellRange(0, 0, 10, 10));
+```
+
+### Merge Rules
+
+- The anchor (top-left) cell keeps its value; all other cell values are cleared
+- Merging a range that overlaps an existing merge throws `ArgumentError`
+- The range must contain at least 2 cells
+- Rendering spans the full merged bounds with gridlines suppressed across the interior
+
+See `example/merge.dart` for a complete working example with toolbar buttons.
+
+---
+
+## Multi-Line Text (wrapText)
+
+Enable text wrapping so cell content flows across multiple lines:
+
+### Setting Up Wrapped Cells
+
+```dart
+final data = SparseWorksheetData(
+  rowCount: 100,
+  columnCount: 10,
+  cells: {
+    // Wrap text with explicit newlines
+    (0, 0): Cell.text('Line 1\nLine 2\nLine 3',
+        style: const CellStyle(wrapText: true)),
+    // Long text that wraps at cell width
+    (1, 0): Cell.text(
+        'This is a long paragraph that will wrap automatically within the cell bounds.',
+        style: const CellStyle(wrapText: true)),
+  },
+);
+```
+
+### Vertical Alignment with Wrapped Text
+
+Control where wrapped text sits within the cell:
+
+```dart
+// Top-aligned (default for wrapped text)
+data.setStyle(const CellCoordinate(0, 0), const CellStyle(
+  wrapText: true,
+  verticalAlignment: CellVerticalAlignment.top,
+));
+
+// Middle-aligned
+data.setStyle(const CellCoordinate(1, 0), const CellStyle(
+  wrapText: true,
+  verticalAlignment: CellVerticalAlignment.middle,
+));
+
+// Bottom-aligned
+data.setStyle(const CellCoordinate(2, 0), const CellStyle(
+  wrapText: true,
+  verticalAlignment: CellVerticalAlignment.bottom,
+));
+```
+
+### Inserting Newlines During Editing
+
+When a cell has `wrapText: true`, press **Alt+Enter** (Option+Enter on macOS) while editing to insert a newline. Plain Enter still commits the edit.
+
+| Key | Action (wrapText cell) |
+|-----|----------------------|
+| Alt+Enter | Insert newline at cursor |
+| Enter | Commit edit and move down |
+| Shift+Enter | Commit edit and move up |
+
+### Taller Rows for Wrapped Content
+
+Increase row height to accommodate wrapped text:
+
+```dart
+// Set row height via custom sizes
+Worksheet(
+  data: data,
+  rowCount: 100,
+  columnCount: 10,
+  customRowHeights: {0: 72, 1: 96},  // Taller rows for wrapped content
+)
+```
+
+See `example/wrap_text.dart` for a complete working example.
 
 ---
 

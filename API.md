@@ -7,12 +7,13 @@ Quick reference for the worksheet widget API.
 1. [WorksheetController](#worksheetcontroller)
 2. [Callback Signatures](#callback-signatures)
 3. [CellValue Types](#cellvalue-types)
-4. [CellFormat](#cellformat)
-5. [CellStyle Properties](#cellstyle-properties)
-6. [Selection Types](#selection-types)
-7. [Theme Classes](#theme-classes)
-8. [Event Streams](#event-streams)
-9. [Core Models](#core-models)
+4. [Cell Class](#cell-class) (Rich Text, Merging)
+5. [CellFormat](#cellformat)
+6. [CellStyle Properties](#cellstyle-properties)
+7. [Selection Types](#selection-types)
+8. [Theme Classes](#theme-classes)
+9. [Event Streams](#event-streams)
+10. [Core Models](#core-models)
 
 ---
 
@@ -267,6 +268,20 @@ Worksheet(
 | `FillDownIntent` | — | Ctrl+D |
 | `FillRightIntent` | — | Ctrl+R |
 
+### Cell Editor Shortcuts
+
+These shortcuts are active while editing a cell (handled by `CellEditorOverlay`, not the Shortcuts/Actions system):
+
+| Key | Action |
+|-----|--------|
+| Enter | Commit edit and move down |
+| Shift+Enter | Commit edit and move up |
+| Tab / Shift+Tab | Commit and move right/left |
+| Escape | Cancel edit |
+| Alt+Enter | Insert newline (when `wrapText` is true) |
+| Ctrl+B / Ctrl+I / Ctrl+U | Toggle bold / italic / underline (rich text) |
+| Ctrl+Shift+S | Toggle strikethrough (rich text) |
+
 ### ClearCellsIntent Flags
 
 `ClearCellsIntent` supports selective clearing via three boolean flags (all default to `true`):
@@ -491,15 +506,15 @@ Combines a `CellValue` and `CellStyle` into a single object for Map-like access 
 
 ```dart
 // General constructor
-const Cell({CellValue? value, CellStyle? style})
+const Cell({CellValue? value, CellStyle? style, CellFormat? format, List<TextSpan>? richText})
 
 // Typed constructors
-Cell.text(String text, {CellStyle? style})
-Cell.number(num n, {CellStyle? style})
-Cell.boolean(bool b, {CellStyle? style})
-Cell.formula(String formula, {CellStyle? style})
-Cell.date(DateTime date, {CellStyle? style})
-Cell.duration(Duration duration, {CellStyle? style})
+Cell.text(String text, {CellStyle? style, CellFormat? format, List<TextSpan>? richText})
+Cell.number(num n, {CellStyle? style, CellFormat? format, List<TextSpan>? richText})
+Cell.boolean(bool b, {CellStyle? style, CellFormat? format})
+Cell.formula(String formula, {CellStyle? style, CellFormat? format})
+Cell.date(DateTime date, {CellStyle? style, CellFormat? format})
+Cell.duration(Duration duration, {CellStyle? style, CellFormat? format})
 Cell.withStyle(CellStyle style)  // style only, no value
 ```
 
@@ -509,8 +524,11 @@ Cell.withStyle(CellStyle style)  // style only, no value
 |----------|------|-------------|
 | `value` | `CellValue?` | The cell's value |
 | `style` | `CellStyle?` | The cell's style |
+| `format` | `CellFormat?` | The cell's display format |
+| `richText` | `List<TextSpan>?` | Inline styled text spans |
 | `hasValue` | `bool` | Whether the cell has a value |
 | `hasStyle` | `bool` | Whether the cell has a style |
+| `hasRichText` | `bool` | Whether the cell has rich text spans |
 | `isEmpty` | `bool` | True if no value and no style |
 
 ### Extensions
@@ -557,6 +575,89 @@ data[(1, 0)] = null;         // clears value and style
 // Snapshot of all populated cells
 final allCells = data.cells;  // Map<CellCoordinate, Cell>
 ```
+
+### Rich Text Spans
+
+Cells can contain inline-styled text using Flutter's `TextSpan`. The concatenation of all span texts must equal the cell's plain text value.
+
+```dart
+// Inline bold and colored text
+data[(0, 0)] = Cell.text('Bold and colored', richText: const [
+  TextSpan(text: 'Bold', style: TextStyle(fontWeight: FontWeight.bold)),
+  TextSpan(text: ' and '),
+  TextSpan(text: 'colored', style: TextStyle(color: Color(0xFF2196F3))),
+]);
+
+// Read/write rich text via data layer
+data.setRichText(const CellCoordinate(0, 0), const [
+  TextSpan(text: 'Hello ', style: TextStyle(fontStyle: FontStyle.italic)),
+  TextSpan(text: 'world'),
+]);
+final spans = data.getRichText(const CellCoordinate(0, 0));
+```
+
+When editing a cell with rich text, the editor supports inline formatting shortcuts:
+
+| Key | Action |
+|-----|--------|
+| Ctrl+B | Toggle bold |
+| Ctrl+I | Toggle italic |
+| Ctrl+U | Toggle underline |
+| Ctrl+Shift+S | Toggle strikethrough |
+
+Rich text is passed through the `onCommit` callback as `richText: List<TextSpan>?`.
+
+---
+
+## Cell Merging
+
+Merge ranges of cells into a single logical cell. The anchor (top-left) cell keeps its value; all other cells in the range are cleared.
+
+### MergeRegion
+
+```dart
+class MergeRegion {
+  final CellRange range;
+  CellCoordinate get anchor;       // Top-left cell
+  bool contains(CellCoordinate cell);
+  bool isAnchor(CellCoordinate cell);
+  int get rowCount;
+  int get columnCount;
+}
+```
+
+### MergedCellRegistry
+
+```dart
+class MergedCellRegistry {
+  MergeRegion? getRegion(CellCoordinate cell);  // Region containing cell, or null
+  bool isMerged(CellCoordinate cell);
+  bool isAnchor(CellCoordinate cell);
+  CellCoordinate resolveAnchor(CellCoordinate cell);
+  Iterable<MergeRegion> get regions;
+  int get regionCount;
+  bool get isEmpty;
+  Iterable<MergeRegion> regionsInRange(CellRange range);
+}
+```
+
+### WorksheetData Merging Methods
+
+```dart
+// Merge cells — anchor keeps value, others cleared
+data.mergeCells(CellRange(0, 0, 0, 3));  // Merge A1:D1
+
+// Unmerge — anchor value preserved
+data.unmergeCells(const CellCoordinate(0, 0));
+
+// Query merges
+final registry = data.mergedCells;
+final region = registry.getRegion(const CellCoordinate(0, 1));  // Returns A1:D1 region
+print(registry.isMerged(const CellCoordinate(0, 1)));  // true
+print(registry.isAnchor(const CellCoordinate(0, 0)));  // true
+```
+
+Rendering automatically handles merged cells: content spans the full merged bounds, gridlines are suppressed across merge interiors, and borders are applied to the merged region's edges.
 
 ---
 
@@ -785,7 +886,7 @@ const CellStyle({
 | `textAlignment` | `CellTextAlignment?` | null (left) | Horizontal alignment |
 | `verticalAlignment` | `CellVerticalAlignment?` | null (middle) | Vertical alignment |
 | `borders` | `CellBorders?` | null (no borders) | Cell border configuration |
-| `wrapText` | `bool?` | null (false) | Enable text wrapping |
+| `wrapText` | `bool?` | null (false) | Enable text wrapping — multi-line rendering and Alt+Enter newline insertion during editing |
 | `numberFormat` | `String?` | null | **Deprecated** — use `CellFormat` on `Cell` instead |
 
 ### CellTextAlignment Enum

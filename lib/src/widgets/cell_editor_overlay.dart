@@ -77,6 +77,13 @@ class CellEditorOverlay extends StatefulWidget {
   /// inline formatting via Ctrl+B/I/U/Shift+S.
   final List<TextSpan>? richText;
 
+  /// Whether the cell wraps text across multiple lines.
+  ///
+  /// When true, the editor allows multi-line input (Alt+Enter inserts a
+  /// newline) and grows vertically. When false (default), the editor is
+  /// single-line and Enter commits.
+  final bool wrapText;
+
   /// Focus node to restore when editing completes. If null, attempts to
   /// find the parent focus node automatically.
   final FocusNode? restoreFocusTo;
@@ -101,6 +108,7 @@ class CellEditorOverlay extends StatefulWidget {
     this.textAlign = TextAlign.left,
     this.cellPadding = 4.0,
     this.richText,
+    this.wrapText = false,
     this.restoreFocusTo,
   });
 
@@ -276,6 +284,19 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     widget.onCancel();
   }
 
+  void _insertNewline() {
+    final sel = _textController.selection;
+    final text = _textController.text;
+    final before = text.substring(0, sel.start);
+    final after = text.substring(sel.end);
+    final newText = '$before\n$after';
+    _textController.value = TextEditingValue(
+      text: newText,
+      selection: TextSelection.collapsed(offset: sel.start + 1),
+    );
+    widget.editController.updateText(newText);
+  }
+
   KeyEventResult _handleKeyEvent(FocusNode node, KeyEvent event) {
     if (event is! KeyDownEvent) {
       return KeyEventResult.ignored;
@@ -306,6 +327,15 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
     if (event.logicalKey == LogicalKeyboardKey.escape) {
       _cancel();
+      return KeyEventResult.handled;
+    }
+
+    // Alt+Enter inserts a newline when wrapText is enabled
+    if (widget.wrapText &&
+        (event.logicalKey == LogicalKeyboardKey.enter ||
+            event.logicalKey == LogicalKeyboardKey.numpadEnter) &&
+        HardwareKeyboard.instance.isAltPressed) {
+      _insertNewline();
       return KeyEventResult.handled;
     }
 
@@ -378,10 +408,21 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         : textHeight;
     measurer.dispose();
 
-    final verticalPad = ((unzoomedHeight - textHeight) / 2).clamp(
-      0.0,
-      double.infinity,
-    );
+    // For multi-line (wrapText), use cell padding top/bottom instead of
+    // centering. For single-line, center vertically as before.
+    final double verticalPadTop;
+    final double verticalPadBottom;
+    if (widget.wrapText) {
+      verticalPadTop = widget.cellPadding;
+      verticalPadBottom = widget.cellPadding;
+    } else {
+      final verticalPad = ((unzoomedHeight - textHeight) / 2).clamp(
+        0.0,
+        double.infinity,
+      );
+      verticalPadTop = verticalPad;
+      verticalPadBottom = verticalPad;
+    }
 
     // Match tile painter's per-alignment horizontal padding (at base size):
     //   left:   dx = bounds.left + cellPadding
@@ -412,22 +453,26 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         scale: zoom,
         alignment: Alignment.topLeft,
         child: FocusScope(
-          child: SizedBox(
-            width: effectiveWidth,
-            height: unzoomedHeight,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minWidth: effectiveWidth,
+              maxWidth: effectiveWidth,
+              minHeight: unzoomedHeight,
+              maxHeight: widget.wrapText ? double.infinity : unzoomedHeight,
+            ),
             child: TextField(
               controller: _textController,
               focusNode: _focusNode,
               autofocus: true,
               style: textStyle,
-              maxLines: 1,
+              maxLines: widget.wrapText ? null : 1,
               textAlign: widget.textAlign,
               decoration: InputDecoration(
                 contentPadding: EdgeInsets.fromLTRB(
                   leftPad,
-                  verticalPad,
+                  verticalPadTop,
                   rightPad,
-                  verticalPad,
+                  verticalPadBottom,
                 ),
                 border: InputBorder.none,
                 isCollapsed: true,

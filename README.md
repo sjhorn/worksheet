@@ -168,6 +168,28 @@ Worksheet(
 
 Supports ISO (`2024-01-15`), US (`1/15/2024`), EU (`15/1/2024`), named months (`15-Jan-24`, `15 January 2024`), and separator variants (slashes, dashes, dots).
 
+## Rich Text and Cell Merging
+
+Style individual words within a cell and merge cells into regions:
+
+```dart
+final data = SparseWorksheetData(rowCount: 100, columnCount: 10, cells: {
+    // Rich text: inline bold + colored text in one cell
+    (0, 0): Cell.text('Total Revenue', richText: const [
+      TextSpan(text: 'Total ', style: TextStyle(fontWeight: FontWeight.bold)),
+      TextSpan(text: 'Revenue', style: TextStyle(color: Color(0xFF4472C4))),
+    ]),
+    // Multi-line text with word wrap
+    (1, 0): Cell.text('Line 1\nLine 2',
+        style: const CellStyle(wrapText: true)),
+});
+
+// Merge cells A1:D1 into a single wide cell
+data.mergeCells(CellRange(0, 0, 0, 3));
+```
+
+Inline editing supports Ctrl+B/I/U for formatting and Alt+Enter for newlines in wrap-enabled cells.
+
 ## Style Your Data
 
 Add colors, bold text, and conditional formatting:
@@ -238,6 +260,9 @@ for (var row = 0; row < 50000; row++) {
 
 - **Sparse storage**: Memory scales with data, not grid size
 - **Full selection**: Single cell, ranges, entire rows/columns
+- **Cell merging**: Merge ranges into single cells with merge-aware rendering
+- **Rich text**: Inline bold, italic, underline, color within a single cell
+- **Multi-line text**: Word wrap with `wrapText` style, Alt+Enter for newlines
 - **Keyboard navigation**: Arrow keys, Tab, Enter, Home/End, clipboard, and more — fully customizable via Flutter's Shortcuts/Actions
 - **Automatic type detection**: Numbers, booleans, dates, and formulas detected from text input via `CellValue.parse()`
 - **Resize support**: Drag column/row borders to resize
@@ -300,6 +325,7 @@ All shortcuts work out of the box. You can override or extend them via the `shor
 | Ctrl+A | Select all |
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy / Cut / Paste |
 | Ctrl+D / Ctrl+R | Fill down / Fill right |
+| Alt+Enter | Insert newline (when cell has wrapText) |
 | Delete / Backspace | Clear selected cells |
 | Ctrl+\ | Clear formatting (keep values) |
 
