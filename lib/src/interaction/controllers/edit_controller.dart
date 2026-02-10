@@ -2,6 +2,7 @@ import 'package:any_date/any_date.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../core/models/cell_coordinate.dart';
+import '../../core/models/cell_format.dart';
 import '../../core/models/cell_value.dart';
 
 /// The result of committing a cell edit, including navigation direction.
@@ -68,6 +69,9 @@ enum EditTrigger {
 class EditController extends ChangeNotifier {
   /// Date parser for type detection. Set by [Worksheet] when provided.
   AnyDate? dateParser;
+
+  /// Locale for date format detection. Set by [Worksheet] when provided.
+  FormatLocale locale = FormatLocale.enUs;
 
   EditState _state = EditState.idle;
   CellCoordinate? _editingCell;
@@ -141,20 +145,37 @@ class EditController extends ChangeNotifier {
 
   /// Commits the current edit.
   ///
-  /// [onCommit] is called with the cell and new value if the edit should be saved.
+  /// [onCommit] is called with the cell, new value, and an optional detected
+  /// date format if the input was recognized as a date.
   /// Returns the committed value, or null if commit was cancelled.
   CellValue? commitEdit({
-    required void Function(CellCoordinate cell, CellValue? value) onCommit,
+    required void Function(
+      CellCoordinate cell,
+      CellValue? value, {
+      CellFormat? detectedFormat,
+    }) onCommit,
   }) {
     if (_state != EditState.editing) return null;
 
     _state = EditState.committing;
 
     final cell = _editingCell!;
-    final newValue = _parseText(_currentText);
+    final inputText = _currentText;
+    final newValue = _parseText(inputText);
+
+    // Detect date format from user input
+    CellFormat? detectedFormat;
+    if (newValue != null && newValue.isDate) {
+      detectedFormat = DateFormatDetector.detect(
+        inputText,
+        newValue.asDateTime,
+        dayFirst: locale.dayFirst,
+        locale: locale,
+      );
+    }
 
     // Call commit callback
-    onCommit(cell, newValue);
+    onCommit(cell, newValue, detectedFormat: detectedFormat);
 
     // Reset state
     _state = EditState.idle;

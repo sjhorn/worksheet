@@ -14,6 +14,7 @@ import '../core/geometry/span_list.dart';
 import '../core/models/cell_coordinate.dart';
 import '../core/models/cell_range.dart';
 import '../core/models/cell_style.dart';
+import '../core/models/cell_format.dart';
 import '../core/models/cell_value.dart';
 import '../interaction/clipboard/clipboard_handler.dart';
 import '../interaction/clipboard/clipboard_serializer.dart';
@@ -125,6 +126,13 @@ class Worksheet extends StatefulWidget {
   /// Example: `AnyDate.fromLocale('en-US')` for US date format (month/day/year).
   final AnyDate? dateParser;
 
+  /// Locale used for date format detection when committing cell edits.
+  ///
+  /// Controls whether ambiguous numeric dates (e.g., `01/02/2024`) are
+  /// interpreted as month/day or day/month, and which month names to match.
+  /// Defaults to [FormatLocale.enUs].
+  final FormatLocale? formatLocale;
+
   /// The clipboard serializer for copy/cut/paste operations.
   ///
   /// Defaults to [TsvClipboardSerializer], which uses tab-separated values
@@ -173,6 +181,7 @@ class Worksheet extends StatefulWidget {
     this.customColumnWidths,
     this.readOnly = false,
     this.dateParser,
+    this.formatLocale,
     this.clipboardSerializer,
     this.diagonalDragBehavior = DiagonalDragBehavior.free,
     this.scrollbarConfig,
@@ -413,8 +422,11 @@ class _WorksheetState extends State<Worksheet>
           TsvClipboardSerializer(dateParser: widget.dateParser),
     );
 
-    // Set dateParser on editController
+    // Set dateParser and locale on editController
     widget.editController?.dateParser = widget.dateParser;
+    if (widget.formatLocale != null) {
+      widget.editController?.locale = widget.formatLocale!;
+    }
 
     // Subscribe to data change events for external mutations
     _dataSubscription?.cancel();
@@ -643,9 +655,16 @@ class _WorksheetState extends State<Worksheet>
   }
 
   /// Handles commit from the internal CellEditorOverlay.
-  void _onInternalCommit(CellCoordinate cell, CellValue? value) {
+  void _onInternalCommit(
+    CellCoordinate cell,
+    CellValue? value, {
+    CellFormat? detectedFormat,
+  }) {
     _clearEditingCell();
     widget.data.setCell(cell, value);
+    if (detectedFormat != null && widget.data.getFormat(cell) == null) {
+      widget.data.setFormat(cell, detectedFormat);
+    }
     invalidateAndRebuild();
   }
 
@@ -673,10 +692,14 @@ class _WorksheetState extends State<Worksheet>
     CellCoordinate cell,
     CellValue? value,
     int rowDelta,
-    int colDelta,
-  ) {
+    int colDelta, {
+    CellFormat? detectedFormat,
+  }) {
     _clearEditingCell();
     widget.data.setCell(cell, value);
+    if (detectedFormat != null && widget.data.getFormat(cell) == null) {
+      widget.data.setFormat(cell, detectedFormat);
+    }
     selectionController.moveFocus(
       rowDelta: rowDelta,
       columnDelta: colDelta,
@@ -922,6 +945,9 @@ class _WorksheetState extends State<Worksheet>
               TsvClipboardSerializer(dateParser: widget.dateParser),
         );
         widget.editController?.dateParser = widget.dateParser;
+        if (widget.formatLocale != null) {
+          widget.editController?.locale = widget.formatLocale!;
+        }
         final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
         _selectionLayer.dispose();
         _headerLayer.dispose();

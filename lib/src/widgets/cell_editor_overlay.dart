@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../core/models/cell_coordinate.dart';
+import '../core/models/cell_format.dart';
 import '../core/models/cell_style.dart';
 import '../core/models/cell_value.dart';
 import '../interaction/controllers/edit_controller.dart';
@@ -19,7 +20,11 @@ class CellEditorOverlay extends StatefulWidget {
   final Rect cellBounds;
 
   /// Called when the edit is committed.
-  final void Function(CellCoordinate cell, CellValue? value) onCommit;
+  final void Function(
+    CellCoordinate cell,
+    CellValue? value, {
+    CellFormat? detectedFormat,
+  }) onCommit;
 
   /// Called when the edit is cancelled.
   final VoidCallback onCancel;
@@ -33,8 +38,9 @@ class CellEditorOverlay extends StatefulWidget {
     CellCoordinate cell,
     CellValue? value,
     int rowDelta,
-    int columnDelta,
-  )?
+    int columnDelta, {
+    CellFormat? detectedFormat,
+  })?
   onCommitAndNavigate;
 
   /// The current zoom level, used to scale font size, padding, and cursor
@@ -220,8 +226,11 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       final cell = widget.editController.editingCell;
       if (cell == null) return;
       widget.editController.commitEdit(
-        onCommit: (commitCell, value) {
-          widget.onCommitAndNavigate!(commitCell, value, rowDelta, columnDelta);
+        onCommit: (commitCell, value, {CellFormat? detectedFormat}) {
+          widget.onCommitAndNavigate!(
+            commitCell, value, rowDelta, columnDelta,
+            detectedFormat: detectedFormat,
+          );
         },
       );
     } else {

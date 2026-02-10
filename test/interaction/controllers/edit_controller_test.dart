@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_format.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
 
@@ -153,7 +154,7 @@ void main() {
         CellValue? committedValue;
 
         final result = controller.commitEdit(
-          onCommit: (cell, value) {
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
             committedCell = cell;
             committedValue = value;
           },
@@ -170,7 +171,7 @@ void main() {
 
         CellValue? committedValue;
         controller.commitEdit(
-          onCommit: (cell, value) => committedValue = value,
+          onCommit: (cell, value, {CellFormat? detectedFormat}) => committedValue = value,
         );
 
         expect(committedValue?.type, CellValueType.number);
@@ -183,7 +184,7 @@ void main() {
 
         CellValue? committedValue;
         controller.commitEdit(
-          onCommit: (cell, value) => committedValue = value,
+          onCommit: (cell, value, {CellFormat? detectedFormat}) => committedValue = value,
         );
 
         expect(committedValue?.type, CellValueType.number);
@@ -196,7 +197,7 @@ void main() {
 
         CellValue? committedValue;
         controller.commitEdit(
-          onCommit: (cell, value) => committedValue = value,
+          onCommit: (cell, value, {CellFormat? detectedFormat}) => committedValue = value,
         );
 
         expect(committedValue, const CellValue.boolean(true));
@@ -208,7 +209,7 @@ void main() {
 
         CellValue? committedValue;
         controller.commitEdit(
-          onCommit: (cell, value) => committedValue = value,
+          onCommit: (cell, value, {CellFormat? detectedFormat}) => committedValue = value,
         );
 
         expect(committedValue, const CellValue.boolean(false));
@@ -220,7 +221,7 @@ void main() {
 
         CellValue? committedValue;
         controller.commitEdit(
-          onCommit: (cell, value) => committedValue = value,
+          onCommit: (cell, value, {CellFormat? detectedFormat}) => committedValue = value,
         );
 
         expect(committedValue, const CellValue.formula('=A1+B1'));
@@ -232,7 +233,7 @@ void main() {
 
         CellValue? committedValue;
         controller.commitEdit(
-          onCommit: (cell, value) => committedValue = value,
+          onCommit: (cell, value, {CellFormat? detectedFormat}) => committedValue = value,
         );
 
         expect(committedValue, isNull);
@@ -241,7 +242,7 @@ void main() {
       test('returns to idle state', () {
         controller.startEdit(cell: const CellCoordinate(0, 0));
 
-        controller.commitEdit(onCommit: (_, _) {});
+        controller.commitEdit(onCommit: (_, _, {CellFormat? detectedFormat}) {});
 
         expect(controller.state, EditState.idle);
         expect(controller.isEditing, isFalse);
@@ -251,7 +252,7 @@ void main() {
       });
 
       test('returns null if not editing', () {
-        final result = controller.commitEdit(onCommit: (_, _) {});
+        final result = controller.commitEdit(onCommit: (_, _, {CellFormat? detectedFormat}) {});
 
         expect(result, isNull);
       });
@@ -287,6 +288,138 @@ void main() {
         controller.cancelEdit();
 
         expect(notifyCount, 1);
+      });
+    });
+
+    group('date format detection', () {
+      test('detects US date format on commit', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('1/15/2024');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, CellFormat.dateUs);
+      });
+
+      test('detects ISO date format on commit', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('2024-01-15');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, CellFormat.dateIso);
+      });
+
+      test('detects named month format on commit', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('15-Jan-24');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, CellFormat.dateShort);
+      });
+
+      test('no format detected for non-date input', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('Hello World');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, isNull);
+      });
+
+      test('no format detected for number input', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('42.5');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, isNull);
+      });
+
+      test('uses locale dayFirst for format detection', () {
+        controller.locale = FormatLocale.enGb;
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('15/1/2024');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, CellFormat.dateEu);
+      });
+
+      test('no format detected for empty input', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, isNull);
+      });
+
+      test('detects format for full month name date', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('15 January 2024');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, CellFormat.dateLong);
+      });
+
+      test('null detected for unrecognized date format', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        // AnyDate may or may not parse "Jan 15, 2024" — if it does,
+        // the round-trip won't match any candidate format
+        controller.updateText('January 15th, 2024');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        // Either null (not parsed as date) or null (no format match)
+        expect(detected, isNull);
       });
     });
 

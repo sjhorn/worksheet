@@ -110,6 +110,12 @@ class FormatLocale {
   /// Default currency symbol (e.g., `$`, `€`, `£`).
   final String currencySymbol;
 
+  /// Whether day comes before month in numeric date formats (e.g., d/m/yyyy).
+  ///
+  /// Used by [DateFormatDetector] to resolve ambiguous date inputs like
+  /// `01/02/2024` (Jan 2 in US, Feb 1 in UK).
+  final bool dayFirst;
+
   /// Creates a format locale with the given parameters.
   const FormatLocale({
     required this.monthNames,
@@ -119,6 +125,7 @@ class FormatLocale {
     this.decimalSeparator = '.',
     this.thousandsSeparator = ',',
     this.currencySymbol = r'$',
+    this.dayFirst = false,
   });
 
   /// English (US) locale — the default.
@@ -136,6 +143,7 @@ class FormatLocale {
     dayNames: _enDayNames,
     dayAbbr: _enDayAbbr,
     currencySymbol: '£',
+    dayFirst: true,
   );
 
   /// German (Germany) locale.
@@ -156,6 +164,7 @@ class FormatLocale {
     decimalSeparator: ',',
     thousandsSeparator: '.',
     currencySymbol: '€',
+    dayFirst: true,
   );
 
   /// French (France) locale.
@@ -176,6 +185,7 @@ class FormatLocale {
     decimalSeparator: ',',
     thousandsSeparator: ' ',
     currencySymbol: '€',
+    dayFirst: true,
   );
 
   /// Japanese locale.
@@ -330,6 +340,34 @@ class CellFormat {
   static const dateShort =
       CellFormat(type: CellFormatType.date, formatCode: 'd-mmm-yy');
 
+  /// Short date with 4-digit year: 15-Jan-2024
+  static const dateShortLong =
+      CellFormat(type: CellFormatType.date, formatCode: 'd-mmm-yyyy');
+
+  /// Full month name date: 15 January 2024
+  static const dateLong =
+      CellFormat(type: CellFormatType.date, formatCode: 'd mmmm yyyy');
+
+  /// EU date with slashes: 15/1/2024
+  static const dateEu =
+      CellFormat(type: CellFormatType.date, formatCode: 'd/m/yyyy');
+
+  /// US date with dashes: 1-15-2024
+  static const dateUsDash =
+      CellFormat(type: CellFormatType.date, formatCode: 'm-d-yyyy');
+
+  /// EU date with dashes: 15-1-2024
+  static const dateEuDash =
+      CellFormat(type: CellFormatType.date, formatCode: 'd-m-yyyy');
+
+  /// US date with dots: 1.15.2024
+  static const dateUsDot =
+      CellFormat(type: CellFormatType.date, formatCode: 'm.d.yyyy');
+
+  /// EU date with dots: 15.1.2024
+  static const dateEuDot =
+      CellFormat(type: CellFormatType.date, formatCode: 'd.m.yyyy');
+
   /// Month-year: Jan-24
   static const dateMonthYear =
       CellFormat(type: CellFormatType.date, formatCode: 'mmm-yy');
@@ -400,6 +438,74 @@ class CellFormat {
 
   @override
   String toString() => 'CellFormat(${type.name}, $formatCode)';
+}
+
+/// Detects the date format a user typed by round-tripping through candidates.
+///
+/// Given the raw input text and the parsed [DateTime], formats the date through
+/// each candidate [CellFormat] and returns the first one whose output matches
+/// the original input. Returns `null` if no candidate matches.
+///
+/// The [dayFirst] flag (from [FormatLocale.dayFirst]) controls whether
+/// day-first (EU) or month-first (US) numeric formats are tried first,
+/// resolving ambiguous inputs like `01/02/2024`.
+class DateFormatDetector {
+  DateFormatDetector._();
+
+  /// Candidate formats ordered from most specific to most general.
+  ///
+  /// When [dayFirst] is true, EU variants (d/m, d-m, d.m) appear before
+  /// their US counterparts.
+  static List<CellFormat> _candidates({required bool dayFirst}) {
+    if (dayFirst) {
+      return const [
+        CellFormat.dateIso,       // yyyy-MM-dd
+        CellFormat.dateShort,     // d-mmm-yy
+        CellFormat.dateShortLong, // d-mmm-yyyy
+        CellFormat.dateLong,      // d mmmm yyyy
+        CellFormat.dateEu,        // d/m/yyyy
+        CellFormat.dateUs,        // m/d/yyyy
+        CellFormat.dateEuDash,    // d-m-yyyy
+        CellFormat.dateUsDash,    // m-d-yyyy
+        CellFormat.dateEuDot,     // d.m.yyyy
+        CellFormat.dateUsDot,     // m.d.yyyy
+      ];
+    }
+    return const [
+      CellFormat.dateIso,       // yyyy-MM-dd
+      CellFormat.dateShort,     // d-mmm-yy
+      CellFormat.dateShortLong, // d-mmm-yyyy
+      CellFormat.dateLong,      // d mmmm yyyy
+      CellFormat.dateUs,        // m/d/yyyy
+      CellFormat.dateEu,        // d/m/yyyy
+      CellFormat.dateUsDash,    // m-d-yyyy
+      CellFormat.dateEuDash,    // d-m-yyyy
+      CellFormat.dateUsDot,     // m.d.yyyy
+      CellFormat.dateEuDot,     // d.m.yyyy
+    ];
+  }
+
+  /// Detects the [CellFormat] that reproduces [input] when applied to [parsed].
+  ///
+  /// Returns `null` if no candidate matches (cell uses ISO default).
+  static CellFormat? detect(
+    String input,
+    DateTime parsed, {
+    bool dayFirst = false,
+    FormatLocale locale = FormatLocale.enUs,
+  }) {
+    final normalized = input.trim().toLowerCase();
+    if (normalized.isEmpty) return null;
+
+    for (final candidate in _candidates(dayFirst: dayFirst)) {
+      final formatted = candidate
+          .formatRich(CellValue.date(parsed), locale: locale)
+          .text
+          .toLowerCase();
+      if (formatted == normalized) return candidate;
+    }
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

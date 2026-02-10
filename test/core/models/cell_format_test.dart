@@ -1337,4 +1337,268 @@ void main() {
       expect(result, isNotNull);
     });
   });
+
+  group('DateFormatDetector', () {
+    group('ISO format', () {
+      test('detects yyyy-MM-dd', () {
+        final result = DateFormatDetector.detect(
+          '2024-01-15', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateIso);
+      });
+
+      test('detects ISO with zero-padded month and day', () {
+        final result = DateFormatDetector.detect(
+          '2024-03-05', DateTime(2024, 3, 5),
+        );
+        expect(result, CellFormat.dateIso);
+      });
+    });
+
+    group('US numeric format', () {
+      test('detects m/d/yyyy', () {
+        final result = DateFormatDetector.detect(
+          '1/15/2024', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateUs);
+      });
+
+      test('detects m/d/yyyy with single-digit month and day', () {
+        final result = DateFormatDetector.detect(
+          '3/5/2024', DateTime(2024, 3, 5),
+        );
+        expect(result, CellFormat.dateUs);
+      });
+
+      test('detects m-d-yyyy (US with dashes)', () {
+        final result = DateFormatDetector.detect(
+          '1-15-2024', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateUsDash);
+      });
+
+      test('detects m.d.yyyy (US with dots)', () {
+        final result = DateFormatDetector.detect(
+          '1.15.2024', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateUsDot);
+      });
+    });
+
+    group('EU numeric format', () {
+      test('detects d/m/yyyy with dayFirst=true', () {
+        final result = DateFormatDetector.detect(
+          '15/1/2024', DateTime(2024, 1, 15), dayFirst: true,
+        );
+        expect(result, CellFormat.dateEu);
+      });
+
+      test('detects d-m-yyyy with dayFirst=true', () {
+        final result = DateFormatDetector.detect(
+          '15-1-2024', DateTime(2024, 1, 15), dayFirst: true,
+        );
+        expect(result, CellFormat.dateEuDash);
+      });
+
+      test('detects d.m.yyyy with dayFirst=true', () {
+        final result = DateFormatDetector.detect(
+          '15.1.2024', DateTime(2024, 1, 15), dayFirst: true,
+        );
+        expect(result, CellFormat.dateEuDot);
+      });
+    });
+
+    group('named month formats', () {
+      test('detects d-mmm-yy (short)', () {
+        final result = DateFormatDetector.detect(
+          '15-Jan-24', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateShort);
+      });
+
+      test('detects d-mmm-yyyy (short with 4-digit year)', () {
+        final result = DateFormatDetector.detect(
+          '15-Jan-2024', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateShortLong);
+      });
+
+      test('detects d mmmm yyyy (full month name)', () {
+        final result = DateFormatDetector.detect(
+          '15 January 2024', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateLong);
+      });
+
+      test('named month is case insensitive', () {
+        final result = DateFormatDetector.detect(
+          '15-jan-24', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateShort);
+      });
+
+      test('full month name is case insensitive', () {
+        final result = DateFormatDetector.detect(
+          '15 january 2024', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateLong);
+      });
+    });
+
+    group('dayFirst ordering', () {
+      // Ambiguous date: 3/5/2024 could be March 5 (US) or May 3 (EU)
+      test('dayFirst=false prefers US format for ambiguous date', () {
+        // Parsed as March 5 (US interpretation)
+        final result = DateFormatDetector.detect(
+          '3/5/2024', DateTime(2024, 3, 5), dayFirst: false,
+        );
+        expect(result, CellFormat.dateUs);
+      });
+
+      test('dayFirst=true prefers EU format for ambiguous date', () {
+        // Parsed as May 3 (EU interpretation) → d/m/yyyy = 3/5/2024
+        final result = DateFormatDetector.detect(
+          '3/5/2024', DateTime(2024, 5, 3), dayFirst: true,
+        );
+        expect(result, CellFormat.dateEu);
+      });
+    });
+
+    group('unambiguous dates', () {
+      test('day > 12 always matches US m/d/yyyy when not dayFirst', () {
+        final result = DateFormatDetector.detect(
+          '1/15/2024', DateTime(2024, 1, 15), dayFirst: false,
+        );
+        expect(result, CellFormat.dateUs);
+      });
+
+      test('day > 12 matches EU d/m/yyyy when dayFirst=true', () {
+        final result = DateFormatDetector.detect(
+          '15/1/2024', DateTime(2024, 1, 15), dayFirst: true,
+        );
+        expect(result, CellFormat.dateEu);
+      });
+    });
+
+    group('no match', () {
+      test('returns null for unrecognized format', () {
+        final result = DateFormatDetector.detect(
+          'Jan 15, 2024', DateTime(2024, 1, 15),
+        );
+        expect(result, isNull);
+      });
+
+      test('returns null for empty input', () {
+        final result = DateFormatDetector.detect(
+          '', DateTime(2024, 1, 15),
+        );
+        expect(result, isNull);
+      });
+
+      test('returns null for whitespace-only input', () {
+        final result = DateFormatDetector.detect(
+          '   ', DateTime(2024, 1, 15),
+        );
+        expect(result, isNull);
+      });
+    });
+
+    group('whitespace handling', () {
+      test('trims leading and trailing whitespace', () {
+        final result = DateFormatDetector.detect(
+          '  2024-01-15  ', DateTime(2024, 1, 15),
+        );
+        expect(result, CellFormat.dateIso);
+      });
+    });
+
+    group('locale parameter', () {
+      test('uses locale for month name formatting', () {
+        // With German locale, month abbreviations differ
+        final result = DateFormatDetector.detect(
+          '15-Jan-24', DateTime(2024, 1, 15),
+          locale: FormatLocale.deDe, dayFirst: true,
+        );
+        // German locale has 'Jan' as well, so this should match
+        expect(result, CellFormat.dateShort);
+      });
+    });
+
+    group('FormatLocale.dayFirst', () {
+      test('enUs has dayFirst=false', () {
+        expect(FormatLocale.enUs.dayFirst, isFalse);
+      });
+
+      test('enGb has dayFirst=true', () {
+        expect(FormatLocale.enGb.dayFirst, isTrue);
+      });
+
+      test('deDe has dayFirst=true', () {
+        expect(FormatLocale.deDe.dayFirst, isTrue);
+      });
+
+      test('frFr has dayFirst=true', () {
+        expect(FormatLocale.frFr.dayFirst, isTrue);
+      });
+
+      test('jaJp has dayFirst=false', () {
+        expect(FormatLocale.jaJp.dayFirst, isFalse);
+      });
+
+      test('zhCn has dayFirst=false', () {
+        expect(FormatLocale.zhCn.dayFirst, isFalse);
+      });
+    });
+
+    group('new date format presets', () {
+      test('dateShortLong formats correctly', () {
+        final result = CellFormat.dateShortLong.format(
+          CellValue.date(DateTime(2024, 1, 15)),
+        );
+        expect(result, '15-Jan-2024');
+      });
+
+      test('dateLong formats correctly', () {
+        final result = CellFormat.dateLong.format(
+          CellValue.date(DateTime(2024, 1, 15)),
+        );
+        expect(result, '15 January 2024');
+      });
+
+      test('dateEu formats correctly', () {
+        final result = CellFormat.dateEu.format(
+          CellValue.date(DateTime(2024, 1, 15)),
+        );
+        expect(result, '15/1/2024');
+      });
+
+      test('dateUsDash formats correctly', () {
+        final result = CellFormat.dateUsDash.format(
+          CellValue.date(DateTime(2024, 1, 15)),
+        );
+        expect(result, '1-15-2024');
+      });
+
+      test('dateEuDash formats correctly', () {
+        final result = CellFormat.dateEuDash.format(
+          CellValue.date(DateTime(2024, 1, 15)),
+        );
+        expect(result, '15-1-2024');
+      });
+
+      test('dateUsDot formats correctly', () {
+        final result = CellFormat.dateUsDot.format(
+          CellValue.date(DateTime(2024, 1, 15)),
+        );
+        expect(result, '1.15.2024');
+      });
+
+      test('dateEuDot formats correctly', () {
+        final result = CellFormat.dateEuDot.format(
+          CellValue.date(DateTime(2024, 1, 15)),
+        );
+        expect(result, '15.1.2024');
+      });
+    });
+  });
 }

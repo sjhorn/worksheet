@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_format.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
 import 'package:worksheet/src/widgets/cell_editor_overlay.dart';
@@ -22,10 +23,10 @@ void main() {
   Widget buildTestWidget({
     required EditController controller,
     Rect cellBounds = const Rect.fromLTWH(100, 50, 80, 24),
-    void Function(CellCoordinate, CellValue?)? onCommit,
+    void Function(CellCoordinate, CellValue?, {CellFormat? detectedFormat})? onCommit,
     VoidCallback? onCancel,
     FocusNode? parentFocusNode,
-    void Function(CellCoordinate, CellValue?, int, int)? onCommitAndNavigate,
+    void Function(CellCoordinate, CellValue?, int, int, {CellFormat? detectedFormat})? onCommitAndNavigate,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -41,7 +42,7 @@ void main() {
             CellEditorOverlay(
               editController: controller,
               cellBounds: cellBounds,
-              onCommit: onCommit ?? (_, _) {},
+              onCommit: onCommit ?? (_, _, {CellFormat? detectedFormat}) {},
               onCancel: onCancel ?? () {},
               onCommitAndNavigate: onCommitAndNavigate,
             ),
@@ -99,7 +100,7 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget(
         controller: editController,
-        onCommit: (cell, value) {
+        onCommit: (cell, value, {CellFormat? detectedFormat}) {
           committedCell = cell;
           committedValue = value;
         },
@@ -182,7 +183,7 @@ void main() {
       await tester.pumpWidget(buildTestWidget(controller: editController));
       expect(find.byType(EditableText), findsOneWidget);
 
-      editController.commitEdit(onCommit: (_, _) {});
+      editController.commitEdit(onCommit: (_, _, {CellFormat? detectedFormat}) {});
       await tester.pump();
 
       expect(find.byType(EditableText), findsNothing);
@@ -195,7 +196,7 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget(
         controller: editController,
-        onCommit: (_, value) => committedValue = value,
+        onCommit: (_, value, {CellFormat? detectedFormat}) => committedValue = value,
       ));
 
       await tester.enterText(find.byType(EditableText), '42.5');
@@ -213,7 +214,7 @@ void main() {
 
       await tester.pumpWidget(buildTestWidget(
         controller: editController,
-        onCommit: (_, value) => committedValue = value,
+        onCommit: (_, value, {CellFormat? detectedFormat}) => committedValue = value,
       ));
 
       await tester.enterText(find.byType(EditableText), '=SUM(A1:A10)');
@@ -248,7 +249,7 @@ void main() {
       Widget buildConditionalOverlay({
         required EditController controller,
         required FocusNode parentFocusNode,
-        void Function(CellCoordinate, CellValue?)? onCommit,
+        void Function(CellCoordinate, CellValue?, {CellFormat? detectedFormat})? onCommit,
         VoidCallback? onCancel,
       }) {
         return MaterialApp(
@@ -267,7 +268,7 @@ void main() {
                       CellEditorOverlay(
                         editController: controller,
                         cellBounds: const Rect.fromLTWH(100, 50, 80, 24),
-                        onCommit: onCommit ?? (_, _) {},
+                        onCommit: onCommit ?? (_, _, {CellFormat? detectedFormat}) {},
                         onCancel: onCancel ?? () {},
                       ),
                   ],
@@ -373,7 +374,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navCell = cell;
             navRowDelta = rowDelta;
             navColDelta = colDelta;
@@ -400,7 +401,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -427,7 +428,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -452,7 +453,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -479,7 +480,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommit: (cell, value) {
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
             committedCell = cell;
           },
           // onCommitAndNavigate is null
@@ -501,7 +502,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navigateCalled = true;
           },
         ));
@@ -523,7 +524,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navRowDelta = rowDelta;
           },
         ));
@@ -545,7 +546,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -569,7 +570,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -593,7 +594,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
@@ -617,7 +618,7 @@ void main() {
 
         await tester.pumpWidget(buildTestWidget(
           controller: editController,
-          onCommitAndNavigate: (cell, value, rowDelta, colDelta) {
+          onCommitAndNavigate: (cell, value, rowDelta, colDelta, {CellFormat? detectedFormat}) {
             navRowDelta = rowDelta;
             navColDelta = colDelta;
           },
