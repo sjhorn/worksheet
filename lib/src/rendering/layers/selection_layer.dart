@@ -55,24 +55,24 @@ class SelectionLayer extends RenderLayer {
     final range = selectionController.selectedRange;
     if (range == null) return;
 
-    final focus = selectionController.focus;
+    final anchor = selectionController.anchor;
 
-    if (selectionController.mode == SelectionMode.single && focus != null) {
+    if (range.cellCount == 1 && anchor != null) {
       // Single cell selection
       renderer.paintSingleCell(
         canvas: context.canvas,
         viewportOffset: context.scrollOffset,
         zoom: context.zoom,
-        cell: focus,
+        cell: anchor,
       );
     } else {
-      // Range selection
+      // Range selection — anchor cell stays transparent
       renderer.paintSelection(
         canvas: context.canvas,
         viewportOffset: context.scrollOffset,
         zoom: context.zoom,
         range: range,
-        focus: focus,
+        anchorCell: anchor,
       );
     }
 

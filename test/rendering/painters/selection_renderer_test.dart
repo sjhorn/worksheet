@@ -123,7 +123,7 @@ void main() {
             viewportOffset: Offset.zero,
             zoom: 1.0,
             range: const CellRange(0, 0, 2, 2),
-            focus: const CellCoordinate(1, 1),
+            anchorCell: const CellCoordinate(1, 1),
           ),
           returnsNormally,
         );
@@ -176,7 +176,7 @@ void main() {
             viewportOffset: Offset.zero,
             zoom: 1.0,
             range: const CellRange(0, 0, 2, 2),
-            focus: const CellCoordinate(5, 5),
+            anchorCell: const CellCoordinate(5, 5),
           ),
           returnsNormally,
         );

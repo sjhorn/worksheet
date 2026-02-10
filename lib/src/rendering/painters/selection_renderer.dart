@@ -1,7 +1,5 @@
 import 'dart:ui';
 
-import 'package:flutter/painting.dart';
-
 import '../../core/geometry/layout_solver.dart';
 import '../../core/models/cell_coordinate.dart';
 import '../../core/models/cell_range.dart';
@@ -128,7 +126,7 @@ class SelectionRenderer {
     required Offset viewportOffset,
     required double zoom,
     required CellRange range,
-    CellCoordinate? focus,
+    CellCoordinate? anchorCell,
   }) {
     // Get the bounds of the selection in worksheet coordinates
     final bounds = layoutSolver.getRangeBounds(
@@ -153,9 +151,9 @@ class SelectionRenderer {
     // Draw selection border
     canvas.drawRect(screenBounds, _borderPaint);
 
-    // Draw focus cell border if specified
-    if (focus != null && range.contains(focus)) {
-      _paintFocusCell(canvas, viewportOffset, zoom, focus);
+    // Draw focus border on anchor cell
+    if (anchorCell != null && range.contains(anchorCell)) {
+      _paintFocusCell(canvas, viewportOffset, zoom, anchorCell);
     }
   }
 
