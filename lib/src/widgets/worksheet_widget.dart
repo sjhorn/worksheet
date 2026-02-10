@@ -228,6 +228,8 @@ class _WorksheetState extends State<Worksheet>
   late HeaderLayer _headerLayer;
 
   bool _initialized = false;
+  WorksheetThemeData? _lastTheme;
+  double? _lastDevicePixelRatio;
   MouseCursor _currentCursor = SystemMouseCursors.basic;
   int _layoutVersion = 0;
   bool _pointerInScrollbarArea = false;
@@ -486,6 +488,8 @@ class _WorksheetState extends State<Worksheet>
       _initRendering(theme, devicePixelRatio);
       _initLayers(theme, devicePixelRatio);
       _initialized = true;
+      _lastTheme = theme;
+      _lastDevicePixelRatio = devicePixelRatio;
     }
   }
 
@@ -990,6 +994,20 @@ class _WorksheetState extends State<Worksheet>
     final theme = WorksheetTheme.of(context);
     final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
     _ensureInitialized(theme, devicePixelRatio);
+
+    // Re-init layers when theme or devicePixelRatio changes
+    if (_initialized &&
+        (_lastTheme != theme || _lastDevicePixelRatio != devicePixelRatio)) {
+      if (_lastTheme != null) {
+        _selectionLayer.dispose();
+        _headerLayer.dispose();
+        _tileManager.dispose();
+        _initRendering(theme, devicePixelRatio);
+        _initLayers(theme, devicePixelRatio);
+      }
+      _lastTheme = theme;
+      _lastDevicePixelRatio = devicePixelRatio;
+    }
   }
 
   @override
@@ -1641,7 +1659,8 @@ class _SelectionPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SelectionPainter oldDelegate) {
-    return scrollOffset != oldDelegate.scrollOffset ||
+    return layer != oldDelegate.layer ||
+        scrollOffset != oldDelegate.scrollOffset ||
         zoom != oldDelegate.zoom ||
         headerOffset != oldDelegate.headerOffset ||
         layoutVersion != oldDelegate.layoutVersion ||
@@ -1677,7 +1696,8 @@ class _HeaderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_HeaderPainter oldDelegate) {
-    return scrollOffset != oldDelegate.scrollOffset ||
+    return layer != oldDelegate.layer ||
+        scrollOffset != oldDelegate.scrollOffset ||
         zoom != oldDelegate.zoom ||
         layoutVersion != oldDelegate.layoutVersion;
   }

@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-02-10
+
+### Added
+- `HeaderStyle.darkStyle` — dark mode header colors derived from Excel dark mode
+- `WorksheetThemeData.darkTheme` — dark mode theme preset (dark headers, white cells)
+- `HeaderStyle.copyWith()`, `operator ==`, `hashCode`
+- `SelectionStyle.copyWith()`, `operator ==`, `hashCode`
+
 ## [2.1.0] - 2026-02-10
 
 ### Added

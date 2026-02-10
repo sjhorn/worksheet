@@ -50,6 +50,52 @@ void main() {
       expect(style.textColor, const Color(0xFF000000));
       expect(style.fontSize, 14.0);
     });
+
+    test('darkStyle has expected dark colors', () {
+      const style = HeaderStyle.darkStyle;
+
+      expect(style.backgroundColor, const Color(0xFF333333));
+      expect(style.selectedBackgroundColor, const Color(0xFF565656));
+      expect(style.textColor, const Color(0xFFD0D0D0));
+      expect(style.selectedTextColor, const Color(0xFFFFFFFF));
+      expect(style.borderColor, const Color(0xFF4A4A4A));
+    });
+
+    test('copyWith returns modified copy', () {
+      const original = HeaderStyle();
+      final modified = original.copyWith(
+        backgroundColor: const Color(0xFF111111),
+        fontSize: 16.0,
+      );
+
+      expect(modified.backgroundColor, const Color(0xFF111111));
+      expect(modified.fontSize, 16.0);
+      // Unchanged fields
+      expect(modified.textColor, original.textColor);
+      expect(modified.borderColor, original.borderColor);
+    });
+
+    test('copyWith with no arguments returns equal copy', () {
+      const original = HeaderStyle();
+      final copy = original.copyWith();
+
+      expect(copy, original);
+    });
+
+    test('equality: equal instances', () {
+      const a = HeaderStyle();
+      const b = HeaderStyle();
+
+      expect(a, equals(b));
+      expect(a.hashCode, b.hashCode);
+    });
+
+    test('equality: different instances', () {
+      const a = HeaderStyle();
+      const b = HeaderStyle(backgroundColor: Color(0xFF000000));
+
+      expect(a, isNot(equals(b)));
+    });
   });
 
   group('HeaderRenderer', () {
@@ -71,6 +117,28 @@ void main() {
       expect(r.style.fontSize, 16.0);
       expect(r.rowHeaderWidth, 60.0);
       expect(r.columnHeaderHeight, 30.0);
+    });
+
+    test('renders with dark style without error', () {
+      final darkRenderer = HeaderRenderer(
+        layoutSolver: layoutSolver,
+        style: HeaderStyle.darkStyle,
+      );
+      final recorder = PictureRecorder();
+      final canvas = Canvas(recorder);
+
+      expect(
+        () => darkRenderer.paintColumnHeaders(
+          canvas: canvas,
+          viewportOffset: Offset.zero,
+          zoom: 1.0,
+          visibleColumns: const SpanRange(0, 10),
+          selectedRange: const CellRange(0, 2, 5, 5),
+        ),
+        returnsNormally,
+      );
+
+      recorder.endRecording();
     });
 
     group('paintColumnHeaders', () {

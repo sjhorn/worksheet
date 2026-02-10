@@ -78,6 +78,42 @@ void main() {
       expect(style.fillHandleColor, const Color(0xFFFF0000));
       expect(style.fillHandleSize, 8.0);
     });
+
+    test('copyWith returns modified copy', () {
+      const original = SelectionStyle();
+      final modified = original.copyWith(
+        fillColor: const Color(0x33FF0000),
+        borderWidth: 3.0,
+      );
+
+      expect(modified.fillColor, const Color(0x33FF0000));
+      expect(modified.borderWidth, 3.0);
+      // Unchanged fields
+      expect(modified.borderColor, original.borderColor);
+      expect(modified.focusBorderColor, original.focusBorderColor);
+    });
+
+    test('copyWith with no arguments returns equal copy', () {
+      const original = SelectionStyle();
+      final copy = original.copyWith();
+
+      expect(copy, original);
+    });
+
+    test('equality: equal instances', () {
+      const a = SelectionStyle();
+      const b = SelectionStyle();
+
+      expect(a, equals(b));
+      expect(a.hashCode, b.hashCode);
+    });
+
+    test('equality: different instances', () {
+      const a = SelectionStyle();
+      const b = SelectionStyle(fillColor: Color(0x33FF0000));
+
+      expect(a, isNot(equals(b)));
+    });
   });
 
   group('SelectionRenderer', () {

@@ -49,6 +49,69 @@ class HeaderStyle {
 
   /// Default header style.
   static const HeaderStyle defaultStyle = HeaderStyle();
+
+  /// Dark mode header style (derived from Excel dark mode).
+  static const HeaderStyle darkStyle = HeaderStyle(
+    backgroundColor: Color(0xFF333333),
+    selectedBackgroundColor: Color(0xFF565656),
+    textColor: Color(0xFFD0D0D0),
+    selectedTextColor: Color(0xFFFFFFFF),
+    borderColor: Color(0xFF4A4A4A),
+  );
+
+  /// Creates a copy with optionally modified fields.
+  HeaderStyle copyWith({
+    Color? backgroundColor,
+    Color? selectedBackgroundColor,
+    Color? textColor,
+    Color? selectedTextColor,
+    Color? borderColor,
+    double? borderWidth,
+    double? fontSize,
+    FontWeight? fontWeight,
+    String? fontFamily,
+  }) {
+    return HeaderStyle(
+      backgroundColor: backgroundColor ?? this.backgroundColor,
+      selectedBackgroundColor:
+          selectedBackgroundColor ?? this.selectedBackgroundColor,
+      textColor: textColor ?? this.textColor,
+      selectedTextColor: selectedTextColor ?? this.selectedTextColor,
+      borderColor: borderColor ?? this.borderColor,
+      borderWidth: borderWidth ?? this.borderWidth,
+      fontSize: fontSize ?? this.fontSize,
+      fontWeight: fontWeight ?? this.fontWeight,
+      fontFamily: fontFamily ?? this.fontFamily,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is HeaderStyle &&
+        other.backgroundColor == backgroundColor &&
+        other.selectedBackgroundColor == selectedBackgroundColor &&
+        other.textColor == textColor &&
+        other.selectedTextColor == selectedTextColor &&
+        other.borderColor == borderColor &&
+        other.borderWidth == borderWidth &&
+        other.fontSize == fontSize &&
+        other.fontWeight == fontWeight &&
+        other.fontFamily == fontFamily;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        backgroundColor,
+        selectedBackgroundColor,
+        textColor,
+        selectedTextColor,
+        borderColor,
+        borderWidth,
+        fontSize,
+        fontWeight,
+        fontFamily,
+      );
 }
 
 /// Renders row and column headers for worksheets.
@@ -114,17 +177,19 @@ class HeaderRenderer {
     required double zoom,
     required SpanRange visibleColumns,
     CellRange? selectedRange,
+    Size? viewportSize,
   }) {
     // Scale header dimensions by zoom
     final scaledRowHeaderWidth = rowHeaderWidth * zoom;
     final scaledColumnHeaderHeight = columnHeaderHeight * zoom;
 
-    // Draw background
+    // Draw background (use viewport width when available for renderer
+    // compatibility; some backends skip non-finite rects).
     canvas.drawRect(
       Rect.fromLTWH(
         0,
         0,
-        double.infinity,
+        viewportSize?.width ?? 100000.0,
         scaledColumnHeaderHeight,
       ),
       _backgroundPaint,
@@ -199,18 +264,20 @@ class HeaderRenderer {
     required double zoom,
     required SpanRange visibleRows,
     CellRange? selectedRange,
+    Size? viewportSize,
   }) {
     // Scale header dimensions by zoom
     final scaledRowHeaderWidth = rowHeaderWidth * zoom;
     final scaledColumnHeaderHeight = columnHeaderHeight * zoom;
 
-    // Draw background
+    // Draw background (use viewport height when available for renderer
+    // compatibility; some backends skip non-finite rects).
     canvas.drawRect(
       Rect.fromLTWH(
         0,
         0,
         scaledRowHeaderWidth,
-        double.infinity,
+        viewportSize?.height ?? 100000.0,
       ),
       _backgroundPaint,
     );

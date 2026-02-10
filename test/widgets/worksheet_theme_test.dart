@@ -109,6 +109,41 @@ void main() {
       expect(result.fontSize, 17.0);
     });
 
+    test('darkTheme has dark header style', () {
+      const theme = WorksheetThemeData.darkTheme;
+
+      expect(theme.headerStyle, HeaderStyle.darkStyle);
+    });
+
+    test('darkTheme has default selection style', () {
+      const theme = WorksheetThemeData.darkTheme;
+
+      expect(theme.selectionStyle, SelectionStyle.defaultStyle);
+    });
+
+    test('darkTheme has default cell background (white)', () {
+      const theme = WorksheetThemeData.darkTheme;
+
+      expect(theme.cellBackgroundColor, const Color(0xFFFFFFFF));
+    });
+
+    test('copyWith with dark headerStyle', () {
+      const original = WorksheetThemeData();
+      final modified = original.copyWith(
+        headerStyle: HeaderStyle.darkStyle,
+      );
+
+      expect(modified.headerStyle, HeaderStyle.darkStyle);
+      expect(modified.selectionStyle, original.selectionStyle);
+    });
+
+    test('equality: dark vs light theme', () {
+      const light = WorksheetThemeData.defaultTheme;
+      const dark = WorksheetThemeData.darkTheme;
+
+      expect(light, isNot(equals(dark)));
+    });
+
     test('lerp interpolates colors correctly', () {
       const a = WorksheetThemeData(gridlineColor: Color(0xFF000000));
       const b = WorksheetThemeData(gridlineColor: Color(0xFFFFFFFF));

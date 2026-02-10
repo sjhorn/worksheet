@@ -95,6 +95,7 @@ class HeaderLayer extends RenderLayer {
       zoom: zoom,
       visibleColumns: visibleColumns,
       selectedRange: selectedRange,
+      viewportSize: context.viewportSize,
     );
     context.canvas.restore();
 
@@ -114,6 +115,7 @@ class HeaderLayer extends RenderLayer {
       zoom: zoom,
       visibleRows: visibleRows,
       selectedRange: selectedRange,
+      viewportSize: context.viewportSize,
     );
     context.canvas.restore();
 

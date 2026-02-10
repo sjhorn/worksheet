@@ -51,6 +51,64 @@ class SelectionStyle {
 
   /// Default Excel-like selection style.
   static const SelectionStyle defaultStyle = SelectionStyle();
+
+  /// Creates a copy with optionally modified fields.
+  SelectionStyle copyWith({
+    Color? fillColor,
+    Color? borderColor,
+    double? borderWidth,
+    Color? focusFillColor,
+    Color? focusBorderColor,
+    double? focusBorderWidth,
+    Color? fillHandleColor,
+    double? fillHandleSize,
+    Color? fillPreviewColor,
+    Color? fillPreviewBorderColor,
+  }) {
+    return SelectionStyle(
+      fillColor: fillColor ?? this.fillColor,
+      borderColor: borderColor ?? this.borderColor,
+      borderWidth: borderWidth ?? this.borderWidth,
+      focusFillColor: focusFillColor ?? this.focusFillColor,
+      focusBorderColor: focusBorderColor ?? this.focusBorderColor,
+      focusBorderWidth: focusBorderWidth ?? this.focusBorderWidth,
+      fillHandleColor: fillHandleColor ?? this.fillHandleColor,
+      fillHandleSize: fillHandleSize ?? this.fillHandleSize,
+      fillPreviewColor: fillPreviewColor ?? this.fillPreviewColor,
+      fillPreviewBorderColor:
+          fillPreviewBorderColor ?? this.fillPreviewBorderColor,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is SelectionStyle &&
+        other.fillColor == fillColor &&
+        other.borderColor == borderColor &&
+        other.borderWidth == borderWidth &&
+        other.focusFillColor == focusFillColor &&
+        other.focusBorderColor == focusBorderColor &&
+        other.focusBorderWidth == focusBorderWidth &&
+        other.fillHandleColor == fillHandleColor &&
+        other.fillHandleSize == fillHandleSize &&
+        other.fillPreviewColor == fillPreviewColor &&
+        other.fillPreviewBorderColor == fillPreviewBorderColor;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        fillColor,
+        borderColor,
+        borderWidth,
+        focusFillColor,
+        focusBorderColor,
+        focusBorderWidth,
+        fillHandleColor,
+        fillHandleSize,
+        fillPreviewColor,
+        fillPreviewBorderColor,
+      );
 }
 
 /// Renders selection overlays for worksheets.

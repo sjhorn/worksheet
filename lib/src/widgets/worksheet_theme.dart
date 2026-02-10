@@ -86,6 +86,13 @@ class WorksheetThemeData {
   /// Default worksheet theme.
   static const WorksheetThemeData defaultTheme = WorksheetThemeData();
 
+  /// Dark mode worksheet theme.
+  ///
+  /// Only headers change — cells remain white.
+  static const WorksheetThemeData darkTheme = WorksheetThemeData(
+    headerStyle: HeaderStyle.darkStyle,
+  );
+
   /// Creates a copy with optionally modified fields.
   WorksheetThemeData copyWith({
     SelectionStyle? selectionStyle,
