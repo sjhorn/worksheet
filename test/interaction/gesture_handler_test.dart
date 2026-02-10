@@ -78,6 +78,125 @@ void main() {
         expect(selectionController.focus, equals(CellCoordinate(1, 1)));
       });
 
+      test('shift+click extends selection from anchor to new cell', () {
+        // Simulate full pointer-down sequence: onTapDown then onDragStart
+        // First select cell (0, 0)
+        handler.onTapDown(
+          position: const Offset(60.0, 40.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        handler.onDragStart(
+          position: const Offset(60.0, 40.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        handler.onDragEnd();
+
+        // Shift+click on cell (2, 2)
+        // Column 2: x = 200..300 (worksheet), screen x = 250..350
+        // Row 2: y = 48..72 (worksheet), screen y = 78..102
+        handler.onTapDown(
+          position: const Offset(260.0, 82.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          isShiftPressed: true,
+        );
+        handler.onDragStart(
+          position: const Offset(260.0, 82.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          isShiftPressed: true,
+        );
+        handler.onDragEnd();
+
+        expect(selectionController.hasSelection, isTrue);
+        // Anchor stays at original cell
+        expect(selectionController.anchor, equals(CellCoordinate(0, 0)));
+        // Focus moves to shift-clicked cell
+        expect(selectionController.focus, equals(CellCoordinate(2, 2)));
+        // Range covers A1:C3
+        final range = selectionController.selectedRange!;
+        expect(range.startRow, equals(0));
+        expect(range.startColumn, equals(0));
+        expect(range.endRow, equals(2));
+        expect(range.endColumn, equals(2));
+      });
+
+      test('shift+click with no prior selection behaves like normal click', () {
+        expect(selectionController.hasSelection, isFalse);
+
+        // Shift+click without any prior selection
+        handler.onTapDown(
+          position: const Offset(260.0, 82.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          isShiftPressed: true,
+        );
+        handler.onDragStart(
+          position: const Offset(260.0, 82.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          isShiftPressed: true,
+        );
+        handler.onDragEnd();
+
+        // Should behave like a normal click — select single cell
+        expect(selectionController.hasSelection, isTrue);
+        expect(selectionController.anchor, equals(CellCoordinate(2, 2)));
+        expect(selectionController.focus, equals(CellCoordinate(2, 2)));
+      });
+
+      test('non-shift click after shift-extended selection resets to single cell', () {
+        // Select cell (0, 0)
+        handler.onTapDown(
+          position: const Offset(60.0, 40.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        handler.onDragStart(
+          position: const Offset(60.0, 40.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        handler.onDragEnd();
+
+        // Shift+click to extend to (2, 2)
+        handler.onTapDown(
+          position: const Offset(260.0, 82.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          isShiftPressed: true,
+        );
+        handler.onDragStart(
+          position: const Offset(260.0, 82.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          isShiftPressed: true,
+        );
+        handler.onDragEnd();
+
+        // Verify extended selection
+        expect(selectionController.selectedRange!.endRow, equals(2));
+        expect(selectionController.selectedRange!.endColumn, equals(2));
+
+        // Normal click on cell (1, 1) — should reset to single cell
+        handler.onTapDown(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        handler.onDragStart(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        handler.onDragEnd();
+
+        expect(selectionController.anchor, equals(CellCoordinate(1, 1)));
+        expect(selectionController.focus, equals(CellCoordinate(1, 1)));
+      });
+
       test('tap outside worksheet area does nothing', () {
         // Tap in header corner (should not select)
         handler.onTapDown(position: const Offset(25.0, 15.0), scrollOffset: Offset.zero, zoom: 1.0);

@@ -1155,6 +1155,8 @@ class _WorksheetState extends State<Worksheet>
                                   _controller.scrollY,
                                 ),
                                 zoom: _controller.zoom,
+                                isShiftPressed: HardwareKeyboard
+                                    .instance.isShiftPressed,
                               );
                               widget.onCellTap?.call(
                                 _controller.focusCell ??
@@ -1167,6 +1169,8 @@ class _WorksheetState extends State<Worksheet>
                                   _controller.scrollY,
                                 ),
                                 zoom: _controller.zoom,
+                                isShiftPressed: HardwareKeyboard
+                                    .instance.isShiftPressed,
                               );
                             }
                           },

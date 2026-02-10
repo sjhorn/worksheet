@@ -112,6 +112,7 @@ class WorksheetGestureHandler {
     required Offset position,
     required Offset scrollOffset,
     required double zoom,
+    bool isShiftPressed = false,
   }) {
     final hit = hitTester.hitTest(
       position: position,
@@ -125,7 +126,11 @@ class WorksheetGestureHandler {
     if (hit.isFillHandle || hit.isResizeHandle) return;
 
     if (hit.isCell) {
-      selectionController.selectCell(hit.cell!);
+      if (isShiftPressed && selectionController.hasSelection) {
+        selectionController.extendSelection(hit.cell!);
+      } else {
+        selectionController.selectCell(hit.cell!);
+      }
     } else if (hit.isRowHeader) {
       selectionController.selectRow(
         hit.headerIndex!,
@@ -171,6 +176,7 @@ class WorksheetGestureHandler {
     required Offset position,
     required Offset scrollOffset,
     required double zoom,
+    bool isShiftPressed = false,
   }) {
     final hit = hitTester.hitTest(
       position: position,
@@ -192,7 +198,11 @@ class WorksheetGestureHandler {
       _isResizing = true;
     } else if (hit.isCell) {
       _isSelectingRange = true;
-      selectionController.selectCell(hit.cell!);
+      // Don't reset selection when shift is held — onTapDown already
+      // called extendSelection() and we just need the drag state.
+      if (!isShiftPressed) {
+        selectionController.selectCell(hit.cell!);
+      }
     } else if (hit.isRowHeader) {
       _isSelectingRange = true;
       selectionController.selectRow(
