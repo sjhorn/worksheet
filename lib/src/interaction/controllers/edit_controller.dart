@@ -146,7 +146,8 @@ class EditController extends ChangeNotifier {
   /// Commits the current edit.
   ///
   /// [onCommit] is called with the cell, new value, and an optional detected
-  /// date format if the input was recognized as a date.
+  /// format if the input was recognized as a formatted number, date, or
+  /// duration.
   /// Returns the committed value, or null if commit was cancelled.
   CellValue? commitEdit({
     required void Function(
@@ -161,17 +162,32 @@ class EditController extends ChangeNotifier {
 
     final cell = _editingCell!;
     final inputText = _currentText;
-    final newValue = _parseText(inputText);
 
-    // Detect date format from user input
+    CellValue? newValue;
     CellFormat? detectedFormat;
-    if (newValue != null && newValue.isDate) {
-      detectedFormat = DateFormatDetector.detect(
-        inputText,
-        newValue.asDateTime,
-        dayFirst: locale.dayFirst,
-        locale: locale,
-      );
+
+    // 1. Try formatted number (coupled parse + detect)
+    final numberResult = NumberFormatDetector.detect(inputText, locale: locale);
+    if (numberResult != null) {
+      newValue = numberResult.value;
+      detectedFormat = numberResult.format;
+    } else {
+      // 2. Standard parse (formula, boolean, plain number, duration, date, text)
+      newValue = _parseText(inputText);
+
+      if (newValue != null && newValue.isDate) {
+        detectedFormat = DateFormatDetector.detect(
+          inputText,
+          newValue.asDateTime,
+          dayFirst: locale.dayFirst,
+          locale: locale,
+        );
+      } else if (newValue != null && newValue.isDuration) {
+        detectedFormat = DurationFormatDetector.detect(
+          inputText,
+          newValue.asDuration,
+        );
+      }
     }
 
     // Call commit callback

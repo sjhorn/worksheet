@@ -461,6 +461,69 @@ void main() {
         });
       });
 
+      group('duration parsing', () {
+        test('1:30:05 parses as duration', () {
+          final result = CellValue.parse('1:30:05');
+          expect(result!.isDuration, isTrue);
+          expect(result.asDuration,
+              const Duration(hours: 1, minutes: 30, seconds: 5));
+        });
+
+        test('0:45 parses as duration (h:mm)', () {
+          final result = CellValue.parse('0:45');
+          expect(result!.isDuration, isTrue);
+          expect(result.asDuration, const Duration(minutes: 45));
+        });
+
+        test('-1:30:00 parses as negative duration', () {
+          final result = CellValue.parse('-1:30:00');
+          expect(result!.isDuration, isTrue);
+          expect(result.asDuration,
+              const Duration(hours: -1, minutes: -30));
+        });
+
+        test('100:00:00 parses as 100 hours', () {
+          final result = CellValue.parse('100:00:00');
+          expect(result!.isDuration, isTrue);
+          expect(result.asDuration, const Duration(hours: 100));
+        });
+
+        test('1:60:00 returns null (invalid minutes)', () {
+          final result = CellValue.parse('1:60:00');
+          expect(result!.isDuration, isFalse);
+        });
+
+        test('1:3 returns non-duration (not zero-padded)', () {
+          final result = CellValue.parse('1:3');
+          expect(result!.isDuration, isFalse);
+        });
+
+        test('14:30 parses as duration, not date', () {
+          final result = CellValue.parse('14:30');
+          expect(result!.isDuration, isTrue);
+          expect(result.asDuration,
+              const Duration(hours: 14, minutes: 30));
+        });
+
+        test('0:00:00 parses as zero duration', () {
+          final result = CellValue.parse('0:00:00');
+          expect(result!.isDuration, isTrue);
+          expect(result.asDuration, Duration.zero);
+        });
+
+        test('1:00:59 parses correctly', () {
+          final result = CellValue.parse('1:00:59');
+          expect(result!.isDuration, isTrue);
+          expect(result.asDuration,
+              const Duration(hours: 1, seconds: 59));
+        });
+
+        test('1:00:60 returns null (invalid seconds)', () {
+          final result = CellValue.parse('1:00:60');
+          expect(result!.isDuration, isFalse);
+        });
+      });
+
       group('text fallback', () {
         test('plain text is parsed as text', () {
           expect(CellValue.parse('hello'), const CellValue.text('hello'));

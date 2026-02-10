@@ -344,6 +344,10 @@ class CellFormat {
   static const dateShortLong =
       CellFormat(type: CellFormatType.date, formatCode: 'd-mmm-yyyy');
 
+  /// Slash-separated with abbreviated month: 15/Jan/2024
+  static const dateSlashMonth =
+      CellFormat(type: CellFormatType.date, formatCode: 'd/mmm/yyyy');
+
   /// Full month name date: 15 January 2024
   static const dateLong =
       CellFormat(type: CellFormatType.date, formatCode: 'd mmmm yyyy');
@@ -475,6 +479,7 @@ class DateFormatDetector {
         CellFormat.dateYearMonthDay,  // yyyy-mmm-dd
         CellFormat.dateShort,         // d-mmm-yy
         CellFormat.dateShortLong,     // d-mmm-yyyy
+        CellFormat.dateSlashMonth,    // d/mmm/yyyy
         CellFormat.dateLong,          // d mmmm yyyy
         CellFormat.dateEuPadded,      // dd/mm/yyyy
         CellFormat.dateEu,            // d/m/yyyy
@@ -491,6 +496,7 @@ class DateFormatDetector {
       CellFormat.dateYearMonthDay,  // yyyy-mmm-dd
       CellFormat.dateShort,         // d-mmm-yy
       CellFormat.dateShortLong,     // d-mmm-yyyy
+      CellFormat.dateSlashMonth,    // d/mmm/yyyy
       CellFormat.dateLong,          // d mmmm yyyy
       CellFormat.dateUsPadded,      // mm/dd/yyyy
       CellFormat.dateUs,            // m/d/yyyy
@@ -521,6 +527,168 @@ class DateFormatDetector {
           .text
           .toLowerCase();
       if (formatted == normalized) return candidate;
+    }
+    return null;
+  }
+}
+
+/// Detects number formats from formatted input strings like `$1,234.56` or `42%`.
+///
+/// Unlike dates (where AnyDate parses independently), number parsing and format
+/// detection are coupled — you need to strip `$`, `,`, `%` to get the double.
+/// Returns both the parsed value and the detected format, or null if no
+/// formatted number pattern is recognized.
+///
+/// Detection priority:
+/// 1. Percentage — `42%` or `42.56%`
+/// 2. Currency — `$1,234.56` (uses locale currency symbol)
+/// 3. Thousands-separated — `1,234` or `1,234.56`
+///
+/// Plain numbers like `42` or `3.14` are not matched (no format characters).
+class NumberFormatDetector {
+  NumberFormatDetector._();
+
+  /// Detects a formatted number and its format from [input].
+  ///
+  /// Returns both the parsed [CellValue] (always a number) and the matching
+  /// [CellFormat], or null if the input doesn't match any formatted number
+  /// pattern.
+  static ({CellValue value, CellFormat format})? detect(
+    String input, {
+    FormatLocale locale = FormatLocale.enUs,
+  }) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+
+    // 1. Percentage: 42% or 42.56%
+    if (trimmed.endsWith('%')) {
+      final numStr = trimmed.substring(0, trimmed.length - 1).trim();
+      final number = double.tryParse(numStr);
+      if (number != null) {
+        final hasDecimal = numStr.contains('.');
+        return (
+          value: CellValue.number(number / 100),
+          format: hasDecimal ? CellFormat.percentageDecimal : CellFormat.percentage,
+        );
+      }
+    }
+
+    // 2. Currency: $1,234.56 or $1234.56 or $42
+    final cs = locale.currencySymbol;
+    final ts = locale.thousandsSeparator;
+    final ds = locale.decimalSeparator;
+    if (trimmed.startsWith(cs)) {
+      final afterSymbol = trimmed.substring(cs.length).trim();
+      final parsed = _parseFormattedNumber(afterSymbol, ts, ds);
+      if (parsed != null) {
+        return (
+          value: CellValue.number(parsed),
+          format: CellFormat.currency,
+        );
+      }
+    }
+
+    // 3. Thousands-separated: 1,234 or 1,234.56
+    if (trimmed.contains(ts)) {
+      final parsed = _parseFormattedNumber(trimmed, ts, ds);
+      if (parsed != null) {
+        final hasDecimal = trimmed.contains(ds);
+        return (
+          value: CellValue.number(parsed),
+          format: hasDecimal ? CellFormat.number : CellFormat.integer,
+        );
+      }
+    }
+
+    return null;
+  }
+
+  /// Parses a number string that may contain thousands separators.
+  ///
+  /// Validates that thousands separators are in groups of 3 from the right.
+  /// Returns the parsed double or null if invalid.
+  static double? _parseFormattedNumber(
+    String input,
+    String thousandsSep,
+    String decimalSep,
+  ) {
+    if (input.isEmpty) return null;
+
+    // Handle leading negative sign
+    final negative = input.startsWith('-');
+    var str = negative ? input.substring(1) : input;
+    if (str.isEmpty) return null;
+
+    // Split into integer and decimal parts
+    String intPart;
+    String? decPart;
+    final decIndex = str.indexOf(decimalSep);
+    if (decIndex >= 0) {
+      intPart = str.substring(0, decIndex);
+      decPart = str.substring(decIndex + decimalSep.length);
+      if (decPart.isEmpty) return null; // trailing separator like "1,234."
+    } else {
+      intPart = str;
+    }
+
+    // Must not start or end with thousands separator
+    if (intPart.startsWith(thousandsSep) || intPart.endsWith(thousandsSep)) {
+      return null;
+    }
+
+    // Validate thousands grouping: groups of 3 from the right
+    if (intPart.contains(thousandsSep)) {
+      final groups = intPart.split(thousandsSep);
+      if (groups.isEmpty) return null;
+      // First group: 1-3 digits
+      if (groups.first.isEmpty || groups.first.length > 3) return null;
+      if (!RegExp(r'^\d+$').hasMatch(groups.first)) return null;
+      // Subsequent groups: exactly 3 digits
+      for (var i = 1; i < groups.length; i++) {
+        if (groups[i].length != 3) return null;
+        if (!RegExp(r'^\d{3}$').hasMatch(groups[i])) return null;
+      }
+    } else {
+      // No thousands separator — must be all digits
+      if (!RegExp(r'^\d+$').hasMatch(intPart)) return null;
+    }
+
+    // Decimal part must be all digits
+    if (decPart != null && !RegExp(r'^\d+$').hasMatch(decPart)) return null;
+
+    // Build canonical number string for parsing
+    final cleanInt = intPart.replaceAll(thousandsSep, '');
+    final canonical = decPart != null ? '$cleanInt.$decPart' : cleanInt;
+    final result = double.tryParse(canonical);
+    if (result == null) return null;
+    return negative ? -result : result;
+  }
+}
+
+/// Detects duration format by round-tripping through candidate formats.
+///
+/// Given the raw input text and the parsed [Duration], formats the duration
+/// through each candidate [CellFormat] and returns the first one whose output
+/// matches the original input. Returns `null` if no candidate matches.
+class DurationFormatDetector {
+  DurationFormatDetector._();
+
+  static const _candidates = [
+    CellFormat.duration,       // [h]:mm:ss
+    CellFormat.durationShort,  // [h]:mm
+    CellFormat.durationMinSec, // [m]:ss
+  ];
+
+  /// Detects the [CellFormat] that reproduces [input] when applied to [parsed].
+  ///
+  /// Returns `null` if no candidate matches.
+  static CellFormat? detect(String input, Duration parsed) {
+    final trimmed = input.trim();
+    if (trimmed.isEmpty) return null;
+
+    for (final candidate in _candidates) {
+      final formatted = candidate.format(CellValue.duration(parsed));
+      if (formatted == trimmed) return candidate;
     }
     return null;
   }

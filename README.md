@@ -134,15 +134,19 @@ final result = CellFormat.currency.formatRich(
 // result.text == "1.234,56 €"
 ```
 
-## Automatic Date Detection
+## Automatic Type & Format Detection
 
-Type a date into a cell and it's stored as a `CellValue.date()`, not plain text:
+Type values into cells and they're stored as the right type with the right display format — not plain text:
 
 ```dart
 // These are detected automatically during editing and paste:
-// "2025-01-15"      → CellValue.date(DateTime(2025, 1, 15))
-// "Jan 15, 2025"    → CellValue.date(DateTime(2025, 1, 15))
-// "42"              → CellValue.number(42)  (numbers are not treated as dates)
+// "2025-01-15"      → CellValue.date(DateTime(2025, 1, 15))    format: dateIso
+// "Jan 15, 2025"    → CellValue.date(DateTime(2025, 1, 15))    format: dateShortLong
+// "$1,234.56"       → CellValue.number(1234.56)                format: currency
+// "42%"             → CellValue.number(0.42)                   format: percentage
+// "1,234"           → CellValue.number(1234)                   format: integer
+// "1:30:05"         → CellValue.duration(Duration(h:1,m:30,s:5)) format: duration
+// "42"              → CellValue.number(42)                     (no format — plain number)
 
 // Configure date format preferences for ambiguous dates:
 Worksheet(
@@ -155,18 +159,19 @@ Worksheet(
 
 ### Preserving the Format You Typed
 
-When you type a date like `1/15/2024`, the cell displays it as `1/15/2024` — not the default ISO format. The widget auto-detects the format via round-trip matching and stores it as a `CellFormat`:
+When you type a value like `$1,234.56`, `42%`, `1/15/2024`, or `1:30:05`, the cell displays it in the format you typed — not as a raw number or ISO date. The widget auto-detects the format and stores it as a `CellFormat`:
 
 ```dart
-// Configure locale for ambiguous dates (e.g., 01/02/2024)
+// Configure locale for currency symbols and ambiguous dates (e.g., 01/02/2024)
 Worksheet(
   data: data,
-  formatLocale: FormatLocale.enUs,  // US: month/day/year (default)
-  // formatLocale: FormatLocale.enGb,  // UK: day/month/year
+  formatLocale: FormatLocale.enUs,  // US: $ currency, month/day/year (default)
+  // formatLocale: FormatLocale.enGb,  // UK: £ currency, day/month/year
+  // formatLocale: FormatLocale.deDe,  // DE: € currency, comma decimals
 )
 ```
 
-Supports ISO (`2024-01-15`), US (`1/15/2024`), EU (`15/1/2024`), named months (`15-Jan-24`, `15 January 2024`), and separator variants (slashes, dashes, dots).
+Supports dates (ISO, US, EU, named months), currencies (locale-aware symbols), percentages, thousands-separated numbers, and durations (`H:mm:ss`, `H:mm`).
 
 ## Rich Text and Cell Merging
 

@@ -451,6 +451,116 @@ void main() {
       });
     });
 
+    group('number format detection', () {
+      test(r'$1,234.56 → currency format', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText(r'$1,234.56');
+
+        CellFormat? detected;
+        CellValue? committedValue;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+            committedValue = value;
+          },
+        );
+
+        expect(detected, CellFormat.currency);
+        expect(committedValue?.isNumber, isTrue);
+        expect(committedValue?.asDouble, 1234.56);
+      });
+
+      test('42% → percentage format', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('42%');
+
+        CellFormat? detected;
+        CellValue? committedValue;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+            committedValue = value;
+          },
+        );
+
+        expect(detected, CellFormat.percentage);
+        expect(committedValue?.isNumber, isTrue);
+        expect(committedValue?.asDouble, 0.42);
+      });
+
+      test('1,234 → integer format', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('1,234');
+
+        CellFormat? detected;
+        CellValue? committedValue;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+            committedValue = value;
+          },
+        );
+
+        expect(detected, CellFormat.integer);
+        expect(committedValue?.isNumber, isTrue);
+        expect(committedValue?.asDouble, 1234);
+      });
+
+      test('plain 42 → no format detected', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('42');
+
+        CellFormat? detected;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+          },
+        );
+
+        expect(detected, isNull);
+      });
+    });
+
+    group('duration format detection', () {
+      test('1:30:05 → duration format', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('1:30:05');
+
+        CellFormat? detected;
+        CellValue? committedValue;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+            committedValue = value;
+          },
+        );
+
+        expect(detected, CellFormat.duration);
+        expect(committedValue?.isDuration, isTrue);
+        expect(committedValue?.asDuration,
+            const Duration(hours: 1, minutes: 30, seconds: 5));
+      });
+
+      test('1:30 → durationShort format', () {
+        controller.startEdit(cell: const CellCoordinate(0, 0));
+        controller.updateText('1:30');
+
+        CellFormat? detected;
+        CellValue? committedValue;
+        controller.commitEdit(
+          onCommit: (cell, value, {CellFormat? detectedFormat}) {
+            detected = detectedFormat;
+            committedValue = value;
+          },
+        );
+
+        expect(detected, CellFormat.durationShort);
+        expect(committedValue?.isDuration, isTrue);
+        expect(committedValue?.asDuration,
+            const Duration(hours: 1, minutes: 30));
+      });
+    });
+
     group('hasChanges', () {
       test('returns false when not editing', () {
         expect(controller.hasChanges, isFalse);

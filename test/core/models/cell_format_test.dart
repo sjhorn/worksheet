@@ -1338,6 +1338,218 @@ void main() {
     });
   });
 
+  group('NumberFormatDetector', () {
+    group('percentage', () {
+      test('42% → value 0.42, format percentage', () {
+        final result = NumberFormatDetector.detect('42%');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(0.42));
+        expect(result.format, CellFormat.percentage);
+      });
+
+      test('42.56% → value 0.4256, format percentageDecimal', () {
+        final result = NumberFormatDetector.detect('42.56%');
+        expect(result, isNotNull);
+        expect(result!.value.isNumber, isTrue);
+        expect(result.value.asDouble, closeTo(0.4256, 1e-10));
+        expect(result.format, CellFormat.percentageDecimal);
+      });
+
+      test('0% → value 0, format percentage', () {
+        final result = NumberFormatDetector.detect('0%');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(0));
+        expect(result.format, CellFormat.percentage);
+      });
+
+      test('100% → value 1.0, format percentage', () {
+        final result = NumberFormatDetector.detect('100%');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(1.0));
+        expect(result.format, CellFormat.percentage);
+      });
+
+      test('-10% → value -0.1, format percentage', () {
+        final result = NumberFormatDetector.detect('-10%');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(-0.1));
+        expect(result.format, CellFormat.percentage);
+      });
+    });
+
+    group('currency (enUs)', () {
+      test(r'$1,234.56 → value 1234.56, format currency', () {
+        final result = NumberFormatDetector.detect(r'$1,234.56');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(1234.56));
+        expect(result.format, CellFormat.currency);
+      });
+
+      test(r'$42 → value 42, format currency', () {
+        final result = NumberFormatDetector.detect(r'$42');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(42));
+        expect(result.format, CellFormat.currency);
+      });
+
+      test(r'$0.99 → value 0.99, format currency', () {
+        final result = NumberFormatDetector.detect(r'$0.99');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(0.99));
+        expect(result.format, CellFormat.currency);
+      });
+    });
+
+    group('currency (deDe)', () {
+      test('€1.234,56 → value 1234.56, format currency', () {
+        final result = NumberFormatDetector.detect(
+          '€1.234,56',
+          locale: FormatLocale.deDe,
+        );
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(1234.56));
+        expect(result.format, CellFormat.currency);
+      });
+
+      test('€42 → value 42, format currency', () {
+        final result = NumberFormatDetector.detect(
+          '€42',
+          locale: FormatLocale.deDe,
+        );
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(42));
+        expect(result.format, CellFormat.currency);
+      });
+    });
+
+    group('currency (enGb)', () {
+      test('£1,234.56 → value 1234.56, format currency', () {
+        final result = NumberFormatDetector.detect(
+          '£1,234.56',
+          locale: FormatLocale.enGb,
+        );
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(1234.56));
+        expect(result.format, CellFormat.currency);
+      });
+    });
+
+    group('thousands-separated', () {
+      test('1,234 → value 1234, format integer', () {
+        final result = NumberFormatDetector.detect('1,234');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(1234));
+        expect(result.format, CellFormat.integer);
+      });
+
+      test('1,234.56 → value 1234.56, format number', () {
+        final result = NumberFormatDetector.detect('1,234.56');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(1234.56));
+        expect(result.format, CellFormat.number);
+      });
+
+      test('1,234,567 → value 1234567, format integer', () {
+        final result = NumberFormatDetector.detect('1,234,567');
+        expect(result, isNotNull);
+        expect(result!.value, CellValue.number(1234567));
+        expect(result.format, CellFormat.integer);
+      });
+    });
+
+    group('rejection cases', () {
+      test('plain 42 returns null', () {
+        expect(NumberFormatDetector.detect('42'), isNull);
+      });
+
+      test('plain 3.14 returns null', () {
+        expect(NumberFormatDetector.detect('3.14'), isNull);
+      });
+
+      test('empty string returns null', () {
+        expect(NumberFormatDetector.detect(''), isNull);
+      });
+
+      test('1,23 returns null (invalid grouping)', () {
+        expect(NumberFormatDetector.detect('1,23'), isNull);
+      });
+
+      test(',234 returns null (leading separator)', () {
+        expect(NumberFormatDetector.detect(',234'), isNull);
+      });
+
+      test('1,234, returns null (trailing separator)', () {
+        expect(NumberFormatDetector.detect('1,234,'), isNull);
+      });
+
+      test('hello returns null', () {
+        expect(NumberFormatDetector.detect('hello'), isNull);
+      });
+
+      test('abc% returns null', () {
+        expect(NumberFormatDetector.detect('abc%'), isNull);
+      });
+    });
+  });
+
+  group('DurationFormatDetector', () {
+    test('1:30:05 → duration ([h]:mm:ss)', () {
+      final result = DurationFormatDetector.detect(
+        '1:30:05',
+        const Duration(hours: 1, minutes: 30, seconds: 5),
+      );
+      expect(result, CellFormat.duration);
+    });
+
+    test('2:45 → durationShort ([h]:mm)', () {
+      final result = DurationFormatDetector.detect(
+        '2:45',
+        const Duration(hours: 2, minutes: 45),
+      );
+      expect(result, CellFormat.durationShort);
+    });
+
+    test('90:05 → durationMinSec ([m]:ss)', () {
+      final result = DurationFormatDetector.detect(
+        '90:05',
+        const Duration(hours: 1, minutes: 30, seconds: 5),
+      );
+      expect(result, CellFormat.durationMinSec);
+    });
+
+    test('0:00:00 → duration', () {
+      final result = DurationFormatDetector.detect(
+        '0:00:00',
+        Duration.zero,
+      );
+      expect(result, CellFormat.duration);
+    });
+
+    test('-1:30:00 → duration', () {
+      final result = DurationFormatDetector.detect(
+        '-1:30:00',
+        const Duration(hours: -1, minutes: -30),
+      );
+      expect(result, CellFormat.duration);
+    });
+
+    test('empty string → null', () {
+      final result = DurationFormatDetector.detect(
+        '',
+        const Duration(hours: 1),
+      );
+      expect(result, isNull);
+    });
+
+    test('unrecognized format → null', () {
+      final result = DurationFormatDetector.detect(
+        '1h30m',
+        const Duration(hours: 1, minutes: 30),
+      );
+      expect(result, isNull);
+    });
+  });
+
   group('DateFormatDetector', () {
     group('ISO format', () {
       test('detects yyyy-MM-dd', () {
@@ -1650,6 +1862,43 @@ void main() {
           '12/1/1977', DateTime(1977, 12, 1),
         );
         expect(result, CellFormat.dateUs);
+      });
+    });
+
+    group('d/mmm/yyyy format', () {
+      test('dateSlashMonth formats correctly', () {
+        final result = CellFormat.dateSlashMonth.format(
+          CellValue.date(DateTime(1977, 1, 12)),
+        );
+        expect(result, '12/Jan/1977');
+      });
+
+      test('detects d/mmm/yyyy', () {
+        final result = DateFormatDetector.detect(
+          '12/Jan/1977', DateTime(1977, 1, 12),
+        );
+        expect(result, CellFormat.dateSlashMonth);
+      });
+
+      test('detects d/mmm/yyyy case insensitive', () {
+        final result = DateFormatDetector.detect(
+          '12/jan/1977', DateTime(1977, 1, 12),
+        );
+        expect(result, CellFormat.dateSlashMonth);
+      });
+
+      test('detects d/mmm/yyyy with different month', () {
+        final result = DateFormatDetector.detect(
+          '25/Dec/2024', DateTime(2024, 12, 25),
+        );
+        expect(result, CellFormat.dateSlashMonth);
+      });
+
+      test('single-digit day works', () {
+        final result = DateFormatDetector.detect(
+          '5/Mar/2024', DateTime(2024, 3, 5),
+        );
+        expect(result, CellFormat.dateSlashMonth);
       });
     });
 

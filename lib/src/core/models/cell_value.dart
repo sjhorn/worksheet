@@ -57,7 +57,7 @@ class CellValue {
 
   /// Parses text into a [CellValue], detecting the type automatically.
   ///
-  /// Detection order: empty → formula → boolean → number → date → text.
+  /// Detection order: empty → formula → boolean → number → duration → date → text.
   ///
   /// [allowFormulas]: set to false for clipboard paste (prevents `=` prefix
   /// being treated as a formula).
@@ -88,6 +88,10 @@ class CellValue {
     // Number (before date — any_date treats plain numbers as UNIX timestamps)
     final number = double.tryParse(trimmed);
     if (number != null) return CellValue.number(number);
+
+    // Duration (before date — so "14:30" becomes a duration, not a time)
+    final duration = DurationParser.tryParse(trimmed);
+    if (duration != null) return CellValue.duration(duration);
 
     // Date
     final parser = dateParser ?? const AnyDate();
@@ -204,5 +208,40 @@ class CellValue {
   String toString() {
     final typeName = type.name;
     return 'CellValue.$typeName($rawValue)';
+  }
+}
+
+/// Parses duration strings in `H:mm:ss` or `H:mm` format.
+///
+/// Pattern: `^(-?)(\d+):(\d{2})(?::(\d{2}))?$`
+///
+/// Examples:
+/// - `1:30:05` → Duration(hours: 1, minutes: 30, seconds: 5)
+/// - `1:30` → Duration(hours: 1, minutes: 30)
+/// - `-1:30:00` → negative duration
+/// - `100:00:00` → 100 hours
+///
+/// Minutes and seconds must be 0–59 and zero-padded to 2 digits.
+class DurationParser {
+  DurationParser._();
+
+  static final _pattern = RegExp(r'^(-?)(\d+):(\d{2})(?::(\d{2}))?$');
+
+  /// Tries to parse [input] as a duration. Returns null if not matched.
+  static Duration? tryParse(String input) {
+    final match = _pattern.firstMatch(input);
+    if (match == null) return null;
+
+    final negative = match.group(1) == '-';
+    final hours = int.parse(match.group(2)!);
+    final minutes = int.parse(match.group(3)!);
+    final secondsStr = match.group(4);
+    final seconds = secondsStr != null ? int.parse(secondsStr) : 0;
+
+    if (minutes > 59 || seconds > 59) return null;
+
+    var duration = Duration(hours: hours, minutes: minutes, seconds: seconds);
+    if (negative) duration = -duration;
+    return duration;
   }
 }

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-02-10
+
+### Added
+- `DurationParser` class — parses `H:mm:ss` and `H:mm` strings into `Duration` values
+- Duration parsing in `CellValue.parse()` — detection order is now: empty → formula → boolean → number → duration → date → text
+- `NumberFormatDetector` — auto-detects currency (`$1,234.56`), percentage (`42%`), and thousands-separated (`1,234`) formats on edit commit, returning both parsed value and format
+- `DurationFormatDetector` — auto-detects duration formats (`[h]:mm:ss`, `[h]:mm`, `[m]:ss`) on edit commit via round-trip matching
+- `EditController.commitEdit()` now detects formats for numbers and durations in addition to dates
+
 ## [2.0.0] - 2026-02-10
 
 ### Added
