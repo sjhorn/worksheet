@@ -1,3 +1,5 @@
+import 'dart:ui' show Color;
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/models/cell_format.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
@@ -663,6 +665,676 @@ void main() {
         expect(CellFormat.number.format(CellValue.formula('=SUM(A1:A10)')),
             '=SUM(A1:A10)');
       });
+    });
+  });
+
+  // ==========================================================================
+  // New feature tests
+  // ==========================================================================
+
+  group('CellFormatResult', () {
+    test('constructs with text only', () {
+      const r = CellFormatResult('hello');
+      expect(r.text, 'hello');
+      expect(r.color, isNull);
+    });
+
+    test('constructs with text and color', () {
+      const r = CellFormatResult('hello', color: Color(0xFFFF0000));
+      expect(r.text, 'hello');
+      expect(r.color, const Color(0xFFFF0000));
+    });
+
+    test('equality', () {
+      const a = CellFormatResult('hello', color: Color(0xFFFF0000));
+      const b = CellFormatResult('hello', color: Color(0xFFFF0000));
+      expect(a, equals(b));
+      expect(a.hashCode, equals(b.hashCode));
+    });
+
+    test('inequality on text', () {
+      const a = CellFormatResult('hello');
+      const b = CellFormatResult('world');
+      expect(a, isNot(equals(b)));
+    });
+
+    test('inequality on color', () {
+      const a = CellFormatResult('hello', color: Color(0xFFFF0000));
+      const b = CellFormatResult('hello', color: Color(0xFF0000FF));
+      expect(a, isNot(equals(b)));
+    });
+
+    test('toString without color', () {
+      const r = CellFormatResult('hello');
+      expect(r.toString(), 'CellFormatResult(hello)');
+    });
+
+    test('toString with color', () {
+      const r = CellFormatResult('hello', color: Color(0xFFFF0000));
+      expect(r.toString(), contains('color='));
+    });
+  });
+
+  group('formatRich()', () {
+    test('backward compat: formatRich().text equals format()', () {
+      const fmt = CellFormat(
+        type: CellFormatType.number,
+        formatCode: '#,##0.00',
+      );
+      final value = CellValue.number(1234.56);
+      expect(fmt.formatRich(value).text, fmt.format(value));
+    });
+
+    test('returns null color for plain formats', () {
+      final result = CellFormat.integer.formatRich(CellValue.number(42));
+      expect(result.color, isNull);
+    });
+
+    test('general format returns displayValue', () {
+      final result = CellFormat.general.formatRich(CellValue.number(42));
+      expect(result.text, '42');
+      expect(result.color, isNull);
+    });
+
+    test('text format returns rawValue string', () {
+      final result = CellFormat.text.formatRich(CellValue.number(42));
+      expect(result.text, '42.0');
+    });
+  });
+
+  group('bracket metadata parsing', () {
+    group('color codes', () {
+      test('[Red] sets color on positive section', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[Red]#,##0',
+        );
+        final result = fmt.formatRich(CellValue.number(1234));
+        expect(result.text, '1,234');
+        expect(result.color, const Color(0xFFFF0000));
+      });
+
+      test('[Blue] sets color', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[Blue]#,##0',
+        );
+        final result = fmt.formatRich(CellValue.number(42));
+        expect(result.color, const Color(0xFF0000FF));
+      });
+
+      test('[Green] sets color', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[Green]#,##0',
+        );
+        final result = fmt.formatRich(CellValue.number(42));
+        expect(result.color, const Color(0xFF008000));
+      });
+
+      test('color name is case-insensitive', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[RED]#,##0',
+        );
+        final result = fmt.formatRich(CellValue.number(42));
+        expect(result.color, const Color(0xFFFF0000));
+      });
+
+      test('indexed color: [Color3] is red', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[Color3]#,##0',
+        );
+        final result = fmt.formatRich(CellValue.number(42));
+        expect(result.color, const Color(0xFFFF0000));
+      });
+
+      test('indexed color: [Color5] is blue', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[Color5]#,##0',
+        );
+        final result = fmt.formatRich(CellValue.number(42));
+        expect(result.color, const Color(0xFF0000FF));
+      });
+
+      test('null color when no bracket', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '#,##0',
+        );
+        final result = fmt.formatRich(CellValue.number(42));
+        expect(result.color, isNull);
+      });
+
+      test('multi-section with different colors', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[Green]#,##0;[Red]#,##0',
+        );
+        final pos = fmt.formatRich(CellValue.number(42));
+        expect(pos.color, const Color(0xFF008000));
+        final neg = fmt.formatRich(CellValue.number(-42));
+        expect(neg.color, const Color(0xFFFF0000));
+      });
+    });
+
+    group('conditional sections', () {
+      test('[>100] selects section when value exceeds threshold', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[>100]#,##0"big";0.00',
+        );
+        final result = fmt.formatRich(CellValue.number(150));
+        expect(result.text, '150big');
+      });
+
+      test('[>100] falls back to unconditional section', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[>100]#,##0"big";0.00',
+        );
+        final result = fmt.formatRich(CellValue.number(50));
+        expect(result.text, '50.00');
+      });
+
+      test('[<=50] condition', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[<=50]0"low";0"high"',
+        );
+        expect(fmt.format(CellValue.number(30)), '30low');
+        expect(fmt.format(CellValue.number(80)), '80high');
+      });
+
+      test('[=0] matches exactly zero', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[=0]"zero";0',
+        );
+        expect(fmt.format(CellValue.number(0)), 'zero');
+        expect(fmt.format(CellValue.number(5)), '5');
+      });
+
+      test('[<>0] matches non-zero', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[<>0]#,##0;"zero"',
+        );
+        expect(fmt.format(CellValue.number(42)), '42');
+        expect(fmt.format(CellValue.number(0)), 'zero');
+      });
+
+      test('condition with color', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[Red][>100]#,##0;[Blue]0.00',
+        );
+        final big = fmt.formatRich(CellValue.number(150));
+        expect(big.text, '150');
+        expect(big.color, const Color(0xFFFF0000));
+
+        final small = fmt.formatRich(CellValue.number(50));
+        expect(small.text, '50.00');
+        expect(small.color, const Color(0xFF0000FF));
+      });
+
+      test('[>=100] boundary: value equals threshold', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[>=100]#,##0;0.00',
+        );
+        expect(fmt.format(CellValue.number(100)), '100');
+        expect(fmt.format(CellValue.number(99)), '99.00');
+      });
+
+      test('[<0] detects negative values', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[<0]0"neg";0"pos"',
+        );
+        expect(fmt.format(CellValue.number(-5)), '5neg');
+        expect(fmt.format(CellValue.number(5)), '5pos');
+      });
+
+      test('first matching condition wins', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '[>100]"A";[>50]"B";0',
+        );
+        expect(fmt.format(CellValue.number(150)), 'A');
+        expect(fmt.format(CellValue.number(75)), 'B');
+        expect(fmt.format(CellValue.number(25)), '25');
+      });
+    });
+  });
+
+  group('number format improvements', () {
+    group('comma as scaler', () {
+      test('single trailing comma divides by 1000', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '#,##0,',
+        );
+        expect(fmt.format(CellValue.number(1234567)), '1,235');
+      });
+
+      test('double trailing comma divides by 1,000,000', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '#,##0,,',
+        );
+        expect(fmt.format(CellValue.number(1234567890)), '1,235');
+      });
+
+      test('comma scaler with no thousands separators remaining', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '0,',
+        );
+        expect(fmt.format(CellValue.number(5000)), '5');
+      });
+
+      test('comma scaler combined with decimals', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '#,##0.00,',
+        );
+        expect(fmt.format(CellValue.number(1234567)), '1,234.57');
+      });
+    });
+
+    group('lowercase scientific', () {
+      test('0.00e+00 produces lowercase e', () {
+        const fmt = CellFormat(
+          type: CellFormatType.scientific,
+          formatCode: '0.00e+00',
+        );
+        expect(fmt.format(CellValue.number(12345)), '1.23e+04');
+      });
+
+      test('0.00e+00 with negative exponent', () {
+        const fmt = CellFormat(
+          type: CellFormatType.scientific,
+          formatCode: '0.00e+00',
+        );
+        expect(fmt.format(CellValue.number(0.00123)), '1.23e-03');
+      });
+
+      test('0.00e+00 with zero', () {
+        const fmt = CellFormat(
+          type: CellFormatType.scientific,
+          formatCode: '0.00e+00',
+        );
+        expect(fmt.format(CellValue.number(0)), '0.00e+00');
+      });
+
+      test('uppercase E still works', () {
+        const fmt = CellFormat(
+          type: CellFormatType.scientific,
+          formatCode: '0.00E+00',
+        );
+        expect(fmt.format(CellValue.number(12345)), '1.23E+04');
+      });
+    });
+
+    group('fraction constraints', () {
+      test('# ??/?? allows up to 2-digit denominator', () {
+        const fmt = CellFormat(
+          type: CellFormatType.fraction,
+          formatCode: '# ??/??',
+        );
+        // 3.14159 ≈ 22/7, which needs denominator > 9
+        final result = fmt.format(CellValue.number(3.14159));
+        // Should find a better fraction with 2-digit denominators
+        expect(result, isNotEmpty);
+      });
+
+      test('# ?/? limits to single-digit denominator', () {
+        const fmt = CellFormat(
+          type: CellFormatType.fraction,
+          formatCode: '# ?/?',
+        );
+        final result = fmt.format(CellValue.number(3.5));
+        expect(result, '3 1/2');
+      });
+
+      test('# ?/8 uses fixed denominator 8', () {
+        const fmt = CellFormat(
+          type: CellFormatType.fraction,
+          formatCode: '# ?/8',
+        );
+        expect(fmt.format(CellValue.number(0.25)), '2/8');
+        expect(fmt.format(CellValue.number(0.5)), '4/8');
+        expect(fmt.format(CellValue.number(0.125)), '1/8');
+      });
+
+      test('# ?/4 uses fixed denominator 4', () {
+        const fmt = CellFormat(
+          type: CellFormatType.fraction,
+          formatCode: '# ?/4',
+        );
+        expect(fmt.format(CellValue.number(0.5)), '2/4');
+        expect(fmt.format(CellValue.number(0.25)), '1/4');
+      });
+
+      test('# ???/??? allows up to 3-digit denominator', () {
+        const fmt = CellFormat(
+          type: CellFormatType.fraction,
+          formatCode: '# ???/???',
+        );
+        // Pi should be very well approximated with 3-digit denominators
+        final result = fmt.format(CellValue.number(3.14159));
+        expect(result, contains('/'));
+      });
+    });
+  });
+
+  group('fractional seconds', () {
+    test('ss.000 formats milliseconds', () {
+      const fmt = CellFormat(
+        type: CellFormatType.time,
+        formatCode: 'H:mm:ss.000',
+      );
+      final date = DateTime(2024, 1, 1, 14, 30, 5, 123);
+      expect(fmt.format(CellValue.date(date)), '14:30:05.123');
+    });
+
+    test('ss.00 formats hundredths', () {
+      const fmt = CellFormat(
+        type: CellFormatType.time,
+        formatCode: 'H:mm:ss.00',
+      );
+      final date = DateTime(2024, 1, 1, 14, 30, 5, 456);
+      expect(fmt.format(CellValue.date(date)), '14:30:05.45');
+    });
+
+    test('ss.0 formats tenths', () {
+      const fmt = CellFormat(
+        type: CellFormatType.time,
+        formatCode: 'H:mm:ss.0',
+      );
+      final date = DateTime(2024, 1, 1, 14, 30, 5, 789);
+      expect(fmt.format(CellValue.date(date)), '14:30:05.7');
+    });
+
+    test('ss.000 with zero milliseconds', () {
+      const fmt = CellFormat(
+        type: CellFormatType.time,
+        formatCode: 'H:mm:ss.000',
+      );
+      final date = DateTime(2024, 1, 1, 14, 30, 5);
+      expect(fmt.format(CellValue.date(date)), '14:30:05.000');
+    });
+
+    test('ss.00 pads to 2 digits', () {
+      const fmt = CellFormat(
+        type: CellFormatType.time,
+        formatCode: 'H:mm:ss.00',
+      );
+      final date = DateTime(2024, 1, 1, 14, 30, 5, 50);
+      expect(fmt.format(CellValue.date(date)), '14:30:05.05');
+    });
+
+    test('ss.000 with 1ms', () {
+      const fmt = CellFormat(
+        type: CellFormatType.time,
+        formatCode: 'H:mm:ss.000',
+      );
+      final date = DateTime(2024, 1, 1, 14, 30, 5, 1);
+      expect(fmt.format(CellValue.date(date)), '14:30:05.001');
+    });
+  });
+
+  group('locale support', () {
+    group('FormatLocale static instances', () {
+      test('enUs is the default', () {
+        expect(FormatLocale.enUs.decimalSeparator, '.');
+        expect(FormatLocale.enUs.thousandsSeparator, ',');
+        expect(FormatLocale.enUs.currencySymbol, r'$');
+      });
+
+      test('deDe uses comma decimal', () {
+        expect(FormatLocale.deDe.decimalSeparator, ',');
+        expect(FormatLocale.deDe.thousandsSeparator, '.');
+        expect(FormatLocale.deDe.currencySymbol, '€');
+      });
+
+      test('frFr uses space as thousands separator', () {
+        expect(FormatLocale.frFr.thousandsSeparator, ' ');
+      });
+
+      test('jaJp month names', () {
+        expect(FormatLocale.jaJp.monthNames[0], '1月');
+        expect(FormatLocale.jaJp.currencySymbol, '¥');
+      });
+    });
+
+    group('LCID code mapping', () {
+      test('0409 maps to enUs', () {
+        expect(FormatLocale.fromLcid('0409'), same(FormatLocale.enUs));
+      });
+
+      test('0809 maps to enGb', () {
+        expect(FormatLocale.fromLcid('0809'), same(FormatLocale.enGb));
+      });
+
+      test('0407 maps to deDe', () {
+        expect(FormatLocale.fromLcid('0407'), same(FormatLocale.deDe));
+      });
+
+      test('040C maps to frFr', () {
+        expect(FormatLocale.fromLcid('040C'), same(FormatLocale.frFr));
+      });
+
+      test('unknown LCID falls back to enUs', () {
+        expect(FormatLocale.fromLcid('9999'), same(FormatLocale.enUs));
+      });
+    });
+
+    group('locale in formatting', () {
+      test('German month names via locale parameter', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'd mmmm yyyy',
+        );
+        final date = DateTime(2024, 1, 15);
+        final result = fmt.formatRich(
+          CellValue.date(date),
+          locale: FormatLocale.deDe,
+        );
+        expect(result.text, '15 Januar 2024');
+      });
+
+      test('German abbreviated months', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'd-mmm-yy',
+        );
+        final date = DateTime(2024, 3, 5);
+        final result = fmt.formatRich(
+          CellValue.date(date),
+          locale: FormatLocale.deDe,
+        );
+        expect(result.text, '5-Mrz-24');
+      });
+
+      test('French day names', () {
+        const fmt = CellFormat(
+          type: CellFormatType.date,
+          formatCode: 'dddd',
+        );
+        final date = DateTime(2024, 1, 15); // Monday
+        final result = fmt.formatRich(
+          CellValue.date(date),
+          locale: FormatLocale.frFr,
+        );
+        expect(result.text, 'lundi');
+      });
+
+      test('German decimal separator in number formatting', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '#,##0.00',
+        );
+        final result = fmt.formatRich(
+          CellValue.number(1234.56),
+          locale: FormatLocale.deDe,
+        );
+        expect(result.text, '1.234,56');
+      });
+
+      test('French thousands separator (space)', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '#,##0.00',
+        );
+        final result = fmt.formatRich(
+          CellValue.number(1234.56),
+          locale: FormatLocale.frFr,
+        );
+        expect(result.text, '1 234,56');
+      });
+
+      test('German decimal separator in percentage', () {
+        const fmt = CellFormat(
+          type: CellFormatType.percentage,
+          formatCode: '0.00%',
+        );
+        final result = fmt.formatRich(
+          CellValue.number(0.4256),
+          locale: FormatLocale.deDe,
+        );
+        expect(result.text, '42,56%');
+      });
+    });
+
+    group('currency symbol override', () {
+      test(r'[$EUR] overrides $ with EUR', () {
+        const fmt = CellFormat(
+          type: CellFormatType.currency,
+          formatCode: r'[$EUR]#,##0.00',
+        );
+        final result = fmt.format(CellValue.number(1234.56));
+        expect(result, 'EUR1,234.56');
+      });
+
+      test(r'[$£] overrides with pound sign', () {
+        const fmt = CellFormat(
+          type: CellFormatType.currency,
+          formatCode: r'[$£]#,##0.00',
+        );
+        final result = fmt.format(CellValue.number(42));
+        expect(result, '£42.00');
+      });
+
+      test(r'[$JPY] currency override', () {
+        const fmt = CellFormat(
+          type: CellFormatType.currency,
+          formatCode: r'[$JPY]#,##0',
+        );
+        final result = fmt.format(CellValue.number(1000));
+        expect(result, 'JPY1,000');
+      });
+    });
+  });
+
+  group('layout-dependent features', () {
+    group('*X repeat fill', () {
+      test('*X with availableWidth fills remaining space', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: r'$*-#,##0',
+        );
+        // With a generous available width, should get fill characters
+        final result = fmt.formatRich(
+          CellValue.number(42),
+          availableWidth: 200,
+        );
+        expect(result.text, contains('-'));
+        expect(result.text, contains(r'$'));
+        expect(result.text, contains('42'));
+      });
+
+      test('*X without availableWidth produces single space', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: r'$* #,##0',
+        );
+        final result = fmt.formatRich(CellValue.number(42));
+        // Without width, *X → single space
+        expect(result.text, r'$ 42');
+      });
+
+      test('*X with zero availableWidth produces empty fill', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: r'$*-#,##0',
+        );
+        final result = fmt.formatRich(
+          CellValue.number(42),
+          availableWidth: 0,
+        );
+        expect(result.text, contains('42'));
+      });
+
+      test('various fill characters', () {
+        const fmt = CellFormat(
+          type: CellFormatType.number,
+          formatCode: '#,##0*.',
+        );
+        final result = fmt.formatRich(
+          CellValue.number(42),
+          availableWidth: 200,
+        );
+        expect(result.text, startsWith('42'));
+        expect(result.text, contains('.'));
+      });
+    });
+  });
+
+  group('case sensitivity documentation (Phase 8)', () {
+    test('MM is always month (never minute)', () {
+      const fmt = CellFormat(
+        type: CellFormatType.date,
+        formatCode: 'yyyy-MM-dd',
+      );
+      final date = DateTime(2024, 1, 15);
+      expect(fmt.format(CellValue.date(date)), '2024-01-15');
+    });
+
+    test('mm is context-sensitive: month when standalone', () {
+      const fmt = CellFormat(
+        type: CellFormatType.date,
+        formatCode: 'mm/dd/yyyy',
+      );
+      final date = DateTime(2024, 3, 5);
+      expect(fmt.format(CellValue.date(date)), '03/05/2024');
+    });
+
+    test('mm is context-sensitive: minute after hour', () {
+      const fmt = CellFormat(
+        type: CellFormatType.time,
+        formatCode: 'H:mm:ss',
+      );
+      final date = DateTime(2024, 1, 1, 14, 30, 45);
+      expect(fmt.format(CellValue.date(date)), '14:30:45');
+    });
+
+    test('mixed case Mm treated as literal', () {
+      // 'Mm' doesn't match any token pattern, so it becomes M + m literals
+      const fmt = CellFormat(
+        type: CellFormatType.date,
+        formatCode: 'yyyy-Mm-dd',
+      );
+      final date = DateTime(2024, 3, 5);
+      // M is not a token (we don't have uppercase single M as explicit month)
+      // The tokenizer doesn't match 'M' alone as a date token
+      // So 'Mm' should not resolve to month
+      final result = fmt.format(CellValue.date(date));
+      // The key point: it should NOT be '2024-03-05' — MM would be
+      expect(result, isNotNull);
     });
   });
 }

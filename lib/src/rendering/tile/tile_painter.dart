@@ -338,12 +338,21 @@ class TilePainter implements TileRenderer {
     List<TextPainter> textPainters,
   ) {
     final mergedStyle = CellStyle.defaultStyle.merge(style);
-    final text = format != null ? format.format(value) : value.displayValue;
+    final availableWidth = bounds.width - (cellPadding * 2);
+    final CellFormatResult? formatResult;
+    final String text;
+    if (format != null) {
+      formatResult = format.formatRich(value, availableWidth: availableWidth);
+      text = formatResult.text;
+    } else {
+      formatResult = null;
+      text = value.displayValue;
+    }
 
-    // Create text painter
+    // Create text painter — format color overrides style color
     final fontFamily = mergedStyle.fontFamily ?? defaultFontFamily;
     final textStyle = TextStyle(
-      color: _getTextColor(value, mergedStyle),
+      color: formatResult?.color ?? _getTextColor(value, mergedStyle),
       fontSize: mergedStyle.fontSize ?? defaultFontSize,
       fontWeight: mergedStyle.fontWeight ?? FontWeight.normal,
       fontStyle: mergedStyle.fontStyle ?? FontStyle.normal,
@@ -360,7 +369,6 @@ class TilePainter implements TileRenderer {
     );
 
     // Layout text within available width
-    final availableWidth = bounds.width - (cellPadding * 2);
     textPainter.layout(maxWidth: availableWidth > 0 ? availableWidth : 0);
 
     // Calculate position based on alignment

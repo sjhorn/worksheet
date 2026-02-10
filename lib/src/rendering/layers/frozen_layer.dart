@@ -488,14 +488,30 @@ class FrozenLayer extends RenderLayer {
     CellFormat? format,
   ) {
     final mergedStyle = CellStyle.defaultStyle.merge(style);
-    final text = format != null ? format.format(value) : value.displayValue;
+    final padding = cellPadding * zoom;
+    final availableWidth = bounds.width - (padding * 2);
+    final CellFormatResult? formatResult;
+    final String text;
+    if (format != null) {
+      formatResult = format.formatRich(value, availableWidth: availableWidth);
+      text = formatResult.text;
+    } else {
+      formatResult = null;
+      text = value.displayValue;
+    }
 
-    // Create text painter
+    // Create text painter — format color overrides style/error color
     final fontFamily = mergedStyle.fontFamily ?? defaultFontFamily;
+    final Color textColor;
+    if (formatResult?.color != null) {
+      textColor = formatResult!.color!;
+    } else if (value.isError) {
+      textColor = const Color(0xFFCC0000);
+    } else {
+      textColor = mergedStyle.textColor ?? defaultTextColor;
+    }
     final textStyle = TextStyle(
-      color: value.isError
-          ? const Color(0xFFCC0000)
-          : mergedStyle.textColor ?? defaultTextColor,
+      color: textColor,
       fontSize: (mergedStyle.fontSize ?? defaultFontSize) * zoom,
       fontWeight: mergedStyle.fontWeight ?? FontWeight.normal,
       fontStyle: mergedStyle.fontStyle ?? FontStyle.normal,
@@ -512,8 +528,6 @@ class FrozenLayer extends RenderLayer {
     );
 
     // Layout text
-    final padding = cellPadding * zoom;
-    final availableWidth = bounds.width - (padding * 2);
     textPainter.layout(maxWidth: availableWidth > 0 ? availableWidth : 0);
 
     // Calculate position
