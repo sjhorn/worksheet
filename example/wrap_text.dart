@@ -38,10 +38,7 @@ class _WrapTextDemoState extends State<WrapTextDemo> {
 
         // Explicit newlines with wrapText
         (1, 0): Cell.text('Newlines'),
-        (1, 1): Cell.text(
-          'Line 1\nLine 2\nLine 3',
-          style: _wrapStyle,
-        ),
+        (1, 1): Cell.text('Line 1\nLine 2\nLine 3', style: _wrapStyle),
 
         // Long text that wraps at cell width
         (2, 0): Cell.text('Auto wrap'),
@@ -80,6 +77,7 @@ class _WrapTextDemoState extends State<WrapTextDemo> {
           style: const CellStyle(
             wrapText: true,
             verticalAlignment: CellVerticalAlignment.bottom,
+            textAlignment: .right,
           ),
         ),
         (5, 2): Cell.text('verticalAlignment: bottom'),
@@ -91,8 +89,10 @@ class _WrapTextDemoState extends State<WrapTextDemo> {
         ),
 
         // Instructions
-        (8, 0): Cell.text('Try editing',
-            style: const CellStyle(fontWeight: FontWeight.bold)),
+        (8, 0): Cell.text(
+          'Try editing',
+          style: const CellStyle(fontWeight: FontWeight.bold),
+        ),
         (8, 1): Cell.text(
           'Double-tap a wrapped cell, then press Alt+Enter to insert a newline.',
           style: _wrapStyle,
@@ -113,10 +113,7 @@ class _WrapTextDemoState extends State<WrapTextDemo> {
     return Scaffold(
       appBar: AppBar(title: const Text('Wrap Text & Vertical Alignment')),
       body: WorksheetTheme(
-        data: WorksheetThemeData(
-          showHeaders: true,
-          defaultColumnWidth: 200,
-        ),
+        data: WorksheetThemeData(showHeaders: true, defaultColumnWidth: 200),
         child: Worksheet(
           data: _data,
           rowCount: 100,

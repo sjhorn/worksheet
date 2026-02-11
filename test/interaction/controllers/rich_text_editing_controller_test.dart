@@ -153,13 +153,15 @@ void main() {
         expect(spans[0].style?.fontWeight, FontWeight.normal);
       });
 
-      test('does nothing on collapsed selection', () {
+      test('sets pending style on collapsed selection', () {
         controller.initFromSpans([const TextSpan(text: 'Hello')]);
         controller.selection = const TextSelection.collapsed(offset: 2);
 
         controller.toggleBold();
-        // Should not throw and should not modify
+        // Should not modify existing spans
         expect(controller.toSpans().length, 1);
+        // Should set pending style with bold
+        expect(controller.pendingStyle?.fontWeight, FontWeight.bold);
       });
     });
 
@@ -377,6 +379,85 @@ void main() {
           expect(span.text, '');
           return const SizedBox();
         }));
+      });
+    });
+
+    group('pending style (collapsed selection)', () {
+      test('toggleBold sets pending style with bold', () {
+        controller.initFromSpans([const TextSpan(text: 'Hello')]);
+        controller.selection = const TextSelection.collapsed(offset: 3);
+
+        controller.toggleBold();
+
+        expect(controller.pendingStyle, isNotNull);
+        expect(controller.pendingStyle!.fontWeight, FontWeight.bold);
+      });
+
+      test('toggling bold twice clears bold from pending', () {
+        controller.initFromSpans([const TextSpan(text: 'Hello')]);
+        controller.selection = const TextSelection.collapsed(offset: 3);
+
+        controller.toggleBold();
+        controller.toggleBold();
+
+        expect(controller.pendingStyle?.fontWeight, FontWeight.normal);
+      });
+
+      test('typing after toggleBold gives character bold style', () {
+        controller.initFromSpans([const TextSpan(text: 'AB')]);
+        controller.selection = const TextSelection.collapsed(offset: 2);
+
+        controller.toggleBold();
+        expect(controller.pendingStyle, isNotNull);
+
+        // Simulate typing 'C' at position 2
+        controller.value = const TextEditingValue(
+          text: 'ABC',
+          selection: TextSelection.collapsed(offset: 3),
+        );
+
+        // Pending style should be consumed
+        expect(controller.pendingStyle, isNull);
+        // The inserted character should be bold
+        expect(controller.charStyles[2]?.fontWeight, FontWeight.bold);
+        // Original chars should remain unstyled
+        expect(controller.charStyles[0], isNull);
+        expect(controller.charStyles[1], isNull);
+      });
+
+      test('toggling bold at bold position removes bold from pending', () {
+        const bold = TextStyle(fontWeight: FontWeight.bold);
+        controller.initFromSpans([
+          const TextSpan(text: 'Hello', style: bold),
+        ]);
+        controller.selection = const TextSelection.collapsed(offset: 3);
+
+        controller.toggleBold();
+
+        // Cursor is after a bold char — toggling should remove bold
+        expect(controller.pendingStyle?.fontWeight, FontWeight.normal);
+      });
+
+      test('multiple pending toggles combine into bold+italic', () {
+        controller.initFromSpans([const TextSpan(text: 'Hello')]);
+        controller.selection = const TextSelection.collapsed(offset: 2);
+
+        controller.toggleBold();
+        controller.toggleItalic();
+
+        expect(controller.pendingStyle?.fontWeight, FontWeight.bold);
+        expect(controller.pendingStyle?.fontStyle, FontStyle.italic);
+      });
+
+      test('clearPendingStyle removes pending', () {
+        controller.initFromSpans([const TextSpan(text: 'Hi')]);
+        controller.selection = const TextSelection.collapsed(offset: 1);
+
+        controller.toggleBold();
+        expect(controller.pendingStyle, isNotNull);
+
+        controller.clearPendingStyle();
+        expect(controller.pendingStyle, isNull);
       });
     });
 

@@ -424,12 +424,20 @@ class TilePainter implements TileRenderer {
     final textPainter = TextPainter(
       text: textSpan,
       textDirection: TextDirection.ltr,
+      textAlign: _toTextAlign(
+          mergedStyle.textAlignment ?? CellStyle.implicitAlignment(value.type)),
       maxLines: mergedStyle.wrapText == true ? null : 1,
       ellipsis: mergedStyle.wrapText == true ? null : '\u2026',
     );
 
-    // Layout text within available width
-    textPainter.layout(maxWidth: availableWidth > 0 ? availableWidth : 0);
+    // Layout text within available width.
+    // For wrapped text, set minWidth = maxWidth so TextPainter spans the full
+    // cell width — this lets textAlign (center/right) align each line correctly.
+    final layoutWidth = availableWidth > 0 ? availableWidth : 0.0;
+    textPainter.layout(
+      minWidth: mergedStyle.wrapText == true ? layoutWidth : 0,
+      maxWidth: layoutWidth,
+    );
 
     // Calculate position based on alignment
     final offset = _calculateTextOffset(bounds, textPainter, mergedStyle, value);
@@ -463,16 +471,22 @@ class TilePainter implements TileRenderer {
     double dy;
 
     // Horizontal alignment
-    switch (style.textAlignment ?? CellStyle.implicitAlignment(value.type)) {
-      case CellTextAlignment.left:
-        dx = bounds.left + cellPadding;
-        break;
-      case CellTextAlignment.center:
-        dx = bounds.left + (bounds.width - textPainter.width) / 2;
-        break;
-      case CellTextAlignment.right:
-        dx = bounds.right - cellPadding - textPainter.width;
-        break;
+    // For wrapped text, TextPainter handles per-line alignment via textAlign,
+    // so always position at left + padding.
+    if (style.wrapText == true) {
+      dx = bounds.left + cellPadding;
+    } else {
+      switch (style.textAlignment ?? CellStyle.implicitAlignment(value.type)) {
+        case CellTextAlignment.left:
+          dx = bounds.left + cellPadding;
+          break;
+        case CellTextAlignment.center:
+          dx = bounds.left + (bounds.width - textPainter.width) / 2;
+          break;
+        case CellTextAlignment.right:
+          dx = bounds.right - cellPadding - textPainter.width;
+          break;
+      }
     }
 
     // Vertical alignment
@@ -687,6 +701,17 @@ class TilePainter implements TileRenderer {
       ]);
     }
     return u ? TextDecoration.underline : TextDecoration.lineThrough;
+  }
+
+  static TextAlign _toTextAlign(CellTextAlignment alignment) {
+    switch (alignment) {
+      case CellTextAlignment.left:
+        return TextAlign.left;
+      case CellTextAlignment.center:
+        return TextAlign.center;
+      case CellTextAlignment.right:
+        return TextAlign.right;
+    }
   }
 
   bool _boundsIntersect(ui.Rect a, ui.Rect b) {

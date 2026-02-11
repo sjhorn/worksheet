@@ -145,7 +145,7 @@ void main() {
       expect(textField.focusNode.hasFocus, isTrue);
     });
 
-    testWidgets('positions at cell bounds', (tester) async {
+    testWidgets('positions at cell bounds with text offset', (tester) async {
       editController.startEdit(cell: const CellCoordinate(0, 0));
 
       const bounds = Rect.fromLTWH(150, 75, 100, 30);
@@ -154,9 +154,13 @@ void main() {
         cellBounds: bounds,
       ));
 
+      // Positioned includes the text offset (cellPadding for left,
+      // vertical centering for top). At zoom=1, screen offset = unzoomed offset.
       final positioned = tester.widget<Positioned>(find.byType(Positioned));
-      expect(positioned.left, bounds.left);
-      expect(positioned.top, bounds.top);
+      // Left is shifted by cellPadding (default 4.0) for left-aligned text
+      expect(positioned.left, bounds.left + 4.0);
+      // Top is shifted by vertical centering offset
+      expect(positioned.top, greaterThanOrEqualTo(bounds.top));
     });
 
     testWidgets('respects minimum width', (tester) async {
@@ -175,8 +179,11 @@ void main() {
       final focusScope = transform.child as FocusScope;
       final constrainedBox = focusScope.child as ConstrainedBox;
 
-      // Should use minimum width, not the narrow cell width
-      expect(constrainedBox.constraints.minWidth, greaterThanOrEqualTo(CellEditorOverlay.minWidth));
+      // Text area width = max(cellWidth, minWidth) - 2 * cellPadding.
+      // minWidth (60) kicks in since cell is narrow (20).
+      // Text area = 60 - 2 * 4 = 52.
+      expect(constrainedBox.constraints.minWidth,
+          greaterThanOrEqualTo(CellEditorOverlay.minWidth - 8.0));
     });
 
     testWidgets('hides when editing completes', (tester) async {
@@ -649,8 +656,8 @@ void main() {
           wrapText: true,
         ));
 
-        final textField = tester.widget<TextField>(find.byType(TextField));
-        expect(textField.maxLines, isNull);
+        final editableText = tester.widget<EditableText>(find.byType(EditableText));
+        expect(editableText.maxLines, isNull);
       });
 
       testWidgets('maxLines is 1 when wrapText is false', (tester) async {
@@ -664,8 +671,8 @@ void main() {
           wrapText: false,
         ));
 
-        final textField = tester.widget<TextField>(find.byType(TextField));
-        expect(textField.maxLines, 1);
+        final editableText = tester.widget<EditableText>(find.byType(EditableText));
+        expect(editableText.maxLines, 1);
       });
 
       testWidgets('Alt+Enter inserts newline when wrapText is true',
@@ -780,7 +787,7 @@ void main() {
         expect(committed, isTrue);
       });
 
-      testWidgets('editor uses ConstrainedBox that can grow when wrapText is true',
+      testWidgets('editor uses ConstrainedBox with unconstrained height when wrapText is true',
           (tester) async {
         editController.startEdit(
           cell: const CellCoordinate(0, 0),
@@ -798,8 +805,53 @@ void main() {
         final transform = positioned.child as Transform;
         final focusScope = transform.child as FocusScope;
         final constrainedBox = focusScope.child as ConstrainedBox;
+        // Height is unconstrained — EditableText can grow for multi-line text
         expect(constrainedBox.constraints.maxHeight, double.infinity);
-        expect(constrainedBox.constraints.minHeight, 30.0);
+        expect(constrainedBox.constraints.minHeight, 0.0);
+      });
+    });
+
+    group('rich text type-to-edit', () {
+      testWidgets('type-to-edit on rich text cell shows typed character, not old value',
+          (tester) async {
+        // The cell had rich text content "Bold" with bold styling.
+        // User starts type-to-edit by pressing 'x' — the editor should show
+        // 'x' (the typed character), not 'Bold' (the old rich text).
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          trigger: EditTrigger.typing,
+          initialText: 'x',
+        );
+
+        final richText = [
+          const TextSpan(
+            text: 'Bold',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ];
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  CellEditorOverlay(
+                    editController: editController,
+                    cellBounds: const Rect.fromLTWH(100, 50, 80, 24),
+                    onCommit: (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {},
+                    onCancel: () {},
+                    richText: richText,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final textField =
+            tester.widget<EditableText>(find.byType(EditableText));
+        expect(textField.controller.text, 'x');
       });
     });
 

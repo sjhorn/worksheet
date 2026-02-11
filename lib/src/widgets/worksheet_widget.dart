@@ -1413,6 +1413,8 @@ class _WorksheetState extends State<Worksheet>
                             ),
                             cellPadding: theme.cellPadding,
                             richText: widget.data.getRichText(cell),
+                            verticalAlignment: cellStyle.verticalAlignment ??
+                                CellVerticalAlignment.middle,
                             wrapText: cellStyle.wrapText == true,
                             restoreFocusTo: _keyboardFocusNode,
                           );

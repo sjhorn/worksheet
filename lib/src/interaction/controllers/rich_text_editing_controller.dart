@@ -19,11 +19,27 @@ class RichTextEditingController extends TextEditingController {
   /// Guard flag: skip style adjustment during [initFromSpans].
   bool _skipAdjust = false;
 
+  /// Style to apply to the next typed character when the selection is collapsed.
+  ///
+  /// Set by toggling formatting (e.g. Ctrl+B) with no selection. Consumed and
+  /// cleared on the next character insert.
+  TextStyle? _pendingStyle;
+
   /// Creates a controller with optional initial text and spans.
   RichTextEditingController({super.text});
 
   /// The per-character styles (read-only view for testing).
   List<TextStyle?> get charStyles => List.unmodifiable(_charStyles);
+
+  /// The pending style that will be applied to the next typed character.
+  ///
+  /// Non-null when the user has toggled formatting with a collapsed selection.
+  TextStyle? get pendingStyle => _pendingStyle;
+
+  /// Clears the pending style without applying it.
+  void clearPendingStyle() {
+    _pendingStyle = null;
+  }
 
   /// Initializes from a list of [TextSpan]s, expanding into per-character styles.
   ///
@@ -312,8 +328,15 @@ class RichTextEditingController extends TextEditingController {
     }
 
     // Determine the style to use for new inserted characters:
-    // Use the style of the character just before the insertion point, or null.
-    final insertStyle = commonPrefix > 0 ? _charStyles[commonPrefix - 1] : null;
+    // Use pending style if set (from collapsed-selection toggle), otherwise
+    // inherit the style of the character just before the insertion point.
+    final TextStyle? insertStyle;
+    if (_pendingStyle != null) {
+      insertStyle = _pendingStyle;
+      _pendingStyle = null;
+    } else {
+      insertStyle = commonPrefix > 0 ? _charStyles[commonPrefix - 1] : null;
+    }
 
     // Splice: remove old middle, insert new middle with inherited style
     _charStyles.replaceRange(
@@ -334,13 +357,32 @@ class RichTextEditingController extends TextEditingController {
   }
 
   /// Toggles a boolean property on the selection.
+  ///
+  /// When the selection is collapsed (no text selected), toggles the property
+  /// on [_pendingStyle] so the next typed character inherits the formatting.
   void _toggleProperty({
     required bool Function(TextStyle?) getter,
     required TextStyle Function(TextStyle?) apply,
     required TextStyle Function(TextStyle?) remove,
   }) {
     final sel = selection;
-    if (!sel.isValid || sel.isCollapsed) return;
+    if (!sel.isValid) return;
+
+    if (sel.isCollapsed) {
+      // Toggle on pending style for future typing.
+      _syncLength();
+      final current = _pendingStyle ??
+          (sel.start > 0 && sel.start <= _charStyles.length
+              ? _charStyles[sel.start - 1]
+              : null);
+      if (getter(current)) {
+        _pendingStyle = remove(current);
+      } else {
+        _pendingStyle = apply(current);
+      }
+      notifyListeners();
+      return;
+    }
 
     _syncLength();
 

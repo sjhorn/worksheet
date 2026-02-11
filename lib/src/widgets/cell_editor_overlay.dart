@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart';
 
 import '../core/models/cell_coordinate.dart';
@@ -77,6 +77,12 @@ class CellEditorOverlay extends StatefulWidget {
   /// inline formatting via Ctrl+B/I/U/Shift+S.
   final List<TextSpan>? richText;
 
+  /// Vertical text alignment matching the tile painter's centering.
+  ///
+  /// Defaults to [CellVerticalAlignment.middle]. The overlay positions
+  /// the EditableText at the same vertical offset the tile painter uses.
+  final CellVerticalAlignment verticalAlignment;
+
   /// Whether the cell wraps text across multiple lines.
   ///
   /// When true, the editor allows multi-line input (Alt+Enter inserts a
@@ -108,6 +114,7 @@ class CellEditorOverlay extends StatefulWidget {
     this.textAlign = TextAlign.left,
     this.cellPadding = 4.0,
     this.richText,
+    this.verticalAlignment = CellVerticalAlignment.middle,
     this.wrapText = false,
     this.restoreFocusTo,
   });
@@ -124,6 +131,11 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   /// platform may apply on focus gain, reversing it to cursor-at-end.
   bool _guardSelectAll = false;
 
+  /// For wrapText cells, the initial vertical offset computed from the
+  /// content height at edit start. Fixed for the session so the editor
+  /// doesn't jump as the user adds/removes lines.
+  double? _initialWrapVerticalOffset;
+
   @override
   void initState() {
     super.initState();
@@ -132,10 +144,21 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       text: widget.editController.currentText,
     );
 
-    // Initialize from rich text spans if available
-    if (widget.richText != null && widget.richText!.isNotEmpty) {
+    // Initialize from rich text spans if available,
+    // but NOT for type-to-edit (which replaces the old value).
+    if (widget.richText != null &&
+        widget.richText!.isNotEmpty &&
+        widget.editController.trigger != EditTrigger.typing) {
       _textController.initFromSpans(widget.richText!);
     }
+    // For wrapText with non-top alignment, compute the initial vertical
+    // offset from the wrapped content height so the editor starts at the
+    // same position as the tile-rendered text.
+    if (widget.wrapText &&
+        widget.verticalAlignment != CellVerticalAlignment.top) {
+      _initialWrapVerticalOffset = _computeInitialWrapVerticalOffset();
+    }
+
     _focusNode = FocusNode(onKeyEvent: _handleKeyEvent);
 
     // Listen for changes from edit controller
@@ -152,7 +175,7 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       _textController.addListener(_onSelectionGuard);
     }
 
-    // Request focus after the TextField is built and attached to the tree.
+    // Request focus after the EditableText is built and attached to the tree.
     // This ensures the text input connection is established on mobile,
     // which is required to show the software keyboard.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -233,6 +256,49 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
           extentOffset: _textController.text.length,
         );
       }
+    }
+  }
+
+  /// Measures the wrapped content height and returns the vertical offset
+  /// matching the tile painter's vertical alignment.
+  double _computeInitialWrapVerticalOffset() {
+    final zoom = widget.zoom;
+    final unzoomedWidth = widget.cellBounds.width / zoom;
+    final unzoomedHeight = widget.cellBounds.height / zoom;
+    final effectiveWidth = unzoomedWidth < CellEditorOverlay.minWidth
+        ? CellEditorOverlay.minWidth
+        : unzoomedWidth;
+    final textAreaWidth = effectiveWidth - 2 * widget.cellPadding;
+
+    final textStyle = TextStyle(
+      fontSize: widget.fontSize,
+      fontFamily: widget.fontFamily,
+      fontWeight: widget.fontWeight,
+      fontStyle: widget.fontStyle,
+      color: widget.textColor,
+      package: WorksheetThemeData.resolveFontPackage(widget.fontFamily),
+    );
+
+    final contentMeasurer = TextPainter(
+      text: TextSpan(text: _textController.text, style: textStyle),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: textAreaWidth > 0 ? textAreaWidth : 0);
+    final contentHeight = contentMeasurer.height;
+    contentMeasurer.dispose();
+
+    switch (widget.verticalAlignment) {
+      case CellVerticalAlignment.middle:
+        return ((unzoomedHeight - contentHeight) / 2).clamp(
+          0.0,
+          double.infinity,
+        );
+      case CellVerticalAlignment.bottom:
+        return (unzoomedHeight - widget.cellPadding - contentHeight).clamp(
+          0.0,
+          double.infinity,
+        );
+      case CellVerticalAlignment.top:
+        return widget.cellPadding;
     }
   }
 
@@ -383,6 +449,9 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         ? CellEditorOverlay.minWidth
         : unzoomedWidth;
 
+    // Style matches the tile painter's TextStyle exactly — no theme merging.
+    // Using EditableText (not TextField) avoids Material theme bleed-through
+    // of height, letterSpacing, etc. from bodyLarge.
     final textStyle = TextStyle(
       fontSize: widget.fontSize,
       fontFamily: widget.fontFamily,
@@ -408,77 +477,78 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         : textHeight;
     measurer.dispose();
 
-    // For multi-line (wrapText), use cell padding top/bottom instead of
-    // centering. For single-line, center vertically as before.
-    final double verticalPadTop;
-    final double verticalPadBottom;
+    // Compute text offsets matching the tile painter's _calculateTextOffset.
+    // Vertical alignment: top/middle/bottom, matching CellVerticalAlignment.
+    final double verticalOffset;
     if (widget.wrapText) {
-      verticalPadTop = widget.cellPadding;
-      verticalPadBottom = widget.cellPadding;
+      // Use the initial offset computed in initState (based on the wrapped
+      // content height at edit start) so it doesn't jump during editing.
+      verticalOffset = _initialWrapVerticalOffset ?? widget.cellPadding;
     } else {
-      final verticalPad = ((unzoomedHeight - textHeight) / 2).clamp(
-        0.0,
-        double.infinity,
-      );
-      verticalPadTop = verticalPad;
-      verticalPadBottom = verticalPad;
+      switch (widget.verticalAlignment) {
+        case CellVerticalAlignment.top:
+          verticalOffset = widget.cellPadding;
+          break;
+        case CellVerticalAlignment.middle:
+          verticalOffset = ((unzoomedHeight - textHeight) / 2).clamp(
+            0.0,
+            double.infinity,
+          );
+          break;
+        case CellVerticalAlignment.bottom:
+          verticalOffset = (unzoomedHeight - widget.cellPadding - textHeight)
+              .clamp(0.0, double.infinity);
+          break;
+      }
     }
 
-    // Match tile painter's per-alignment horizontal padding (at base size):
-    //   left:   dx = bounds.left + cellPadding
-    //   center: dx = bounds.left + (bounds.width - textWidth) / 2  (no padding)
-    //   right:  dx = bounds.right - cellPadding - textWidth
+    // Horizontal offset: tile painter uses cellPadding on both sides for
+    // text layout width, but positions text per alignment. The EditableText's
+    // textAlign property handles alignment within the text area.
+    // Match tile painter: availableWidth = bounds.width - 2 * cellPadding.
     final double leftPad;
-    final double rightPad;
     switch (widget.textAlign) {
       case TextAlign.right:
       case TextAlign.end:
-        leftPad = 0;
-        rightPad = widget.cellPadding;
+        // Right-aligned: position at left edge + cellPadding so the text
+        // area matches the tile painter's availableWidth. textAlign handles
+        // right-alignment within that area.
+        leftPad = widget.cellPadding;
         break;
       case TextAlign.center:
-        leftPad = 0;
-        rightPad = 0;
+        // Center: same — cellPadding on both sides.
+        leftPad = widget.cellPadding;
         break;
       default:
         leftPad = widget.cellPadding;
-        rightPad = 0;
         break;
     }
 
+    // Text area width = cell width - 2 * cellPadding, matching tile painter.
+    final textAreaWidth = effectiveWidth - 2 * widget.cellPadding;
+
     return Positioned(
-      left: widget.cellBounds.left,
-      top: widget.cellBounds.top,
+      left: widget.cellBounds.left + leftPad * zoom,
+      top: widget.cellBounds.top + verticalOffset * zoom,
       child: Transform.scale(
         scale: zoom,
         alignment: Alignment.topLeft,
         child: FocusScope(
           child: ConstrainedBox(
             constraints: BoxConstraints(
-              minWidth: effectiveWidth,
-              maxWidth: effectiveWidth,
-              minHeight: unzoomedHeight,
-              maxHeight: widget.wrapText ? double.infinity : unzoomedHeight,
+              minWidth: textAreaWidth,
+              maxWidth: textAreaWidth,
             ),
-            child: TextField(
+            child: EditableText(
               controller: _textController,
               focusNode: _focusNode,
               autofocus: true,
               style: textStyle,
               maxLines: widget.wrapText ? null : 1,
               textAlign: widget.textAlign,
-              decoration: InputDecoration(
-                contentPadding: EdgeInsets.fromLTRB(
-                  leftPad,
-                  verticalPadTop,
-                  rightPad,
-                  verticalPadBottom,
-                ),
-                border: InputBorder.none,
-                isCollapsed: true,
-              ),
               cursorHeight: cursorHeight,
               cursorColor: widget.textColor,
+              backgroundCursorColor: const Color(0xFF808080),
               onChanged: _onTextChanged,
             ),
           ),

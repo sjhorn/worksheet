@@ -578,12 +578,20 @@ class FrozenLayer extends RenderLayer {
     final textPainter = TextPainter(
       text: textSpan,
       textDirection: TextDirection.ltr,
+      textAlign: _toTextAlign(
+          mergedStyle.textAlignment ?? CellStyle.implicitAlignment(value.type)),
       maxLines: wrapText ? null : 1,
       ellipsis: wrapText ? null : '\u2026',
     );
 
-    // Layout text
-    textPainter.layout(maxWidth: availableWidth > 0 ? availableWidth : 0);
+    // Layout text.
+    // For wrapped text, set minWidth = maxWidth so TextPainter spans the full
+    // cell width — this lets textAlign (center/right) align each line correctly.
+    final layoutWidth = availableWidth > 0 ? availableWidth : 0.0;
+    textPainter.layout(
+      minWidth: wrapText ? layoutWidth : 0,
+      maxWidth: layoutWidth,
+    );
 
     // Calculate position
     final offset = _calculateTextOffset(bounds, textPainter, mergedStyle, padding, value);
@@ -607,16 +615,22 @@ class FrozenLayer extends RenderLayer {
     double dx;
     double dy;
 
-    switch (style.textAlignment ?? CellStyle.implicitAlignment(value.type)) {
-      case CellTextAlignment.left:
-        dx = bounds.left + padding;
-        break;
-      case CellTextAlignment.center:
-        dx = bounds.left + (bounds.width - textPainter.width) / 2;
-        break;
-      case CellTextAlignment.right:
-        dx = bounds.right - padding - textPainter.width;
-        break;
+    // For wrapped text, TextPainter handles per-line alignment via textAlign,
+    // so always position at left + padding.
+    if (style.wrapText == true) {
+      dx = bounds.left + padding;
+    } else {
+      switch (style.textAlignment ?? CellStyle.implicitAlignment(value.type)) {
+        case CellTextAlignment.left:
+          dx = bounds.left + padding;
+          break;
+        case CellTextAlignment.center:
+          dx = bounds.left + (bounds.width - textPainter.width) / 2;
+          break;
+        case CellTextAlignment.right:
+          dx = bounds.right - padding - textPainter.width;
+          break;
+      }
     }
 
     switch (style.verticalAlignment ?? CellVerticalAlignment.middle) {
@@ -754,6 +768,17 @@ class FrozenLayer extends RenderLayer {
         Offset(x, viewportSize.height),
         _separatorPaint,
       );
+    }
+  }
+
+  static TextAlign _toTextAlign(CellTextAlignment alignment) {
+    switch (alignment) {
+      case CellTextAlignment.left:
+        return TextAlign.left;
+      case CellTextAlignment.center:
+        return TextAlign.center;
+      case CellTextAlignment.right:
+        return TextAlign.right;
     }
   }
 
