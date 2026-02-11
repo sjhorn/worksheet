@@ -58,9 +58,10 @@ class TilePainter implements TileRenderer {
   /// Merged cell registry for merge-aware rendering.
   MergedCellRegistry? mergedCells;
 
-  /// Cell currently being edited, whose text should be skipped during
-  /// tile rendering (the overlay TextField renders it instead).
-  CellCoordinate? editingCell;
+  /// Cell range currently being edited, whose text should be skipped
+  /// during tile rendering (the overlay TextField renders it instead).
+  /// Covers the editing cell and any cells the editor expands into.
+  CellRange? editingRange;
 
   // Pre-allocated paint objects for performance
   late final Paint _backgroundPaint;
@@ -206,7 +207,7 @@ class TilePainter implements TileRenderer {
         // TextField renders its text instead).
         // Use full localBounds for text layout so text is positioned
         // relative to the merge region, but clip to tile bounds.
-        if (shouldRenderText && renderCoord != editingCell) {
+        if (shouldRenderText && editingRange?.contains(renderCoord) != true) {
           final value = data.getCell(renderCoord);
           if (value != null) {
             final format = data.getFormat(renderCoord);

@@ -73,7 +73,7 @@ class _WrapTextDemoState extends State<WrapTextDemo> {
         // Vertical alignment: bottom
         (5, 0): Cell.text('Bottom'),
         (5, 1): Cell.text(
-          'Bottom-aligned\nwrapped text',
+          'Bottom-right-aligned\nwrapped text',
           style: const CellStyle(
             wrapText: true,
             verticalAlignment: CellVerticalAlignment.bottom,

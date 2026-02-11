@@ -9,6 +9,7 @@ import 'package:flutter/services.dart';
 
 import '../core/data/data_change_event.dart';
 import '../core/data/worksheet_data.dart';
+import '../core/geometry/editing_bounds_calculator.dart';
 import '../core/geometry/layout_solver.dart';
 import '../core/geometry/span_list.dart';
 import '../core/models/cell_coordinate.dart';
@@ -237,6 +238,11 @@ class _WorksheetState extends State<Worksheet>
   // Track viewInsets for keyboard visibility changes
   EdgeInsets _lastViewInsets = EdgeInsets.zero;
 
+  // Cached expansion state computed by _onEditTextChanged()
+  Rect? _editingExpandedBounds; // worksheet coords
+  Rect? _editingExpandedScreenBounds; // screen coords, header-adjusted
+  double? _editingVerticalOffset; // fixed vertical offset for wrap-text cells
+
   // Data change subscription for external mutations
   StreamSubscription<DataChangeEvent>? _dataSubscription;
 
@@ -441,6 +447,9 @@ class _WorksheetState extends State<Worksheet>
     // Subscribe to data change events for external mutations
     _dataSubscription?.cancel();
     _dataSubscription = widget.data.changes.listen(_onDataChanged);
+
+    // Listen to editController for expansion recomputation
+    widget.editController?.addListener(_onEditTextChanged);
   }
 
   void _initLayers(WorksheetThemeData theme, double devicePixelRatio) {
@@ -629,7 +638,7 @@ class _WorksheetState extends State<Worksheet>
 
     // Tell the tile painter to skip rendering text for this cell
     // (the overlay TextField renders it instead) and re-render the tile.
-    _tilePainter.editingCell = cell;
+    _tilePainter.editingRange = CellRange(cell.row, cell.column, cell.row, cell.column);
     _tileManager.invalidateRange(
       CellRange(cell.row, cell.column, cell.row, cell.column),
     );
@@ -656,13 +665,162 @@ class _WorksheetState extends State<Worksheet>
 
   /// Clears the editing cell from the tile painter so tile text re-appears.
   void _clearEditingCell() {
-    final prev = _tilePainter.editingCell;
+    final prev = _tilePainter.editingRange;
     if (prev != null) {
-      _tilePainter.editingCell = null;
-      _tileManager.invalidateRange(
-        CellRange(prev.row, prev.column, prev.row, prev.column),
-      );
+      _tilePainter.editingRange = null;
+      _tileManager.invalidateRange(prev);
       _layoutVersion++;
+    }
+    _selectionRenderer.editingFocusBounds = null;
+    _editingExpandedBounds = null;
+    _editingExpandedScreenBounds = null;
+    _editingVerticalOffset = null;
+  }
+
+  /// Recomputes expanded editing bounds when the edit text changes.
+  ///
+  /// Listens to [editController] at the state level so that [setState]
+  /// propagates the updated [_layoutVersion] and [editingFocusBounds]
+  /// to the selection painter and viewport in the same frame.
+  void _onEditTextChanged() {
+    final ec = widget.editController;
+    if (ec == null || !ec.isEditing) {
+      if (_editingExpandedBounds != null) {
+        _editingExpandedBounds = null;
+        _editingExpandedScreenBounds = null;
+      }
+      _editingVerticalOffset = null;
+      return;
+    }
+
+    final cell = ec.editingCell;
+    if (cell == null) return;
+
+    final theme = _lastTheme;
+    if (theme == null) return;
+
+    // Resolve per-cell style the same way tile_painter does
+    final cellStyle = CellStyle.defaultStyle.merge(
+      widget.data.getStyle(cell),
+    );
+    final isWrap = cellStyle.wrapText == true;
+    final fontFamily = cellStyle.fontFamily ?? theme.fontFamily;
+
+    // Build TextStyle matching the tile painter's rendering
+    final editorTextStyle = TextStyle(
+      fontSize: cellStyle.fontSize ?? theme.fontSize,
+      fontFamily: fontFamily,
+      fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
+      fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
+      color: cellStyle.textColor ?? theme.textColor,
+      package: WorksheetThemeData.resolveFontPackage(fontFamily),
+    );
+
+    // For wrap-text cells with middle/bottom alignment, compute the
+    // fixed vertical offset once (on the first notification after edit
+    // start) using the original cell value. This matches the offset
+    // that CellEditorOverlay._computeInitialWrapVerticalOffset() pins.
+    if (isWrap && _editingVerticalOffset == null) {
+      final vAlign = cellStyle.verticalAlignment ??
+          CellVerticalAlignment.middle;
+      if (vAlign != CellVerticalAlignment.top) {
+        final cellBounds = _layoutSolver.getCellBounds(cell);
+        final initialText = ec.originalValue?.displayValue ?? '';
+        if (initialText.isNotEmpty) {
+          final availWidth = cellBounds.width - 2 * theme.cellPadding;
+          final mp = TextPainter(
+            text: TextSpan(text: initialText, style: editorTextStyle),
+            textDirection: TextDirection.ltr,
+          )..layout(
+              maxWidth: availWidth > 0 ? availWidth : 0,
+            );
+          final contentH = mp.height;
+          mp.dispose();
+          switch (vAlign) {
+            case CellVerticalAlignment.middle:
+              _editingVerticalOffset =
+                  ((cellBounds.height - contentH) / 2)
+                      .clamp(0.0, double.infinity);
+            case CellVerticalAlignment.bottom:
+              _editingVerticalOffset =
+                  (cellBounds.height - theme.cellPadding - contentH)
+                      .clamp(0.0, double.infinity);
+            case CellVerticalAlignment.top:
+              break; // unreachable
+          }
+        }
+      }
+    }
+
+    // Compute expanded editing bounds
+    final editText = ec.currentText;
+    final ExpandedEditingBounds expanded;
+    if (isWrap) {
+      expanded = EditingBoundsCalculator.computeVertical(
+        cell: cell,
+        text: editText,
+        layoutSolver: _layoutSolver,
+        textStyle: editorTextStyle,
+        cellPadding: theme.cellPadding,
+        maxRow: widget.rowCount - 1,
+        mergedCells: widget.data.mergedCells,
+        verticalOffset: _editingVerticalOffset,
+      );
+    } else {
+      expanded = EditingBoundsCalculator.computeHorizontal(
+        cell: cell,
+        text: editText,
+        layoutSolver: _layoutSolver,
+        textStyle: editorTextStyle,
+        cellPadding: theme.cellPadding,
+        maxColumn: widget.columnCount - 1,
+        mergedCells: widget.data.mergedCells,
+      );
+    }
+
+    // Update tile painter editing range
+    final newEditingRange = CellRange(
+      cell.row, cell.column,
+      expanded.endRow, expanded.endColumn,
+    );
+    if (_tilePainter.editingRange != newEditingRange) {
+      final oldRange = _tilePainter.editingRange;
+      if (oldRange != null) {
+        _tileManager.invalidateRange(oldRange);
+      }
+      _tilePainter.editingRange = newEditingRange;
+      _tileManager.invalidateRange(newEditingRange);
+      _layoutVersion++;
+    }
+
+    // Update selection renderer
+    final boundsChanged =
+        _selectionRenderer.editingFocusBounds != expanded.bounds;
+    _selectionRenderer.editingFocusBounds = expanded.bounds;
+
+    // Convert expanded bounds to screen coordinates
+    final zoom = _controller.zoom;
+    final headerLeft = theme.showHeaders
+        ? theme.rowHeaderWidth * zoom
+        : 0.0;
+    final headerTop = theme.showHeaders
+        ? theme.columnHeaderHeight * zoom
+        : 0.0;
+    final expandedScreenBounds = Rect.fromLTWH(
+      expanded.bounds.left * zoom - _controller.scrollX + headerLeft,
+      expanded.bounds.top * zoom - _controller.scrollY + headerTop,
+      expanded.bounds.width * zoom,
+      expanded.bounds.height * zoom,
+    );
+    final adjustedExpandedBounds = expandedScreenBounds.shift(
+      Offset(-headerLeft, -headerTop),
+    );
+
+    _editingExpandedBounds = expanded.bounds;
+    _editingExpandedScreenBounds = adjustedExpandedBounds;
+
+    if (boundsChanged) {
+      setState(() {});
     }
   }
 
@@ -976,8 +1134,15 @@ class _WorksheetState extends State<Worksheet>
       }
     }
 
+    if (widget.editController != oldWidget.editController) {
+      oldWidget.editController?.removeListener(_onEditTextChanged);
+      widget.editController?.addListener(_onEditTextChanged);
+    }
+
     if (widget.data != oldWidget.data && _initialized) {
       _dataSubscription?.cancel();
+      // Remove listener before re-init (which adds it again)
+      widget.editController?.removeListener(_onEditTextChanged);
       final theme = WorksheetTheme.of(context);
       final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
       _tileManager.dispose();
@@ -1026,6 +1191,7 @@ class _WorksheetState extends State<Worksheet>
     _stopAutoScroll();
     _keyboardScrollTimer?.cancel();
     _dataSubscription?.cancel();
+    widget.editController?.removeListener(_onEditTextChanged);
     _controller.detachLayout();
     _controller.removeListener(_onControllerChanged);
     if (_ownsController) {
@@ -1147,20 +1313,43 @@ class _WorksheetState extends State<Worksheet>
                               _pointerInScrollbarArea = false;
 
                               // If editing, check whether the tap is inside the
-                              // editing cell.  If so, let it reach the TextField
+                              // editing area (which may be expanded beyond the
+                              // original cell).  If so, let it reach the TextField
                               // for cursor positioning / text selection.  If outside,
                               // commit the edit and proceed with normal selection.
                               final ec = widget.editController;
                               if (ec != null && ec.isEditing) {
                                 final editingCell = ec.editingCell;
                                 if (editingCell != null) {
-                                  final cellBounds = _controller
-                                      .getCellScreenBounds(editingCell);
-                                  if (cellBounds != null &&
-                                      cellBounds.contains(
+                                  // Use expanded editing bounds (in worksheet
+                                  // coords) converted to screen coords for hit
+                                  // testing, so taps inside the expanded area
+                                  // don't commit the edit.
+                                  final editBounds = _selectionRenderer.editingFocusBounds;
+                                  final Rect? hitRect;
+                                  if (editBounds != null) {
+                                    final zoom = _controller.zoom;
+                                    final hdrLeft = theme.showHeaders
+                                        ? theme.rowHeaderWidth * zoom
+                                        : 0.0;
+                                    final hdrTop = theme.showHeaders
+                                        ? theme.columnHeaderHeight * zoom
+                                        : 0.0;
+                                    hitRect = Rect.fromLTWH(
+                                      editBounds.left * zoom - _controller.scrollX + hdrLeft,
+                                      editBounds.top * zoom - _controller.scrollY + hdrTop,
+                                      editBounds.width * zoom,
+                                      editBounds.height * zoom,
+                                    );
+                                  } else {
+                                    hitRect = _controller
+                                        .getCellScreenBounds(editingCell);
+                                  }
+                                  if (hitRect != null &&
+                                      hitRect.contains(
                                         event.localPosition,
                                       )) {
-                                    return; // tap inside editing cell — hand off to TextField
+                                    return; // tap inside editing area — hand off to TextField
                                   }
                                 }
                                 ec.commitEdit(onCommit: _onInternalCommit);
@@ -1391,15 +1580,22 @@ class _WorksheetState extends State<Worksheet>
                           final cellStyle = CellStyle.defaultStyle.merge(
                             widget.data.getStyle(cell),
                           );
+                          final isWrap = cellStyle.wrapText == true;
+                          final fontFamily = cellStyle.fontFamily ?? theme.fontFamily;
+
+                          // Use precomputed expanded bounds from _onEditTextChanged
+                          final adjustedExpandedBounds = _editingExpandedScreenBounds;
+
                           return CellEditorOverlay(
                             editController: widget.editController!,
                             cellBounds: adjustedBounds,
+                            expandedBounds: adjustedExpandedBounds,
                             onCommit: _onInternalCommit,
                             onCancel: _onInternalCancel,
                             onCommitAndNavigate: _onInternalCommitAndNavigate,
                             zoom: _controller.zoom,
                             fontSize: cellStyle.fontSize ?? theme.fontSize,
-                            fontFamily: cellStyle.fontFamily ?? theme.fontFamily,
+                            fontFamily: fontFamily,
                             fontWeight:
                                 cellStyle.fontWeight ?? FontWeight.normal,
                             fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
@@ -1415,7 +1611,7 @@ class _WorksheetState extends State<Worksheet>
                             richText: widget.data.getRichText(cell),
                             verticalAlignment: cellStyle.verticalAlignment ??
                                 CellVerticalAlignment.middle,
-                            wrapText: cellStyle.wrapText == true,
+                            wrapText: isWrap,
                             restoreFocusTo: _keyboardFocusNode,
                           );
                         },

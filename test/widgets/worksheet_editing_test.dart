@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
+import 'package:worksheet/src/core/models/cell_style.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
 import 'package:worksheet/src/widgets/worksheet_controller.dart';
@@ -34,11 +35,15 @@ void main() {
     bool readOnly = false,
     EditController? ec,
     OnEditCellCallback? onEditCell,
+    Map<int, double>? customRowHeights,
+    double defaultColumnWidth = 100.0,
   }) {
     return MaterialApp(
       home: Scaffold(
         body: WorksheetTheme(
-          data: const WorksheetThemeData(),
+          data: WorksheetThemeData(
+            defaultColumnWidth: defaultColumnWidth,
+          ),
           child: SizedBox(
             width: 800,
             height: 600,
@@ -50,6 +55,7 @@ void main() {
               columnCount: 26,
               readOnly: readOnly,
               onEditCell: onEditCell,
+              customRowHeights: customRowHeights,
             ),
           ),
         ),
@@ -575,6 +581,150 @@ void main() {
       // Both the callback and the editController should be triggered
       expect(editedCell, const CellCoordinate(3, 3));
       expect(editController.isEditing, isTrue);
+    });
+  });
+
+  group('Wrap-text expansion timing', () {
+    testWidgets(
+        'wrap-text cell expansion updates selection renderer in same frame',
+        (tester) async {
+      // Set up a wrap-text, right-aligned, bottom-aligned cell
+      const cell = CellCoordinate(5, 1);
+      data.setCell(cell, CellValue.text('Hi'));
+      data.setStyle(
+        cell,
+        const CellStyle(
+          wrapText: true,
+          textAlignment: CellTextAlignment.right,
+          verticalAlignment: CellVerticalAlignment.bottom,
+        ),
+      );
+
+      await tester.pumpWidget(buildWorksheet(ec: editController));
+      selectCell(5, 1);
+      await tester.pump();
+
+      // Start editing via F2
+      await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+      await tester.pump();
+      await tester.pump();
+      expect(editController.isEditing, isTrue);
+
+      // Type multi-line text that overflows the 24px row height.
+      // Alt+Enter inserts a newline in wrap-text mode.
+      // Three lines of text at 14px font (~16.8px per line) = ~50.4px,
+      // which exceeds the 24px cell height and should expand downward.
+      editController.updateText('Line1\nLine2\nLine3');
+      await tester.pump();
+
+      // Now tap in the area below the original cell (row 6 area).
+      // Default layout: headers are 50px wide, 24px tall.
+      // Cell (5,1): x = 50 + 100 = 150, y = 24 + 5*24 = 144, 100px wide, 24px tall.
+      // Row 6 starts at y = 144 + 24 = 168.
+      // If expansion worked, tapping at y=175 (row 6 area, inside expanded bounds)
+      // should NOT commit the edit.
+      await tester.tapAt(const Offset(180, 175));
+      await tester.pump();
+
+      // The edit should still be active because the tap was inside the
+      // expanded editing area.
+      expect(editController.isEditing, isTrue,
+          reason: 'Tap inside expanded area should not commit edit');
+    });
+
+    testWidgets(
+        'bottom-aligned wrap cell with tall row expands on first newline',
+        (tester) async {
+      // Matches example/wrap_text.dart cell (5,1): 60px row, 200px column,
+      // bottom+right aligned, text "Bottom-right-aligned\nwrapped text".
+      // After one Alt+Enter → "...\nwrapped text\n", the cursor is on a
+      // blank line 3. The vertical offset is ~22px, so needed height =
+      // 22 + ~50px + 4 = ~76px > 60px → should expand into row 6.
+      const cell = CellCoordinate(5, 1);
+      data.setCell(
+        cell,
+        CellValue.text('Bottom-right-aligned\nwrapped text'),
+      );
+      data.setStyle(
+        cell,
+        const CellStyle(
+          wrapText: true,
+          textAlignment: CellTextAlignment.right,
+          verticalAlignment: CellVerticalAlignment.bottom,
+        ),
+      );
+
+      await tester.pumpWidget(buildWorksheet(
+        ec: editController,
+        customRowHeights: {5: 60},
+        defaultColumnWidth: 200,
+      ));
+      selectCell(5, 1);
+      await tester.pump();
+
+      // Start editing via F2
+      await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+      await tester.pump();
+      await tester.pump();
+      expect(editController.isEditing, isTrue);
+
+      // Simulate one Alt+Enter (adds trailing newline)
+      editController
+          .updateText('Bottom-right-aligned\nwrapped text\n');
+      await tester.pump();
+
+      // Tap in the row below (row 6). With 60px row at row 5:
+      // Row 5: y = 24 + 5*24 = 144 (rows 0-4 are 24px each)
+      // Wait — customRowHeights only sets row 5 to 60. Rows 0-4 are 24px.
+      // Row 5 top: 24(header) + 5*24 = 144, bottom: 144 + 60 = 204
+      // Row 6 starts at y=204.
+      // Tap at y=210 (inside row 6, which should be inside expanded area).
+      // x = 50(header) + 200(col0) + 50 = 300 (middle of col 1)
+      await tester.tapAt(const Offset(300, 210));
+      await tester.pump();
+
+      expect(editController.isEditing, isTrue,
+          reason:
+              'First newline in bottom-aligned cell should expand; tap in '
+              'expanded area should not commit');
+    });
+
+    testWidgets(
+        'tap outside expanded wrap-text area commits edit',
+        (tester) async {
+      const cell = CellCoordinate(5, 1);
+      data.setCell(cell, CellValue.text('Hi'));
+      data.setStyle(
+        cell,
+        const CellStyle(
+          wrapText: true,
+          textAlignment: CellTextAlignment.right,
+          verticalAlignment: CellVerticalAlignment.bottom,
+        ),
+      );
+
+      await tester.pumpWidget(buildWorksheet(ec: editController));
+      selectCell(5, 1);
+      await tester.pump();
+
+      // Start editing via F2
+      await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+      await tester.pump();
+      await tester.pump();
+      expect(editController.isEditing, isTrue);
+
+      // Type short text that fits in the cell (no expansion)
+      editController.updateText('Short');
+      await tester.pump();
+
+      // Tap well outside the cell area (e.g. in a completely different cell)
+      // Cell (0,0) area: x = 50 + 0 = 50, y = 24 + 0 = 24
+      await tester.tapAt(const Offset(60, 30));
+      await tester.pump();
+
+      // The edit should be committed
+      expect(editController.isEditing, isFalse,
+          reason: 'Tap outside editing area should commit edit');
     });
   });
 }

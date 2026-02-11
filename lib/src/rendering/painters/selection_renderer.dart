@@ -127,6 +127,11 @@ class SelectionRenderer {
   /// Device pixel ratio for crisp 1-physical-pixel lines on Retina displays.
   final double? devicePixelRatio;
 
+  /// When set, the focus cell border uses these worksheet-coordinate bounds
+  /// instead of the cell's own bounds. Used during editing to expand the
+  /// selection border to match text overflow.
+  Rect? editingFocusBounds;
+
   // Pre-allocated paint objects for performance
   late final Paint _fillPaint;
   late final Paint _borderPaint;
@@ -134,6 +139,7 @@ class SelectionRenderer {
   late final Paint _fillHandlePaint;
   late final Paint _fillPreviewPaint;
   late final Paint _fillPreviewBorderPaint;
+  late final Paint _editingBackgroundPaint;
 
   /// Creates a selection renderer.
   SelectionRenderer({
@@ -170,6 +176,10 @@ class SelectionRenderer {
       ..strokeWidth = style.borderWidth
       ..style = PaintingStyle.stroke
       ..isAntiAlias = false;
+
+    _editingBackgroundPaint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.fill;
   }
 
   /// Paints the selection for a cell range.
@@ -231,15 +241,22 @@ class SelectionRenderer {
     double zoom,
     CellCoordinate cell,
   ) {
-    final cellBounds = layoutSolver.getCellBounds(cell);
+    // Use expanded editing bounds when available (during cell editing).
+    final bounds = editingFocusBounds ?? layoutSolver.getCellBounds(cell);
 
     // Convert to screen coordinates, snapping to half-pixel positions.
     final screenBounds = _snapRect(
-      (cellBounds.left - viewportOffset.dx) * zoom,
-      (cellBounds.top - viewportOffset.dy) * zoom,
-      (cellBounds.right - viewportOffset.dx) * zoom,
-      (cellBounds.bottom - viewportOffset.dy) * zoom,
+      (bounds.left - viewportOffset.dx) * zoom,
+      (bounds.top - viewportOffset.dy) * zoom,
+      (bounds.right - viewportOffset.dx) * zoom,
+      (bounds.bottom - viewportOffset.dy) * zoom,
     );
+
+    // When editing with expanded bounds, draw white background to cover
+    // adjacent cell content underneath the expanded editor area.
+    if (editingFocusBounds != null) {
+      canvas.drawRect(screenBounds, _editingBackgroundPaint);
+    }
 
     // Draw focus border (slightly inset to not overlap with selection border)
     final inset = style.borderWidth / 2;

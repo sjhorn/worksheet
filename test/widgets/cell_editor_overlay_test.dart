@@ -855,6 +855,82 @@ void main() {
       });
     });
 
+    group('expandedBounds', () {
+      testWidgets('widens editor ConstrainedBox when expandedBounds is set',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        // Original cell is 80px wide, expanded bounds is 200px wide
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  CellEditorOverlay(
+                    editController: editController,
+                    cellBounds: const Rect.fromLTWH(100, 50, 80, 24),
+                    expandedBounds: const Rect.fromLTWH(100, 50, 200, 24),
+                    onCommit: (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {},
+                    onCancel: () {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        // Navigate widget tree: Positioned > Transform > FocusScope > ConstrainedBox
+        final positioned = tester.widget<Positioned>(find.byType(Positioned));
+        final transform = positioned.child as Transform;
+        final focusScope = transform.child as FocusScope;
+        final constrainedBox = focusScope.child as ConstrainedBox;
+
+        // The expanded width minus padding should be used
+        // 200px / 1.0 zoom - 2 * 4.0 padding = 192.0
+        expect(constrainedBox.constraints.maxWidth, 192.0);
+      });
+
+      testWidgets('expandedBounds is ignored for wrapText cells',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        // For wrapText, width should stay at the original cell size
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  CellEditorOverlay(
+                    editController: editController,
+                    cellBounds: const Rect.fromLTWH(100, 50, 80, 24),
+                    expandedBounds: const Rect.fromLTWH(100, 50, 80, 100),
+                    onCommit: (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {},
+                    onCancel: () {},
+                    wrapText: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final positioned = tester.widget<Positioned>(find.byType(Positioned));
+        final transform = positioned.child as Transform;
+        final focusScope = transform.child as FocusScope;
+        final constrainedBox = focusScope.child as ConstrainedBox;
+
+        // Width should be original cell width minus padding, not expanded
+        // 80px / 1.0 zoom - 2 * 4.0 padding = 72.0
+        expect(constrainedBox.constraints.maxWidth, 72.0);
+      });
+    });
+
     group('cursor position based on trigger', () {
       testWidgets('typing trigger places cursor at end', (tester) async {
         editController.startEdit(

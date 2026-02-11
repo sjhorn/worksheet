@@ -90,6 +90,14 @@ class CellEditorOverlay extends StatefulWidget {
   /// single-line and Enter commits.
   final bool wrapText;
 
+  /// Expanded bounds in screen coordinates (zoomed), used when text
+  /// overflows the original cell and the editor expands into adjacent
+  /// columns (non-wrap) or rows (wrap).
+  ///
+  /// When non-null, the editor's text area width is computed from these
+  /// bounds instead of [cellBounds].
+  final Rect? expandedBounds;
+
   /// Focus node to restore when editing completes. If null, attempts to
   /// find the parent focus node automatically.
   final FocusNode? restoreFocusTo;
@@ -116,6 +124,7 @@ class CellEditorOverlay extends StatefulWidget {
     this.richText,
     this.verticalAlignment = CellVerticalAlignment.middle,
     this.wrapText = false,
+    this.expandedBounds,
     this.restoreFocusTo,
   });
 
@@ -525,7 +534,18 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     }
 
     // Text area width = cell width - 2 * cellPadding, matching tile painter.
-    final textAreaWidth = effectiveWidth - 2 * widget.cellPadding;
+    // When expandedBounds is present (non-wrap overflow), use the expanded
+    // width so the editor text area fills the wider area.
+    final double textAreaWidth;
+    if (widget.expandedBounds != null && !widget.wrapText) {
+      final expandedUnzoomedWidth = widget.expandedBounds!.width / zoom;
+      final expandedEffective = expandedUnzoomedWidth < CellEditorOverlay.minWidth
+          ? CellEditorOverlay.minWidth
+          : expandedUnzoomedWidth;
+      textAreaWidth = expandedEffective - 2 * widget.cellPadding;
+    } else {
+      textAreaWidth = effectiveWidth - 2 * widget.cellPadding;
+    }
 
     return Positioned(
       left: widget.cellBounds.left + leftPad * zoom,

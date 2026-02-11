@@ -416,6 +416,62 @@ void main() {
       });
     });
 
+    group('editingRange', () {
+      test('suppresses text for single editing cell', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('Editing'));
+        data.setCell(CellCoordinate(0, 1), CellValue.text('Visible'));
+
+        painter.editingRange = CellRange(0, 0, 0, 0);
+
+        // Should render without errors — the editing cell text is skipped
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 5, 2),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+
+      test('suppresses text for all cells in expanded range', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('Editing'));
+        data.setCell(CellCoordinate(0, 1), CellValue.text('Covered'));
+        data.setCell(CellCoordinate(0, 2), CellValue.text('Also Covered'));
+        data.setCell(CellCoordinate(0, 3), CellValue.text('Visible'));
+
+        // Expanded editing range covers columns 0-2
+        painter.editingRange = CellRange(0, 0, 0, 2);
+
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 512, 256),
+          cellRange: CellRange(0, 0, 5, 5),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+
+      test('null editingRange renders all cells normally', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('Normal'));
+
+        painter.editingRange = null;
+
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 5, 2),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+    });
+
     group('edge cases', () {
       test('handles empty cell range', () {
         final picture = painter.renderTile(
