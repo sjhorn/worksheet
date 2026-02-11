@@ -177,6 +177,10 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
     _focusNode = FocusNode(onKeyEvent: _handleKeyEvent);
 
+    // Register rich text extractor so external commit paths (click-away)
+    // can retrieve rich text spans from the active editing controller.
+    widget.editController.richTextExtractor = _extractRichText;
+
     // Listen for changes from edit controller
     widget.editController.addListener(_onEditControllerChanged);
 
@@ -203,6 +207,7 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
 
   @override
   void dispose() {
+    widget.editController.richTextExtractor = null;
     widget.editController.removeListener(_onEditControllerChanged);
     _focusNode.removeListener(_onFocusChanged);
     _textController.removeListener(_onSelectionGuard);

@@ -1380,7 +1380,17 @@ class _WorksheetState extends State<Worksheet>
                                     return; // tap inside editing area — hand off to TextField
                                   }
                                 }
-                                ec.commitEdit(onCommit: _onInternalCommit);
+                                final richText = ec.richTextExtractor?.call();
+                                ec.commitEdit(
+                                  onCommit: (cell, value, {CellFormat? detectedFormat}) {
+                                    _onInternalCommit(
+                                      cell,
+                                      value,
+                                      detectedFormat: detectedFormat,
+                                      richText: richText,
+                                    );
+                                  },
+                                );
                               }
 
                               _gestureHandler.onTapDown(

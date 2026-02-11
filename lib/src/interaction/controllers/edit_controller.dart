@@ -1,5 +1,5 @@
 import 'package:any_date/any_date.dart';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../core/models/cell_coordinate.dart';
 import '../../core/models/cell_format.dart';
@@ -72,6 +72,11 @@ class EditController extends ChangeNotifier {
 
   /// Locale for date format detection. Set by [Worksheet] when provided.
   FormatLocale locale = FormatLocale.enUs;
+
+  /// Callback registered by the overlay to extract rich text spans from the
+  /// active editing controller. Used by external commit paths (e.g. click-away)
+  /// that don't go through the overlay's own `_commit()` method.
+  List<TextSpan>? Function()? richTextExtractor;
 
   EditState _state = EditState.idle;
   CellCoordinate? _editingCell;
