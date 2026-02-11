@@ -811,6 +811,43 @@ void main() {
       });
     });
 
+    group('text selection', () {
+      testWidgets('EditableText has selectionColor and rendererIgnoresPointer',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Select me'),
+        );
+
+        await tester.pumpWidget(buildTestWidget(controller: editController));
+
+        final editableText =
+            tester.widget<EditableText>(find.byType(EditableText));
+        expect(editableText.rendererIgnoresPointer, isTrue);
+        expect(editableText.selectionColor, isNotNull);
+        expect(editableText.selectionColor!.a, closeTo(0.3, 0.01));
+      });
+
+      testWidgets('gesture detector wraps EditableText for drag-to-select',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello World'),
+        );
+
+        await tester.pumpWidget(buildTestWidget(controller: editController));
+
+        // The TextSelectionGestureDetector should be an ancestor of EditableText
+        expect(
+          find.ancestor(
+            of: find.byType(EditableText),
+            matching: find.byType(TextSelectionGestureDetector),
+          ),
+          findsOneWidget,
+        );
+      });
+    });
+
     group('rich text type-to-edit', () {
       testWidgets('type-to-edit on rich text cell shows typed character, not old value',
           (tester) async {

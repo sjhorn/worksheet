@@ -141,6 +141,7 @@ class CellEditorOverlay extends StatefulWidget {
 class _CellEditorOverlayState extends State<CellEditorOverlay> {
   late RichTextEditingController _textController;
   late FocusNode _focusNode;
+  final GlobalKey<EditableTextState> _editableKey = GlobalKey();
 
   /// When true, a controller listener guards against select-all that the
   /// platform may apply on focus gain, reversing it to cursor-at-end.
@@ -577,21 +578,43 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
               minWidth: textAreaWidth,
               maxWidth: textAreaWidth,
             ),
-            child: EditableText(
-              controller: _textController,
-              focusNode: _focusNode,
-              autofocus: true,
-              style: textStyle,
-              maxLines: widget.wrapText ? null : 1,
-              textAlign: widget.textAlign,
-              cursorHeight: cursorHeight,
-              cursorColor: widget.textColor,
-              backgroundCursorColor: const Color(0xFF808080),
-              onChanged: _onTextChanged,
+            child: TextSelectionGestureDetectorBuilder(
+              delegate: _EditorSelectionDelegate(_editableKey),
+            ).buildGestureDetector(
+              behavior: HitTestBehavior.translucent,
+              child: EditableText(
+                key: _editableKey,
+                controller: _textController,
+                focusNode: _focusNode,
+                autofocus: true,
+                style: textStyle,
+                maxLines: widget.wrapText ? null : 1,
+                textAlign: widget.textAlign,
+                cursorHeight: cursorHeight,
+                cursorColor: widget.textColor,
+                backgroundCursorColor: const Color(0xFF808080),
+                onChanged: _onTextChanged,
+                rendererIgnoresPointer: true,
+                selectionColor: widget.textColor.withValues(alpha: 0.3),
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
+
+class _EditorSelectionDelegate
+    extends TextSelectionGestureDetectorBuilderDelegate {
+  @override
+  final GlobalKey<EditableTextState> editableTextKey;
+
+  _EditorSelectionDelegate(this.editableTextKey);
+
+  @override
+  bool get forcePressEnabled => true;
+
+  @override
+  bool get selectionEnabled => true;
 }
