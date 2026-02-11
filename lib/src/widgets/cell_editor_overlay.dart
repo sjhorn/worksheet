@@ -102,6 +102,11 @@ class CellEditorOverlay extends StatefulWidget {
   /// find the parent focus node automatically.
   final FocusNode? restoreFocusTo;
 
+  /// Width of the content area in screen coordinates (viewport width minus
+  /// row header). When non-null and the cell is non-wrap, the editor width
+  /// is clamped so it doesn't extend past the viewport right edge.
+  final double? contentAreaWidth;
+
   /// Minimum width for the editor.
   static const double minWidth = 60.0;
 
@@ -126,6 +131,7 @@ class CellEditorOverlay extends StatefulWidget {
     this.wrapText = false,
     this.expandedBounds,
     this.restoreFocusTo,
+    this.contentAreaWidth,
   });
 
   @override
@@ -536,7 +542,7 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     // Text area width = cell width - 2 * cellPadding, matching tile painter.
     // When expandedBounds is present (non-wrap overflow), use the expanded
     // width so the editor text area fills the wider area.
-    final double textAreaWidth;
+    double textAreaWidth;
     if (widget.expandedBounds != null && !widget.wrapText) {
       final expandedUnzoomedWidth = widget.expandedBounds!.width / zoom;
       final expandedEffective = expandedUnzoomedWidth < CellEditorOverlay.minWidth
@@ -545,6 +551,18 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       textAreaWidth = expandedEffective - 2 * widget.cellPadding;
     } else {
       textAreaWidth = effectiveWidth - 2 * widget.cellPadding;
+    }
+
+    // Cap non-wrap editor width at viewport right edge.
+    if (!widget.wrapText && widget.contentAreaWidth != null) {
+      final editorLeft = widget.cellBounds.left + leftPad * zoom;
+      final maxRenderedWidth = widget.contentAreaWidth! - editorLeft;
+      if (maxRenderedWidth > 0) {
+        final maxTextAreaWidth = maxRenderedWidth / zoom;
+        if (textAreaWidth > maxTextAreaWidth) {
+          textAreaWidth = maxTextAreaWidth;
+        }
+      }
     }
 
     return Positioned(

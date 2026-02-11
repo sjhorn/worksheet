@@ -242,6 +242,7 @@ class _WorksheetState extends State<Worksheet>
   Rect? _editingExpandedBounds; // worksheet coords
   Rect? _editingExpandedScreenBounds; // screen coords, header-adjusted
   double? _editingVerticalOffset; // fixed vertical offset for wrap-text cells
+  double? _editingContentAreaWidth; // viewport width minus row header
 
   // Data change subscription for external mutations
   StreamSubscription<DataChangeEvent>? _dataSubscription;
@@ -675,6 +676,7 @@ class _WorksheetState extends State<Worksheet>
     _editingExpandedBounds = null;
     _editingExpandedScreenBounds = null;
     _editingVerticalOffset = null;
+    _editingContentAreaWidth = null;
   }
 
   /// Recomputes expanded editing bounds when the edit text changes.
@@ -690,6 +692,7 @@ class _WorksheetState extends State<Worksheet>
         _editingExpandedScreenBounds = null;
       }
       _editingVerticalOffset = null;
+      _editingContentAreaWidth = null;
       return;
     }
 
@@ -816,8 +819,33 @@ class _WorksheetState extends State<Worksheet>
       Offset(-headerLeft, -headerTop),
     );
 
+    // Auto-scroll when wrap-text editor bottom extends below the viewport.
+    if (isWrap && boundsChanged) {
+      final size = context.size;
+      if (size != null) {
+        final keyboardHeight = MediaQuery.of(context).viewInsets.bottom;
+        final viewportBottom = size.height - keyboardHeight;
+        final overflow = expandedScreenBounds.bottom - viewportBottom;
+        if (overflow > 0) {
+          final vController = _controller.verticalScrollController;
+          if (vController.hasClients) {
+            final newOffset = (vController.offset + overflow)
+                .clamp(0.0, vController.position.maxScrollExtent);
+            vController.jumpTo(newOffset);
+          }
+        }
+      }
+    }
+
     _editingExpandedBounds = expanded.bounds;
     _editingExpandedScreenBounds = adjustedExpandedBounds;
+
+    // Cache content area width for the overlay's right-edge clamping.
+    final size = context.size;
+    if (size != null) {
+      _editingContentAreaWidth = size.width -
+          (theme.showHeaders ? theme.rowHeaderWidth * zoom : 0.0);
+    }
 
     if (boundsChanged) {
       setState(() {});
@@ -1613,6 +1641,7 @@ class _WorksheetState extends State<Worksheet>
                                 CellVerticalAlignment.middle,
                             wrapText: isWrap,
                             restoreFocusTo: _keyboardFocusNode,
+                            contentAreaWidth: _editingContentAreaWidth,
                           );
                         },
                       ),

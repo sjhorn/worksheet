@@ -690,6 +690,42 @@ void main() {
     });
 
     testWidgets(
+        'wrap-text cell near viewport bottom auto-scrolls on expansion',
+        (tester) async {
+      // Place a wrap-text cell near the viewport bottom.
+      // Widget height = 600, header = 24, default row = 24.
+      // Row 23 top = 24 + 23*24 = 576, bottom = 600 — last visible row.
+      const cell = CellCoordinate(23, 0);
+      data.setCell(cell, CellValue.text('Hi'));
+      data.setStyle(cell, const CellStyle(wrapText: true));
+
+      await tester.pumpWidget(buildWorksheet(ec: editController));
+      selectCell(23, 0);
+      await tester.pump();
+
+      // Record scroll offset before editing
+      final vController = controller.verticalScrollController;
+      final offsetBefore = vController.offset;
+
+      // Start editing via F2
+      await tester.sendKeyEvent(LogicalKeyboardKey.f2);
+      await tester.pump();
+      await tester.pump();
+      expect(editController.isEditing, isTrue);
+
+      // Simulate adding multiple lines that overflow the viewport bottom.
+      // Three lines at ~16.8px each ≈ 50px, exceeding the 24px cell.
+      // Expanded bottom ≈ 576 + 50 = 626, which exceeds viewport (600).
+      editController.updateText('Line1\nLine2\nLine3');
+      await tester.pump();
+
+      // The viewport should have scrolled down to keep the editor visible.
+      expect(vController.offset, greaterThan(offsetBefore),
+          reason: 'Viewport should auto-scroll when wrap-text editor '
+              'overflows below the viewport bottom');
+    });
+
+    testWidgets(
         'tap outside expanded wrap-text area commits edit',
         (tester) async {
       const cell = CellCoordinate(5, 1);

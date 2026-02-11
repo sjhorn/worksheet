@@ -968,5 +968,123 @@ void main() {
         expect(tc.selection.end, 'Hello'.length);
       });
     });
+
+    group('contentAreaWidth', () {
+      testWidgets('clamps non-wrap editor width at viewport right edge',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        // Cell at x=100, 80px wide. Expanded bounds 400px wide.
+        // contentAreaWidth = 300 (simulating viewport right edge).
+        // Editor left = cellBounds.left + cellPadding*zoom = 100 + 4*1 = 104.
+        // maxRenderedWidth = 300 - 104 = 196.
+        // maxTextAreaWidth = 196 / 1.0 = 196.
+        // Unclamped textAreaWidth = 400 - 2*4 = 392 (from expandedBounds).
+        // Clamped to 196.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  CellEditorOverlay(
+                    editController: editController,
+                    cellBounds: const Rect.fromLTWH(100, 50, 80, 24),
+                    expandedBounds: const Rect.fromLTWH(100, 50, 400, 24),
+                    onCommit: (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {},
+                    onCancel: () {},
+                    contentAreaWidth: 300,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final positioned = tester.widget<Positioned>(find.byType(Positioned));
+        final transform = positioned.child as Transform;
+        final focusScope = transform.child as FocusScope;
+        final constrainedBox = focusScope.child as ConstrainedBox;
+
+        // Clamped to 196.0
+        expect(constrainedBox.constraints.maxWidth, 196.0);
+      });
+
+      testWidgets('does not clamp wrap-text editor width',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        // For wrapText cells, contentAreaWidth should be ignored.
+        // Cell is 80px, effectiveWidth = 80, textAreaWidth = 80 - 8 = 72.
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  CellEditorOverlay(
+                    editController: editController,
+                    cellBounds: const Rect.fromLTWH(100, 50, 80, 24),
+                    onCommit: (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {},
+                    onCancel: () {},
+                    wrapText: true,
+                    contentAreaWidth: 120,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final positioned = tester.widget<Positioned>(find.byType(Positioned));
+        final transform = positioned.child as Transform;
+        final focusScope = transform.child as FocusScope;
+        final constrainedBox = focusScope.child as ConstrainedBox;
+
+        // Wrap-text: width should be original cell width minus padding = 72.0
+        expect(constrainedBox.constraints.maxWidth, 72.0);
+      });
+
+      testWidgets('does not clamp when editor fits within viewport',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        // Expanded to 200px, contentAreaWidth = 500 — plenty of room.
+        // textAreaWidth = 200 - 8 = 192 (no clamping needed).
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  CellEditorOverlay(
+                    editController: editController,
+                    cellBounds: const Rect.fromLTWH(100, 50, 80, 24),
+                    expandedBounds: const Rect.fromLTWH(100, 50, 200, 24),
+                    onCommit: (_, _, {CellFormat? detectedFormat, List<TextSpan>? richText}) {},
+                    onCancel: () {},
+                    contentAreaWidth: 500,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        final positioned = tester.widget<Positioned>(find.byType(Positioned));
+        final transform = positioned.child as Transform;
+        final focusScope = transform.child as FocusScope;
+        final constrainedBox = focusScope.child as ConstrainedBox;
+
+        // Not clamped — original expanded width used: 200 - 8 = 192
+        expect(constrainedBox.constraints.maxWidth, 192.0);
+      });
+    });
   });
 }
