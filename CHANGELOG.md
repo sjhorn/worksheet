@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-02-11
+
+### Fixed
+- Rich text type-to-edit clearing, pending format state, and cell editor alignment
+- Wrap-text cell editor expansion lag for right/bottom-aligned cells
+- Cell editor edge conditions for bottom overflow and right clipping
+- Text selection in cell editor overlay (click-drag, double-click word select)
+- Rich text formatting (bold, italic, etc.) lost when committing edit by clicking away from cell
+
 ## [2.2.0] - 2026-02-10
 
 ### Added
