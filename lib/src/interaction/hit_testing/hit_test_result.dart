@@ -22,6 +22,9 @@ enum HitTestType {
 
   /// The fill handle (bottom-right corner of selection) was hit.
   fillHandle,
+
+  /// The border of the current selection was hit.
+  selectionBorder,
 }
 
 /// Result of a hit test on the worksheet.
@@ -79,6 +82,12 @@ class WorksheetHitTestResult {
         cell = coordinate,
         headerIndex = null;
 
+  /// Creates a result indicating the selection border was hit.
+  WorksheetHitTestResult.selectionBorder(CellCoordinate coordinate)
+      : type = HitTestType.selectionBorder,
+        cell = coordinate,
+        headerIndex = null;
+
   /// Whether nothing was hit.
   bool get isNone => type == HitTestType.none;
 
@@ -101,6 +110,9 @@ class WorksheetHitTestResult {
 
   /// Whether the fill handle was hit.
   bool get isFillHandle => type == HitTestType.fillHandle;
+
+  /// Whether the selection border was hit.
+  bool get isSelectionBorder => type == HitTestType.selectionBorder;
 
   @override
   bool operator ==(Object other) {
@@ -131,6 +143,8 @@ class WorksheetHitTestResult {
         return 'WorksheetHitTestResult.columnResizeHandle($headerIndex)';
       case HitTestType.fillHandle:
         return 'WorksheetHitTestResult.fillHandle($cell)';
+      case HitTestType.selectionBorder:
+        return 'WorksheetHitTestResult.selectionBorder($cell)';
     }
   }
 }

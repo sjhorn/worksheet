@@ -1315,6 +1315,13 @@ class _WorksheetState extends State<Worksheet>
                               SystemMouseCursors.resizeColumn,
                             HitTestType.fillHandle =>
                               SystemMouseCursors.precise,
+                            HitTestType.selectionBorder =>
+                              SystemMouseCursors.move,
+                            HitTestType.cell => SystemMouseCursors.cell,
+                            HitTestType.rowHeader =>
+                              SystemMouseCursors.click,
+                            HitTestType.columnHeader =>
+                              SystemMouseCursors.click,
                             _ => SystemMouseCursors.basic,
                           };
                           if (_currentCursor != newCursor) {

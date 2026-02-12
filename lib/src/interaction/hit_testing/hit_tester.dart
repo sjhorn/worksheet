@@ -39,6 +39,7 @@ class WorksheetHitTester {
     double resizeHandleTolerance = 4.0,
     CellRange? selectionRange,
     double fillHandleSize = 6.0,
+    double selectionBorderTolerance = 4.0,
   }) {
     // Check for negative positions (outside viewport)
     if (position.dx < 0 || position.dy < 0) {
@@ -118,6 +119,39 @@ class WorksheetHitTester {
       if ((position.dx - screenCorner.dx).abs() <= tolerance &&
           (position.dy - screenCorner.dy).abs() <= tolerance) {
         return WorksheetHitTestResult.fillHandle(CellCoordinate(row, col));
+      }
+
+      // Selection border detection: check if pointer is on the border ring
+      final selTop = layoutSolver.getRowTop(selectionRange.startRow);
+      final selLeft = layoutSolver.getColumnLeft(selectionRange.startColumn);
+
+      final screenTopLeft = worksheetToScreen(
+        worksheetPosition: Offset(selLeft, selTop),
+        scrollOffset: scrollOffset,
+        zoom: zoom,
+      );
+      final screenBottomRight = worksheetToScreen(
+        worksheetPosition: Offset(selRight, selBottom),
+        scrollOffset: scrollOffset,
+        zoom: zoom,
+      );
+
+      final outerRect = Rect.fromLTRB(
+        screenTopLeft.dx - selectionBorderTolerance,
+        screenTopLeft.dy - selectionBorderTolerance,
+        screenBottomRight.dx + selectionBorderTolerance,
+        screenBottomRight.dy + selectionBorderTolerance,
+      );
+      final innerRect = Rect.fromLTRB(
+        screenTopLeft.dx + selectionBorderTolerance,
+        screenTopLeft.dy + selectionBorderTolerance,
+        screenBottomRight.dx - selectionBorderTolerance,
+        screenBottomRight.dy - selectionBorderTolerance,
+      );
+
+      if (outerRect.contains(position) && !innerRect.contains(position)) {
+        return WorksheetHitTestResult.selectionBorder(
+            CellCoordinate(row, col));
       }
     }
 

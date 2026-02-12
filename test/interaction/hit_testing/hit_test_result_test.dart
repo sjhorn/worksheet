@@ -13,6 +13,7 @@ void main() {
         HitTestType.rowResizeHandle,
         HitTestType.columnResizeHandle,
         HitTestType.fillHandle,
+        HitTestType.selectionBorder,
       ]));
     });
   });
@@ -107,6 +108,39 @@ void main() {
         final a = WorksheetHitTestResult.fillHandle(CellCoordinate(1, 2));
         final b = WorksheetHitTestResult.fillHandle(CellCoordinate(1, 2));
         final c = WorksheetHitTestResult.fillHandle(CellCoordinate(1, 3));
+
+        expect(a, b);
+        expect(a.hashCode, b.hashCode);
+        expect(a, isNot(c));
+      });
+    });
+
+    group('selectionBorder', () {
+      test('creates selection border result', () {
+        final coord = CellCoordinate(2, 4);
+        final result = WorksheetHitTestResult.selectionBorder(coord);
+
+        expect(result.type, HitTestType.selectionBorder);
+        expect(result.cell, coord);
+        expect(result.headerIndex, isNull);
+        expect(result.isSelectionBorder, isTrue);
+        expect(result.isCell, isFalse);
+        expect(result.isNone, isFalse);
+      });
+
+      test('toString contains selectionBorder', () {
+        final result =
+            WorksheetHitTestResult.selectionBorder(CellCoordinate(2, 3));
+        expect(result.toString(), contains('selectionBorder'));
+      });
+
+      test('equality works for selection border', () {
+        final a =
+            WorksheetHitTestResult.selectionBorder(CellCoordinate(1, 2));
+        final b =
+            WorksheetHitTestResult.selectionBorder(CellCoordinate(1, 2));
+        final c =
+            WorksheetHitTestResult.selectionBorder(CellCoordinate(1, 3));
 
         expect(a, b);
         expect(a.hashCode, b.hashCode);

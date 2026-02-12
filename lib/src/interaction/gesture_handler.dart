@@ -123,7 +123,7 @@ class WorksheetGestureHandler {
 
     // Don't change selection when tapping fill or resize handles —
     // those are handled by onDragStart.
-    if (hit.isFillHandle || hit.isResizeHandle) return;
+    if (hit.isFillHandle || hit.isResizeHandle || hit.isSelectionBorder) return;
 
     if (hit.isCell) {
       if (isShiftPressed && selectionController.hasSelection) {

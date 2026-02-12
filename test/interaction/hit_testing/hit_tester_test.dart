@@ -345,6 +345,144 @@ void main() {
       });
     });
 
+    group('selection border hit testing', () {
+      test('detects border on top edge', () {
+        // Selection: rows 2-4, columns 1-3
+        // Row 2 starts at 2*25=50, column 1 starts at 1*100=100
+        // Screen top edge: y = 30 + 50 = 80
+        // Pointer on top edge (inside tolerance band)
+        final result = hitTester.hitTest(
+          position: const Offset(200, 80),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(2, 1, 4, 3),
+        );
+
+        expect(result.type, HitTestType.selectionBorder);
+      });
+
+      test('detects border on bottom edge', () {
+        // Row 4 ends at 5*25=125, screen bottom: y = 30 + 125 = 155
+        final result = hitTester.hitTest(
+          position: const Offset(200, 155),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(2, 1, 4, 3),
+        );
+
+        expect(result.type, HitTestType.selectionBorder);
+      });
+
+      test('detects border on left edge', () {
+        // Column 1 starts at 1*100=100, screen left: x = 50 + 100 = 150
+        final result = hitTester.hitTest(
+          position: const Offset(150, 120),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(2, 1, 4, 3),
+        );
+
+        expect(result.type, HitTestType.selectionBorder);
+      });
+
+      test('detects border on right edge', () {
+        // Column 3 ends at 4*100=400, screen right: x = 50 + 400 = 450
+        final result = hitTester.hitTest(
+          position: const Offset(450, 120),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(2, 1, 4, 3),
+        );
+
+        expect(result.type, HitTestType.selectionBorder);
+      });
+
+      test('returns cell when well inside selection', () {
+        // Center of selection: far from any border
+        final result = hitTester.hitTest(
+          position: const Offset(300, 120),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(2, 1, 4, 3),
+        );
+
+        expect(result.type, HitTestType.cell);
+      });
+
+      test('returns cell when far outside selection', () {
+        // Well outside the selection bounds
+        final result = hitTester.hitTest(
+          position: const Offset(60, 40),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(2, 1, 4, 3),
+        );
+
+        expect(result.type, HitTestType.cell);
+      });
+
+      test('fill handle takes priority over selection border at corner', () {
+        // Bottom-right corner of selection: where fill handle and border overlap
+        // Row 4 ends at 125, col 3 ends at 400
+        // Screen corner: (50+400, 30+125) = (450, 155)
+        final result = hitTester.hitTest(
+          position: const Offset(449, 154),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(2, 1, 4, 3),
+        );
+
+        expect(result.type, HitTestType.fillHandle);
+      });
+
+      test('works with zoom > 1.0', () {
+        // At zoom 2.0, headers scaled to (100, 60)
+        // Selection (0,0)-(0,0): row 0 starts at 0, ends at 25; col 0 starts at 0, ends at 100
+        // Screen top-left: (100 + 0*2, 60 + 0*2) = (100, 60)
+        // Screen bottom-right: (100 + 100*2, 60 + 25*2) = (300, 110)
+        // Top edge at y=60
+        final result = hitTester.hitTest(
+          position: const Offset(200, 60),
+          scrollOffset: Offset.zero,
+          zoom: 2.0,
+          selectionRange: const CellRange(0, 0, 0, 0),
+        );
+
+        expect(result.type, HitTestType.selectionBorder);
+      });
+
+      test('works with scroll offset', () {
+        // Selection: rows 2-4, columns 1-3
+        // Row 2 starts at 50, col 1 starts at 100
+        // With scroll (100, 50):
+        // Screen top-left: (50 + (100-100), 30 + (50-50)) = (50, 30)
+        // Top edge at y=30, which is in the column header area, so try left edge
+        // Screen left: x = 50 + (100 - 100) = 50, which is in row header area
+        // Let's use a different scroll that keeps selection visible
+        // With scroll (50, 25):
+        // Screen top-left: (50 + (100-50), 30 + (50-25)) = (100, 55)
+        final result = hitTester.hitTest(
+          position: const Offset(100, 55),
+          scrollOffset: const Offset(50, 25),
+          zoom: 1.0,
+          selectionRange: const CellRange(2, 1, 4, 3),
+        );
+
+        expect(result.type, HitTestType.selectionBorder);
+      });
+
+      test('no selection border when selectionRange is null', () {
+        // Position that would be on a border if selection existed
+        final result = hitTester.hitTest(
+          position: const Offset(200, 80),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(result.type, HitTestType.cell);
+      });
+    });
+
     group('worksheetToScreen', () {
       test('converts worksheet position to screen coordinates', () {
         final screen = hitTester.worksheetToScreen(
