@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.0] - 2026-02-12
+
+### Added
+- Excel-like mouse cursors — crosshair for cells, pointer for headers, resize arrows for column/row borders, move arrow for selection border, crosshair for fill handle
+- Auto-fit column/row on double-click resize handle — measures cell content to set optimal width/height; respects `wrapText` style for row height calculation
+- Drag-to-move selection — drag the selection border to relocate cells with a dashed preview border; source cells are cleared after move
+- Border double-click jump navigation — double-clicking a selection border edge jumps to the data edge in that direction (Ctrl+Arrow behavior)
+
+### Fixed
+- Cell editor stuck at first character on double-click entry
+- Double-click auto-fit no longer fires spurious resize-end or selects adjacent column after layout change
+
 ## [2.2.1] - 2026-02-11
 
 ### Fixed
