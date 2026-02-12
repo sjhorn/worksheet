@@ -35,6 +35,30 @@ typedef OnFillComplete = void Function(
 /// Callback for when a fill drag is cancelled.
 typedef OnFillCancel = void Function();
 
+/// Callback for when a move drag completes.
+typedef OnMoveComplete = void Function(
+    CellRange source, CellCoordinate destination);
+
+/// Callback for when the move preview range changes during drag.
+typedef OnMovePreviewUpdate = void Function(CellRange previewRange);
+
+/// Callback for when a move drag is cancelled.
+typedef OnMoveCancel = void Function();
+
+/// Callback for auto-fitting a column to its content width.
+typedef OnAutoFitColumn = void Function(int column);
+
+/// Callback for auto-fitting a row to its content height.
+typedef OnAutoFitRow = void Function(int row);
+
+/// Callback for jumping to a data edge (Ctrl+Arrow behavior).
+///
+/// [from] is the starting cell (focus cell), [rowDelta] and [colDelta]
+/// indicate the direction (-1/0/+1). The widget is responsible for
+/// performing the actual data-edge scan since it has access to the data.
+typedef OnJumpToEdge = void Function(
+    CellCoordinate from, int rowDelta, int colDelta);
+
 /// Handles gesture events for worksheet interaction.
 ///
 /// Coordinates between hit testing and selection/resize operations.
@@ -73,6 +97,24 @@ class WorksheetGestureHandler {
   /// Callback when a fill drag is cancelled.
   final OnFillCancel? onFillCancel;
 
+  /// Callback when a move drag completes.
+  final OnMoveComplete? onMoveComplete;
+
+  /// Callback when the move preview range changes during drag.
+  final OnMovePreviewUpdate? onMovePreviewUpdate;
+
+  /// Callback when a move drag is cancelled.
+  final OnMoveCancel? onMoveCancel;
+
+  /// Callback for auto-fitting a column to its content width.
+  final OnAutoFitColumn? onAutoFitColumn;
+
+  /// Callback for auto-fitting a row to its content height.
+  final OnAutoFitRow? onAutoFitRow;
+
+  /// Callback for jumping to a data edge (Ctrl+Arrow behavior).
+  final OnJumpToEdge? onJumpToEdge;
+
   // Internal state
   WorksheetHitTestResult? _dragStartHit;
   Offset? _dragStartPosition;
@@ -80,9 +122,12 @@ class WorksheetGestureHandler {
   bool _isResizing = false;
   bool _isSelectingRange = false;
   bool _isFilling = false;
+  bool _isMoving = false;
   CellRange? _fillSourceRange;
   CellCoordinate? _lastFillDestination;
   FillAxis? _fillAxis;
+  CellRange? _moveSourceRange;
+  CellCoordinate? _lastMoveDestination;
 
   /// Creates a gesture handler.
   WorksheetGestureHandler({
@@ -96,6 +141,12 @@ class WorksheetGestureHandler {
     this.onFillPreviewUpdate,
     this.onFillComplete,
     this.onFillCancel,
+    this.onMoveComplete,
+    this.onMovePreviewUpdate,
+    this.onMoveCancel,
+    this.onAutoFitColumn,
+    this.onAutoFitRow,
+    this.onJumpToEdge,
   });
 
   /// Whether a resize operation is in progress.
@@ -106,6 +157,9 @@ class WorksheetGestureHandler {
 
   /// Whether a fill handle drag is in progress.
   bool get isFilling => _isFilling;
+
+  /// Whether a move drag is in progress.
+  bool get isMoving => _isMoving;
 
   /// Handles tap down event.
   void onTapDown({
@@ -155,16 +209,53 @@ class WorksheetGestureHandler {
   }
 
   /// Handles double tap event.
+  ///
+  /// Routes to different behaviors based on hit zone:
+  /// - Resize handle: auto-fit column/row
+  /// - Selection border: jump to data edge
+  /// - Cell: enter edit mode
   void onDoubleTap({
     required Offset position,
     required Offset scrollOffset,
     required double zoom,
   }) {
+    // Hit test with selectionRange to detect resize handles and selection border
     final hit = hitTester.hitTest(
       position: position,
       scrollOffset: scrollOffset,
       zoom: zoom,
+      selectionRange: selectionController.selectedRange,
     );
+
+    // Auto-fit on double-click resize handle
+    if (hit.type == HitTestType.columnResizeHandle && onAutoFitColumn != null) {
+      onAutoFitColumn!(hit.headerIndex!);
+      // Reset drag state so the subsequent onDragEnd (from the second
+      // pointer-up of the double-click) doesn't fire a spurious
+      // onResizeColumnEnd that would apply the auto-fitted width to all
+      // selected columns.
+      _resetDragState();
+      return;
+    }
+    if (hit.type == HitTestType.rowResizeHandle && onAutoFitRow != null) {
+      onAutoFitRow!(hit.headerIndex!);
+      _resetDragState();
+      return;
+    }
+
+    // Jump to data edge on double-click selection border
+    if (hit.isSelectionBorder && onJumpToEdge != null) {
+      final direction = _computeJumpDirection(position, scrollOffset, zoom);
+      if (direction != null) {
+        final focus = selectionController.focus ??
+            selectionController.selectedRange?.topLeft;
+        if (focus != null) {
+          onJumpToEdge!(focus, direction.$1, direction.$2);
+        }
+      }
+      _resetDragState();
+      return;
+    }
 
     if (hit.isCell && onEditCell != null) {
       onEditCell!(hit.cell!);
@@ -194,6 +285,9 @@ class WorksheetGestureHandler {
       _fillSourceRange = selectionController.selectedRange;
       _lastFillDestination = null;
       _fillAxis = null;
+    } else if (hit.isSelectionBorder) {
+      _isMoving = true;
+      _moveSourceRange = selectionController.selectedRange;
     } else if (hit.isResizeHandle) {
       _isResizing = true;
     } else if (hit.isCell) {
@@ -228,6 +322,8 @@ class WorksheetGestureHandler {
 
     if (_isFilling) {
       _handleFillUpdate(position, scrollOffset, zoom);
+    } else if (_isMoving) {
+      _handleMoveUpdate(position, scrollOffset, zoom);
     } else if (_isResizing) {
       _handleResizeUpdate(position, zoom);
     } else if (_isSelectingRange) {
@@ -244,13 +340,18 @@ class WorksheetGestureHandler {
       } else {
         onFillCancel?.call();
       }
-      _isFilling = false;
-      _fillSourceRange = null;
-      _lastFillDestination = null;
-      _fillAxis = null;
-      _dragStartHit = null;
-      _dragStartPosition = null;
-      _lastDragPosition = null;
+      _resetDragState();
+      return;
+    }
+
+    // Handle move drag completion
+    if (_isMoving) {
+      if (_moveSourceRange != null && _lastMoveDestination != null) {
+        onMoveComplete?.call(_moveSourceRange!, _lastMoveDestination!);
+      } else {
+        onMoveCancel?.call();
+      }
+      _resetDragState();
       return;
     }
 
@@ -263,11 +364,23 @@ class WorksheetGestureHandler {
       }
     }
 
+    _resetDragState();
+  }
+
+  /// Resets all drag-related state flags and positions.
+  void _resetDragState() {
     _dragStartHit = null;
     _dragStartPosition = null;
     _lastDragPosition = null;
     _isResizing = false;
     _isSelectingRange = false;
+    _isMoving = false;
+    _moveSourceRange = null;
+    _lastMoveDestination = null;
+    _isFilling = false;
+    _fillSourceRange = null;
+    _lastFillDestination = null;
+    _fillAxis = null;
   }
 
   void _handleResizeUpdate(Offset position, double zoom) {
@@ -420,6 +533,86 @@ class WorksheetGestureHandler {
     );
     if (hit.isCell) {
       selectionController.extendSelection(hit.cell!);
+    }
+  }
+
+  void _handleMoveUpdate(
+    Offset position,
+    Offset scrollOffset,
+    double zoom,
+  ) {
+    if (_moveSourceRange == null) return;
+
+    // Hit test without selectionRange to get the cell under the cursor
+    final hit = hitTester.hitTest(
+      position: position,
+      scrollOffset: scrollOffset,
+      zoom: zoom,
+    );
+
+    if (!hit.isCell || hit.cell == null) return;
+    final cell = hit.cell!;
+    final source = _moveSourceRange!;
+
+    _lastMoveDestination = cell;
+
+    // Compute preview range: source dimensions translated to drop position
+    final previewRange = CellRange(
+      cell.row,
+      cell.column,
+      cell.row + source.endRow - source.startRow,
+      cell.column + source.endColumn - source.startColumn,
+    );
+
+    onMovePreviewUpdate?.call(previewRange);
+  }
+
+  /// Computes the jump direction for a double-click on a selection border.
+  ///
+  /// Determines which edge the pointer is closest to (top/bottom/left/right)
+  /// and returns (rowDelta, colDelta) for that direction.
+  (int, int)? _computeJumpDirection(
+    Offset position,
+    Offset scrollOffset,
+    double zoom,
+  ) {
+    final selection = selectionController.selectedRange;
+    if (selection == null) return null;
+
+    // Get selection bounds in screen coordinates
+    final selTop = hitTester.layoutSolver.getRowTop(selection.startRow);
+    final selBottom = hitTester.layoutSolver.getRowEnd(selection.endRow);
+    final selLeft = hitTester.layoutSolver.getColumnLeft(selection.startColumn);
+    final selRight = hitTester.layoutSolver.getColumnEnd(selection.endColumn);
+
+    final screenTopLeft = hitTester.worksheetToScreen(
+      worksheetPosition: Offset(selLeft, selTop),
+      scrollOffset: scrollOffset,
+      zoom: zoom,
+    );
+    final screenBottomRight = hitTester.worksheetToScreen(
+      worksheetPosition: Offset(selRight, selBottom),
+      scrollOffset: scrollOffset,
+      zoom: zoom,
+    );
+
+    // Find which edge is closest
+    final distTop = (position.dy - screenTopLeft.dy).abs();
+    final distBottom = (position.dy - screenBottomRight.dy).abs();
+    final distLeft = (position.dx - screenTopLeft.dx).abs();
+    final distRight = (position.dx - screenBottomRight.dx).abs();
+
+    final minDist = [distTop, distBottom, distLeft, distRight]
+        .reduce((a, b) => a < b ? a : b);
+
+    if (minDist == distTop) {
+      return (-1, 0);
+    } else if (minDist == distBottom) {
+      return (1, 0);
+    } else if (minDist == distLeft) {
+      return (0, -1);
+    } else {
+      return (0, 1);
     }
   }
 }

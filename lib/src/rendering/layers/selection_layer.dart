@@ -25,6 +25,9 @@ class SelectionLayer extends RenderLayer {
   /// The fill preview range to display during a fill drag.
   CellRange? fillPreviewRange;
 
+  /// The move preview range to display during a move drag.
+  CellRange? movePreviewRange;
+
   /// Creates a selection layer.
   SelectionLayer({
     required this.selectionController,
@@ -93,6 +96,16 @@ class SelectionLayer extends RenderLayer {
         viewportOffset: context.scrollOffset,
         zoom: context.zoom,
         range: fillPreviewRange!,
+      );
+    }
+
+    // Paint move preview range during drag
+    if (movePreviewRange != null) {
+      renderer.paintMovePreview(
+        canvas: context.canvas,
+        viewportOffset: context.scrollOffset,
+        zoom: context.zoom,
+        range: movePreviewRange!,
       );
     }
   }

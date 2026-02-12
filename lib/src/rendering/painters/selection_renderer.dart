@@ -140,6 +140,7 @@ class SelectionRenderer {
   late final Paint _fillPreviewPaint;
   late final Paint _fillPreviewBorderPaint;
   late final Paint _editingBackgroundPaint;
+  late final Paint _movePreviewBorderPaint;
 
   /// Creates a selection renderer.
   SelectionRenderer({
@@ -180,6 +181,12 @@ class SelectionRenderer {
     _editingBackgroundPaint = Paint()
       ..color = const Color(0xFFFFFFFF)
       ..style = PaintingStyle.fill;
+
+    _movePreviewBorderPaint = Paint()
+      ..color = style.borderColor
+      ..strokeWidth = style.borderWidth
+      ..style = PaintingStyle.stroke
+      ..isAntiAlias = false;
   }
 
   /// Paints the selection for a cell range.
@@ -364,6 +371,64 @@ class SelectionRenderer {
 
     canvas.drawRect(screenBounds, _fillPreviewPaint);
     canvas.drawRect(screenBounds, _fillPreviewBorderPaint);
+  }
+
+  /// Paints a dashed border preview for the move destination during drag.
+  void paintMovePreview({
+    required Canvas canvas,
+    required Offset viewportOffset,
+    required double zoom,
+    required CellRange range,
+  }) {
+    final bounds = layoutSolver.getRangeBounds(
+      startRow: range.startRow,
+      startColumn: range.startColumn,
+      endRow: range.endRow,
+      endColumn: range.endColumn,
+    );
+
+    final screenBounds = _snapRect(
+      (bounds.left - viewportOffset.dx) * zoom,
+      (bounds.top - viewportOffset.dy) * zoom,
+      (bounds.right - viewportOffset.dx) * zoom,
+      (bounds.bottom - viewportOffset.dy) * zoom,
+    );
+
+    // Draw a dashed border by drawing short line segments
+    _drawDashedRect(canvas, screenBounds, _movePreviewBorderPaint);
+  }
+
+  /// Draws a dashed rectangle border along axis-aligned edges.
+  static void _drawDashedRect(Canvas canvas, Rect rect, Paint paint,
+      {double dashLength = 4.0, double gapLength = 3.0}) {
+    void drawDashedLine(Offset start, Offset end) {
+      final dx = end.dx - start.dx;
+      final dy = end.dy - start.dy;
+      final totalDist = dx.abs() + dy.abs();
+      if (totalDist == 0) return;
+      final dirX = dx / totalDist;
+      final dirY = dy / totalDist;
+      var drawn = 0.0;
+      var drawing = true;
+      while (drawn < totalDist) {
+        final segLen = drawing ? dashLength : gapLength;
+        final nextDrawn = (drawn + segLen).clamp(0.0, totalDist);
+        if (drawing) {
+          canvas.drawLine(
+            Offset(start.dx + dirX * drawn, start.dy + dirY * drawn),
+            Offset(start.dx + dirX * nextDrawn, start.dy + dirY * nextDrawn),
+            paint,
+          );
+        }
+        drawn = nextDrawn;
+        drawing = !drawing;
+      }
+    }
+
+    drawDashedLine(rect.topLeft, rect.topRight);
+    drawDashedLine(rect.topRight, rect.bottomRight);
+    drawDashedLine(rect.bottomRight, rect.bottomLeft);
+    drawDashedLine(rect.bottomLeft, rect.topLeft);
   }
 
   /// Snaps rect edges to half-pixel positions so 1px strokes land on exact

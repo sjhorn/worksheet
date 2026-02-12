@@ -1151,5 +1151,420 @@ void main() {
         handler.onDragEnd();
       });
     });
+
+    group('auto-fit on double-click', () {
+      test('double-click on column resize handle fires onAutoFitColumn', () {
+        int? autoFitColumn;
+        final autoFitHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onAutoFitColumn: (col) => autoFitColumn = col,
+          onAutoFitRow: (row) {},
+        );
+
+        // Column 0 resize handle: near column boundary in column header
+        // Column 0 ends at worksheet x=100. Screen x = 50 + 100 = 150
+        // Screen x=149 → within tolerance of column 0 right edge
+        autoFitHandler.onDoubleTap(
+          position: const Offset(149.0, 15.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(autoFitColumn, equals(0));
+      });
+
+      test('double-click on row resize handle fires onAutoFitRow', () {
+        int? autoFitRow;
+        final autoFitHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onAutoFitColumn: (col) {},
+          onAutoFitRow: (row) => autoFitRow = row,
+        );
+
+        // Row 0 resize handle: near row boundary in row header
+        // Row 0 ends at worksheet y=24. Screen y = 30 + 24 = 54
+        // Screen y=53 → within tolerance of row 0 bottom edge
+        autoFitHandler.onDoubleTap(
+          position: const Offset(25.0, 53.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(autoFitRow, equals(0));
+      });
+
+      test('auto-fit double-click resets drag state so onDragEnd is a no-op',
+          () {
+        // Simulates the real double-click sequence:
+        // 1. Listener.onPointerDown → onDragStart (sets _isResizing)
+        // 2. GestureDetector.onDoubleTapDown → onDoubleTap (auto-fit)
+        // 3. Listener.onPointerUp → onDragEnd
+        // Without the fix, step 3 would fire onResizeColumnEnd.
+        int? autoFitColumn;
+        bool resizeEndCalled = false;
+        final handler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onAutoFitColumn: (col) => autoFitColumn = col,
+          onResizeColumnEnd: (col) => resizeEndCalled = true,
+        );
+
+        // Column 0 right edge: headerWidth(50) + colWidth(100) = 150
+        // Near the right border at y=15 (in column header)
+        const pos = Offset(149.0, 15.0);
+
+        // Step 1: onDragStart (from Listener.onPointerDown)
+        handler.onDragStart(
+          position: pos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(handler.isResizing, isTrue);
+
+        // Step 2: onDoubleTap (from GestureDetector.onDoubleTapDown)
+        handler.onDoubleTap(
+          position: pos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(autoFitColumn, equals(0));
+        // Drag state should be reset
+        expect(handler.isResizing, isFalse);
+
+        // Step 3: onDragEnd (from Listener.onPointerUp)
+        handler.onDragEnd();
+        // Must NOT fire onResizeColumnEnd
+        expect(resizeEndCalled, isFalse);
+      });
+
+      test('double-click on cell does not fire auto-fit', () {
+        int? autoFitColumn;
+        int? autoFitRow;
+        CellCoordinate? editedCell;
+        final autoFitHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onAutoFitColumn: (col) => autoFitColumn = col,
+          onAutoFitRow: (row) => autoFitRow = row,
+          onEditCell: (cell) => editedCell = cell,
+        );
+
+        // Double-click on cell (0, 0)
+        autoFitHandler.onDoubleTap(
+          position: const Offset(60.0, 40.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(autoFitColumn, isNull);
+        expect(autoFitRow, isNull);
+        expect(editedCell, equals(CellCoordinate(0, 0)));
+      });
+    });
+
+    group('drag-to-move selection', () {
+      test('drag from selection border sets isMoving', () {
+        selectionController.selectRange(const CellRange(1, 1, 3, 3));
+
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {},
+          onMoveCancel: () {},
+        );
+
+        // Selection border: top edge of (1,1)-(3,3)
+        // Row 1 starts at y=24, col 1 starts at x=100
+        // Screen: (50+100, 30+24) = (150, 54) — top-left of selection
+        // Border tolerance is 4 pixels, so just inside the border ring
+        const borderPos = Offset(200.0, 53.0);
+        moveHandler.onDragStart(
+          position: borderPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(moveHandler.isMoving, isTrue);
+        expect(moveHandler.isSelectingRange, isFalse);
+        expect(moveHandler.isFilling, isFalse);
+      });
+
+      test('drag update calls onMovePreviewUpdate with correct range', () {
+        selectionController.selectRange(const CellRange(1, 1, 2, 2));
+
+        CellRange? movePreview;
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) => movePreview = range,
+          onMoveComplete: (source, dest) {},
+          onMoveCancel: () {},
+        );
+
+        // Start at top edge of selection
+        // Row 1 at y=24, screen y = 30+24 = 54 → border at 54-2 = 52
+        const startPos = Offset(200.0, 53.0);
+        moveHandler.onDragStart(
+          position: startPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag to cell (5, 5): screen = (50 + 5*100 + 50, 30 + 5*24 + 12) = (600, 162)
+        moveHandler.onDragUpdate(
+          position: const Offset(600.0, 162.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(movePreview, isNotNull);
+        // Source is 2x2 (rows 1-2, cols 1-2), destination cell is (5,5)
+        // Preview should be (5,5)-(6,6)
+        expect(movePreview!.startRow, 5);
+        expect(movePreview!.startColumn, 5);
+        expect(movePreview!.endRow, 6);
+        expect(movePreview!.endColumn, 6);
+      });
+
+      test('drag end calls onMoveComplete with source and destination', () {
+        selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+        CellRange? completedSource;
+        CellCoordinate? completedDest;
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {
+            completedSource = source;
+            completedDest = dest;
+          },
+          onMoveCancel: () {},
+        );
+
+        // Start at border of selection (0,0)-(1,1)
+        // Bottom edge: row 1 ends at 48, screen y = 30+48 = 78
+        const startPos = Offset(100.0, 77.0);
+        moveHandler.onDragStart(
+          position: startPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag to cell (5, 3)
+        const updatePos = Offset(400.0, 162.0);
+        moveHandler.onDragUpdate(
+          position: updatePos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        moveHandler.onDragEnd();
+
+        expect(completedSource, const CellRange(0, 0, 1, 1));
+        expect(completedDest, isNotNull);
+        expect(moveHandler.isMoving, isFalse);
+      });
+
+      test('drag end without update calls onMoveCancel', () {
+        selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+        bool cancelCalled = false;
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {},
+          onMoveCancel: () => cancelCalled = true,
+        );
+
+        const startPos = Offset(100.0, 77.0);
+        moveHandler.onDragStart(
+          position: startPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // End immediately without update
+        moveHandler.onDragEnd();
+
+        expect(cancelCalled, isTrue);
+        expect(moveHandler.isMoving, isFalse);
+      });
+
+      test('move does not trigger on cell drag (not border)', () {
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {},
+          onMoveCancel: () {},
+        );
+
+        // Click in center of cell (1,1) — well inside the selection, not border
+        // Cell (1,1) center: screen (200, 66)
+        const cellCenter = Offset(200.0, 66.0);
+        moveHandler.onDragStart(
+          position: cellCenter,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(moveHandler.isMoving, isFalse);
+        expect(moveHandler.isSelectingRange, isTrue);
+      });
+
+      test('move does not trigger on fill handle drag', () {
+        selectionController.selectRange(const CellRange(0, 0, 2, 2));
+
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {},
+          onMoveCancel: () {},
+          onFillPreviewUpdate: (range) {},
+          onFillComplete: (source, dest) {},
+          onFillCancel: () {},
+        );
+
+        // Fill handle at bottom-right of (0,0)-(2,2): screen (350, 102)
+        const fillPos = Offset(349.0, 101.0);
+        moveHandler.onDragStart(
+          position: fillPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(moveHandler.isMoving, isFalse);
+        expect(moveHandler.isFilling, isTrue);
+      });
+    });
+
+    group('border double-click jump', () {
+      test('double-click on top edge fires onJumpToEdge with up direction', () {
+        selectionController.selectRange(const CellRange(5, 5, 7, 7));
+
+        CellCoordinate? jumpFrom;
+        int? jumpRowDelta;
+        int? jumpColDelta;
+        final jumpHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onJumpToEdge: (from, rowDelta, colDelta) {
+            jumpFrom = from;
+            jumpRowDelta = rowDelta;
+            jumpColDelta = colDelta;
+          },
+        );
+
+        // Top edge of selection (5,5)-(7,7):
+        // Row 5 starts at y=120, col 5-7 spans x=500-800
+        // Screen: top edge y = 30 + 120 = 150
+        // Position on top edge: (650, 150) — tolerance check
+        const topEdgePos = Offset(700.0, 149.0);
+        jumpHandler.onDoubleTap(
+          position: topEdgePos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(jumpFrom, isNotNull);
+        expect(jumpRowDelta, equals(-1));
+        expect(jumpColDelta, equals(0));
+      });
+
+      test('double-click on right edge fires onJumpToEdge with right direction', () {
+        selectionController.selectRange(const CellRange(2, 2, 4, 4));
+
+        CellCoordinate? jumpFrom;
+        int? jumpRowDelta;
+        int? jumpColDelta;
+        final jumpHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onJumpToEdge: (from, rowDelta, colDelta) {
+            jumpFrom = from;
+            jumpRowDelta = rowDelta;
+            jumpColDelta = colDelta;
+          },
+        );
+
+        // Right edge of selection (2,2)-(4,4):
+        // Col 4 ends at x=500, screen x = 50 + 500 = 550
+        // Row 3 center y = 30 + 3*24 + 12 = 114
+        const rightEdgePos = Offset(549.0, 114.0);
+        jumpHandler.onDoubleTap(
+          position: rightEdgePos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(jumpFrom, isNotNull);
+        expect(jumpRowDelta, equals(0));
+        expect(jumpColDelta, equals(1));
+      });
+
+      test('double-click on bottom edge fires jump down', () {
+        selectionController.selectRange(const CellRange(2, 2, 4, 4));
+
+        int? jumpRowDelta;
+        int? jumpColDelta;
+        final jumpHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onJumpToEdge: (from, rowDelta, colDelta) {
+            jumpRowDelta = rowDelta;
+            jumpColDelta = colDelta;
+          },
+        );
+
+        // Bottom edge of selection (2,2)-(4,4):
+        // Row 4 ends at y=120, screen y = 30 + 120 = 150
+        // Col 3 center x = 50 + 3*100 + 50 = 400
+        const bottomEdgePos = Offset(400.0, 149.0);
+        jumpHandler.onDoubleTap(
+          position: bottomEdgePos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(jumpRowDelta, equals(1));
+        expect(jumpColDelta, equals(0));
+      });
+
+      test('double-click on left edge fires jump left', () {
+        selectionController.selectRange(const CellRange(2, 2, 4, 4));
+
+        int? jumpRowDelta;
+        int? jumpColDelta;
+        final jumpHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onJumpToEdge: (from, rowDelta, colDelta) {
+            jumpRowDelta = rowDelta;
+            jumpColDelta = colDelta;
+          },
+        );
+
+        // Left edge of selection (2,2)-(4,4):
+        // Col 2 starts at x=200, screen x = 50 + 200 = 250
+        // Row 3 center y = 30 + 3*24 + 12 = 114
+        const leftEdgePos = Offset(251.0, 114.0);
+        jumpHandler.onDoubleTap(
+          position: leftEdgePos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(jumpRowDelta, equals(0));
+        expect(jumpColDelta, equals(-1));
+      });
+    });
   });
 }

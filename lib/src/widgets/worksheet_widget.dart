@@ -234,6 +234,13 @@ class _WorksheetState extends State<Worksheet>
   MouseCursor _currentCursor = SystemMouseCursors.basic;
   int _layoutVersion = 0;
   bool _pointerInScrollbarArea = false;
+  /// Set by onDoubleTapDown when it handles a non-cell double-tap (resize
+  /// handle, selection border).  Checked by Listener.onPointerDown to skip
+  /// the tap-down + drag-start that would otherwise run on the same pointer
+  /// event — by then the layout may have changed (e.g. auto-fit resized a
+  /// column), so a fresh hit-test at the original position would give a
+  /// wrong result (e.g. columnHeader instead of columnResizeHandle).
+  bool _doubleTapHandledPointerDown = false;
 
   // Track viewInsets for keyboard visibility changes
   EdgeInsets _lastViewInsets = EdgeInsets.zero;
@@ -390,59 +397,7 @@ class _WorksheetState extends State<Worksheet>
     );
 
     // Create gesture handler after tile manager so resize callbacks can access it
-    _gestureHandler = WorksheetGestureHandler(
-      hitTester: _hitTester,
-      selectionController: _controller.selectionController,
-      onEditCell: widget.onEditCell,
-      onResizeRow: (row, delta) {
-        final currentHeight = _layoutSolver.getRowHeight(row);
-        final newHeight = (currentHeight + delta).clamp(10.0, 500.0);
-        _layoutSolver.setRowHeight(row, newHeight);
-        _tileManager.invalidateAll();
-        _layoutVersion++;
-        widget.onResizeRow?.call(row, newHeight);
-        setState(() {});
-      },
-      onResizeColumn: (column, delta) {
-        final currentWidth = _layoutSolver.getColumnWidth(column);
-        final newWidth = (currentWidth + delta).clamp(20.0, 1000.0);
-        _layoutSolver.setColumnWidth(column, newWidth);
-        _tileManager.invalidateAll();
-        _layoutVersion++;
-        widget.onResizeColumn?.call(column, newWidth);
-        setState(() {});
-      },
-      onResizeRowEnd: (row) {
-        _applyResizeToSelectedRows(row);
-      },
-      onResizeColumnEnd: (column) {
-        _applyResizeToSelectedColumns(column);
-      },
-      onFillPreviewUpdate: widget.readOnly
-          ? null
-          : (previewRange) {
-              _selectionLayer.fillPreviewRange = previewRange;
-              setState(() {});
-            },
-      onFillComplete: widget.readOnly
-          ? null
-          : (sourceRange, destination) {
-              widget.data.smartFill(sourceRange, destination);
-              _controller.selectionController.selectRange(
-                sourceRange.expand(destination),
-              );
-              _selectionLayer.fillPreviewRange = null;
-              _tileManager.invalidateAll();
-              _layoutVersion++;
-              setState(() {});
-            },
-      onFillCancel: widget.readOnly
-          ? null
-          : () {
-              _selectionLayer.fillPreviewRange = null;
-              setState(() {});
-            },
-    );
+    _gestureHandler = _createGestureHandler();
 
     _clipboardHandler = ClipboardHandler(
       data: widget.data,
@@ -573,6 +528,272 @@ class _WorksheetState extends State<Worksheet>
       _layoutVersion++;
       setState(() {});
     }
+  }
+
+  /// Creates the gesture handler with all callbacks wired.
+  WorksheetGestureHandler _createGestureHandler() {
+    return WorksheetGestureHandler(
+      hitTester: _hitTester,
+      selectionController: _controller.selectionController,
+      onEditCell: widget.onEditCell,
+      onResizeRow: (row, delta) {
+        final currentHeight = _layoutSolver.getRowHeight(row);
+        final newHeight = (currentHeight + delta).clamp(10.0, 500.0);
+        _layoutSolver.setRowHeight(row, newHeight);
+        _tileManager.invalidateAll();
+        _layoutVersion++;
+        widget.onResizeRow?.call(row, newHeight);
+        setState(() {});
+      },
+      onResizeColumn: (column, delta) {
+        final currentWidth = _layoutSolver.getColumnWidth(column);
+        final newWidth = (currentWidth + delta).clamp(20.0, 1000.0);
+        _layoutSolver.setColumnWidth(column, newWidth);
+        _tileManager.invalidateAll();
+        _layoutVersion++;
+        widget.onResizeColumn?.call(column, newWidth);
+        setState(() {});
+      },
+      onResizeRowEnd: (row) {
+        _applyResizeToSelectedRows(row);
+      },
+      onResizeColumnEnd: (column) {
+        _applyResizeToSelectedColumns(column);
+      },
+      onFillPreviewUpdate: widget.readOnly
+          ? null
+          : (previewRange) {
+              _selectionLayer.fillPreviewRange = previewRange;
+              setState(() {});
+            },
+      onFillComplete: widget.readOnly
+          ? null
+          : (sourceRange, destination) {
+              widget.data.smartFill(sourceRange, destination);
+              _controller.selectionController.selectRange(
+                sourceRange.expand(destination),
+              );
+              _selectionLayer.fillPreviewRange = null;
+              _tileManager.invalidateAll();
+              _layoutVersion++;
+              setState(() {});
+            },
+      onFillCancel: widget.readOnly
+          ? null
+          : () {
+              _selectionLayer.fillPreviewRange = null;
+              setState(() {});
+            },
+      onMovePreviewUpdate: widget.readOnly
+          ? null
+          : (previewRange) {
+              _selectionLayer.movePreviewRange = previewRange;
+              setState(() {});
+            },
+      onMoveComplete: widget.readOnly
+          ? null
+          : (sourceRange, destination) {
+              _performMove(sourceRange, destination);
+            },
+      onMoveCancel: widget.readOnly
+          ? null
+          : () {
+              _selectionLayer.movePreviewRange = null;
+              setState(() {});
+            },
+      onAutoFitColumn: widget.readOnly
+          ? null
+          : (column) {
+              _autoFitColumn(column);
+            },
+      onAutoFitRow: widget.readOnly
+          ? null
+          : (row) {
+              _autoFitRow(row);
+            },
+      onJumpToEdge: widget.readOnly
+          ? null
+          : (from, rowDelta, colDelta) {
+              _jumpToDataEdge(from, rowDelta, colDelta);
+            },
+    );
+  }
+
+  /// Performs a move operation: copies source cells to destination, clears source.
+  void _performMove(CellRange sourceRange, CellCoordinate destination) {
+    widget.data.batchUpdate((batch) {
+      batch.copyRange(sourceRange, destination);
+      batch.clearRange(sourceRange);
+    });
+    final newRange = CellRange(
+      destination.row,
+      destination.column,
+      destination.row + sourceRange.endRow - sourceRange.startRow,
+      destination.column + sourceRange.endColumn - sourceRange.startColumn,
+    );
+    _controller.selectionController.selectRange(newRange);
+    _selectionLayer.movePreviewRange = null;
+    _tileManager.invalidateAll();
+    _layoutVersion++;
+    setState(() {});
+  }
+
+  /// Auto-fits a column to the widest content.
+  void _autoFitColumn(int column) {
+    final theme = _lastTheme;
+    if (theme == null) return;
+
+    double maxWidth = 0.0;
+    final range = CellRange(0, column, widget.rowCount - 1, column);
+    for (final entry in widget.data.getCellsInRange(range)) {
+      final text = entry.value.displayValue;
+      if (text.isEmpty) continue;
+
+      final cellStyle = CellStyle.defaultStyle.merge(
+        widget.data.getStyle(entry.key),
+      );
+      final fontFamily = cellStyle.fontFamily ?? theme.fontFamily;
+      final tp = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            fontSize: cellStyle.fontSize ?? theme.fontSize,
+            fontFamily: fontFamily,
+            fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
+            fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
+            package: WorksheetThemeData.resolveFontPackage(fontFamily),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      if (tp.width > maxWidth) {
+        maxWidth = tp.width;
+      }
+      tp.dispose();
+    }
+
+    // Add padding and clamp
+    final newWidth = (maxWidth + 2 * theme.cellPadding).clamp(20.0, 1000.0);
+    _layoutSolver.setColumnWidth(column, newWidth);
+    _tileManager.invalidateAll();
+    _layoutVersion++;
+    widget.onResizeColumn?.call(column, newWidth);
+    setState(() {});
+  }
+
+  /// Auto-fits a row to the tallest content.
+  void _autoFitRow(int row) {
+    final theme = _lastTheme;
+    if (theme == null) return;
+
+    double maxHeight = 0.0;
+    final range = CellRange(row, 0, row, widget.columnCount - 1);
+    for (final entry in widget.data.getCellsInRange(range)) {
+      final text = entry.value.displayValue;
+      if (text.isEmpty) continue;
+
+      final cellStyle = CellStyle.defaultStyle.merge(
+        widget.data.getStyle(entry.key),
+      );
+      final fontFamily = cellStyle.fontFamily ?? theme.fontFamily;
+      final wraps = cellStyle.wrapText ?? false;
+      final double layoutWidth;
+      if (wraps) {
+        final colWidth = _layoutSolver.getColumnWidth(entry.key.column);
+        final availWidth = colWidth - 2 * theme.cellPadding;
+        layoutWidth = availWidth > 0 ? availWidth : double.infinity;
+      } else {
+        // Non-wrapping: measure single-line height only.
+        layoutWidth = double.infinity;
+      }
+      final tp = TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            fontSize: cellStyle.fontSize ?? theme.fontSize,
+            fontFamily: fontFamily,
+            fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
+            fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
+            package: WorksheetThemeData.resolveFontPackage(fontFamily),
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: layoutWidth);
+      if (tp.height > maxHeight) {
+        maxHeight = tp.height;
+      }
+      tp.dispose();
+    }
+
+    // Add padding and clamp
+    final newHeight = (maxHeight + 2 * theme.cellPadding).clamp(10.0, 500.0);
+    _layoutSolver.setRowHeight(row, newHeight);
+    _tileManager.invalidateAll();
+    _layoutVersion++;
+    widget.onResizeRow?.call(row, newHeight);
+    setState(() {});
+  }
+
+  /// Jumps to the data edge from [from] in the given direction.
+  ///
+  /// Matches Ctrl+Arrow behavior:
+  /// - If the adjacent cell is non-empty, scan to last non-empty
+  /// - If the adjacent cell is empty, scan to next non-empty
+  /// - Clamp to worksheet bounds
+  void _jumpToDataEdge(CellCoordinate from, int rowDelta, int colDelta) {
+    final maxRow = widget.rowCount - 1;
+    final maxCol = widget.columnCount - 1;
+
+    var row = from.row + rowDelta;
+    var col = from.column + colDelta;
+
+    // Check bounds
+    if (row < 0 || row > maxRow || col < 0 || col > maxCol) {
+      return; // Can't move in that direction
+    }
+
+    final adjacentHasValue = widget.data.hasValue(CellCoordinate(row, col));
+
+    if (adjacentHasValue) {
+      // Scan forward to the last non-empty cell
+      while (true) {
+        final nextRow = row + rowDelta;
+        final nextCol = col + colDelta;
+        if (nextRow < 0 || nextRow > maxRow || nextCol < 0 || nextCol > maxCol) {
+          break;
+        }
+        if (!widget.data.hasValue(CellCoordinate(nextRow, nextCol))) {
+          break;
+        }
+        row = nextRow;
+        col = nextCol;
+      }
+    } else {
+      // Scan forward to the next non-empty cell
+      while (true) {
+        if (row < 0 || row > maxRow || col < 0 || col > maxCol) {
+          // Reached the boundary without finding data
+          row = row.clamp(0, maxRow);
+          col = col.clamp(0, maxCol);
+          break;
+        }
+        if (widget.data.hasValue(CellCoordinate(row, col))) {
+          break;
+        }
+        final nextRow = row + rowDelta;
+        final nextCol = col + colDelta;
+        if (nextRow < 0 || nextRow > maxRow || nextCol < 0 || nextCol > maxCol) {
+          // Hit the boundary — stay at boundary
+          break;
+        }
+        row = nextRow;
+        col = nextCol;
+      }
+    }
+
+    final destination = CellCoordinate(row, col);
+    _controller.selectionController.selectCell(destination);
+    _ensureSelectionVisible();
   }
 
   /// Smoothly scrolls to ensure the focused cell is visible.
@@ -979,7 +1200,7 @@ class _WorksheetState extends State<Worksheet>
   void _onAutoScrollTick() {
     final position = _lastPointerPosition;
     if (position == null ||
-        (!_gestureHandler.isSelectingRange && !_gestureHandler.isFilling)) {
+        (!_gestureHandler.isSelectingRange && !_gestureHandler.isFilling && !_gestureHandler.isMoving)) {
       _stopAutoScroll();
       return;
     }
@@ -1105,59 +1326,7 @@ class _WorksheetState extends State<Worksheet>
           headerWidth: theme.showHeaders ? theme.rowHeaderWidth : 0.0,
           headerHeight: theme.showHeaders ? theme.columnHeaderHeight : 0.0,
         );
-        _gestureHandler = WorksheetGestureHandler(
-          hitTester: _hitTester,
-          selectionController: _controller.selectionController,
-          onEditCell: widget.onEditCell,
-          onResizeRow: (row, delta) {
-            final currentHeight = _layoutSolver.getRowHeight(row);
-            final newHeight = (currentHeight + delta).clamp(10.0, 500.0);
-            _layoutSolver.setRowHeight(row, newHeight);
-            _tileManager.invalidateAll();
-            _layoutVersion++;
-            widget.onResizeRow?.call(row, newHeight);
-            setState(() {});
-          },
-          onResizeColumn: (column, delta) {
-            final currentWidth = _layoutSolver.getColumnWidth(column);
-            final newWidth = (currentWidth + delta).clamp(20.0, 1000.0);
-            _layoutSolver.setColumnWidth(column, newWidth);
-            _tileManager.invalidateAll();
-            _layoutVersion++;
-            widget.onResizeColumn?.call(column, newWidth);
-            setState(() {});
-          },
-          onResizeRowEnd: (row) {
-            _applyResizeToSelectedRows(row);
-          },
-          onResizeColumnEnd: (column) {
-            _applyResizeToSelectedColumns(column);
-          },
-          onFillPreviewUpdate: widget.readOnly
-              ? null
-              : (previewRange) {
-                  _selectionLayer.fillPreviewRange = previewRange;
-                  setState(() {});
-                },
-          onFillComplete: widget.readOnly
-              ? null
-              : (sourceRange, destination) {
-                  widget.data.smartFill(sourceRange, destination);
-                  _controller.selectionController.selectRange(
-                    sourceRange.expand(destination),
-                  );
-                  _selectionLayer.fillPreviewRange = null;
-                  _tileManager.invalidateAll();
-                  _layoutVersion++;
-                  setState(() {});
-                },
-          onFillCancel: widget.readOnly
-              ? null
-              : () {
-                  _selectionLayer.fillPreviewRange = null;
-                  setState(() {});
-                },
-        );
+        _gestureHandler = _createGestureHandler();
         _clipboardHandler = ClipboardHandler(
           data: widget.data,
           selectionController: _controller.selectionController,
@@ -1351,6 +1520,16 @@ class _WorksheetState extends State<Worksheet>
                             _lastPointerKind = event.kind;
                             // Only handle primary button (left click) for selection
                             if (event.buttons == kPrimaryButton) {
+                              // GestureDetector.onDoubleTapDown fires before
+                              // Listener.onPointerDown (child dispatches first).
+                              // If a double-tap already handled this event
+                              // (e.g. auto-fit), skip tap-down / drag-start —
+                              // the layout may have changed and the same
+                              // position would now hit-test differently.
+                              if (_doubleTapHandledPointerDown) {
+                                _doubleTapHandledPointerDown = false;
+                                return;
+                              }
                               // Skip selection when pointer is on a scrollbar
                               if (_isInScrollbarArea(
                                 event.localPosition,
@@ -1458,7 +1637,8 @@ class _WorksheetState extends State<Worksheet>
                               // Auto-scroll when dragging outside the content area
                               _lastPointerPosition = event.localPosition;
                               if (_gestureHandler.isSelectingRange ||
-                                  _gestureHandler.isFilling) {
+                                  _gestureHandler.isFilling ||
+                                  _gestureHandler.isMoving) {
                                 final contentArea = _getContentArea(theme);
                                 final pos = event.localPosition;
                                 if (pos.dx < contentArea.left ||
@@ -1484,17 +1664,56 @@ class _WorksheetState extends State<Worksheet>
                       // the touch event, allowing the keyboard to appear.
                       onDoubleTapDown: widget.readOnly
                           ? null
-                          : (widget.onEditCell == null &&
-                                widget.editController == null)
-                          ? null
                           // When already editing, don't register a double-tap
                           // handler so the TextField's double-tap (word select)
                           // wins the gesture arena.
                           : (widget.editController?.isEditing == true)
                           ? null
                           : (TapDownDetails details) {
+                              // Hit-test BEFORE calling onDoubleTap, because
+                              // auto-fit / jump may change the layout — a
+                              // re-hit-test afterwards would give a stale
+                              // result at the original pointer position.
+                              final hit = _hitTester.hitTest(
+                                position: details.localPosition,
+                                scrollOffset: Offset(
+                                  _controller.scrollX,
+                                  _controller.scrollY,
+                                ),
+                                zoom: _controller.zoom,
+                                selectionRange:
+                                    _controller.selectionController.selectedRange,
+                              );
+
+                              // Route double-taps through the gesture handler
+                              // for resize handles, selection border, and cells.
+                              _gestureHandler.onDoubleTap(
+                                position: details.localPosition,
+                                scrollOffset: Offset(
+                                  _controller.scrollX,
+                                  _controller.scrollY,
+                                ),
+                                zoom: _controller.zoom,
+                              );
+
+                              // For non-cell hits, the gesture handler already
+                              // handled the action (auto-fit or jump).  Flag
+                              // the event so Listener.onPointerDown (which
+                              // fires after this) skips its tap-down / drag-
+                              // start — the layout has changed and the same
+                              // position would hit-test differently now.
+                              if (hit.isResizeHandle || hit.isSelectionBorder) {
+                                _doubleTapHandledPointerDown = true;
+                                return;
+                              }
+
+                              // Cell edit handling
                               final cell = _controller.focusCell;
                               if (cell == null) return;
+                              if (widget.onEditCell == null &&
+                                  widget.editController == null) {
+                                return;
+                              }
                               // Fire external callback
                               widget.onEditCell?.call(cell);
                               // Also start integrated editing if available
@@ -1910,6 +2129,7 @@ class _SelectionPainter extends CustomPainter {
   final Offset headerOffset;
   final int layoutVersion;
   final CellRange? fillPreviewRange;
+  final CellRange? movePreviewRange;
 
   _SelectionPainter({
     required this.layer,
@@ -1918,6 +2138,7 @@ class _SelectionPainter extends CustomPainter {
     required this.headerOffset,
     required this.layoutVersion,
   }) : fillPreviewRange = layer.fillPreviewRange,
+       movePreviewRange = layer.movePreviewRange,
        super(repaint: layer.selectionController);
 
   @override
@@ -1953,7 +2174,8 @@ class _SelectionPainter extends CustomPainter {
         zoom != oldDelegate.zoom ||
         headerOffset != oldDelegate.headerOffset ||
         layoutVersion != oldDelegate.layoutVersion ||
-        fillPreviewRange != oldDelegate.fillPreviewRange;
+        fillPreviewRange != oldDelegate.fillPreviewRange ||
+        movePreviewRange != oldDelegate.movePreviewRange;
   }
 }
 
