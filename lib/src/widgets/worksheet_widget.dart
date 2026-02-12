@@ -1499,7 +1499,7 @@ class _WorksheetState extends State<Worksheet>
                             HitTestType.fillHandle =>
                               SystemMouseCursors.precise,
                             HitTestType.selectionBorder =>
-                              SystemMouseCursors.move,
+                              SystemMouseCursors.grab,
                             HitTestType.cell => SystemMouseCursors.cell,
                             HitTestType.rowHeader =>
                               SystemMouseCursors.click,
@@ -1617,6 +1617,12 @@ class _WorksheetState extends State<Worksheet>
                                 isShiftPressed: HardwareKeyboard
                                     .instance.isShiftPressed,
                               );
+                              // Switch to grabbing cursor during move drag.
+                              if (_gestureHandler.isMoving) {
+                                setState(() {
+                                  _currentCursor = SystemMouseCursors.grabbing;
+                                });
+                              }
                             }
                           },
                     onPointerMove: widget.readOnly
@@ -1655,7 +1661,14 @@ class _WorksheetState extends State<Worksheet>
                         : (event) {
                             _stopAutoScroll();
                             _pointerInScrollbarArea = false;
+                            final wasMoving = _gestureHandler.isMoving;
                             _gestureHandler.onDragEnd();
+                            // Restore cursor after move drag ends.
+                            if (wasMoving) {
+                              setState(() {
+                                _currentCursor = SystemMouseCursors.basic;
+                              });
+                            }
                           },
                     child: GestureDetector(
                       // Use onDoubleTapDown (fires on second pointer-down)
