@@ -244,6 +244,19 @@ class _WorksheetState extends State<Worksheet>
   double? _editingVerticalOffset; // fixed vertical offset for wrap-text cells
   double? _editingContentAreaWidth; // viewport width minus row header
 
+  // Cached CellEditorOverlay widget to prevent force-rebuilds on every
+  // keystroke. Returning the identical widget instance from the
+  // ListenableBuilder's builder prevents StatefulElement.update from calling
+  // rebuild(force: true), so the overlay's EditableText only rebuilds from
+  // its own setState (text input changes). The cache is invalidated when
+  // layout-relevant props change (bounds, zoom, expanded bounds).
+  Widget? _cachedEditorOverlay;
+  CellCoordinate? _cachedEditorCell;
+  Rect? _cachedEditorCellBounds;
+  Rect? _cachedEditorExpandedBounds;
+  double? _cachedEditorZoom;
+  double? _cachedEditorContentAreaWidth;
+
   // Data change subscription for external mutations
   StreamSubscription<DataChangeEvent>? _dataSubscription;
 
@@ -677,6 +690,7 @@ class _WorksheetState extends State<Worksheet>
     _editingExpandedScreenBounds = null;
     _editingVerticalOffset = null;
     _editingContentAreaWidth = null;
+    _cachedEditorOverlay = null;
   }
 
   /// Recomputes expanded editing bounds when the edit text changes.
@@ -1486,11 +1500,16 @@ class _WorksheetState extends State<Worksheet>
                               // Also start integrated editing if available
                               if (widget.editController != null) {
                                 // Focus the offstage trigger TextField
-                                // synchronously within this gesture handler.
-                                // iOS Safari requires focus() to happen
-                                // synchronously with a user gesture for the
-                                // virtual keyboard to appear.
-                                _editorFocusNode.requestFocus();
+                                // synchronously within this gesture handler,
+                                // but ONLY for touch input. iOS Safari requires
+                                // focus() to happen synchronously with a user
+                                // gesture for the virtual keyboard to appear.
+                                // For mouse input, skip this — the offstage
+                                // field would steal the browser's text input
+                                // connection from the real editor overlay.
+                                if (_lastPointerKind == PointerDeviceKind.touch) {
+                                  _editorFocusNode.requestFocus();
+                                }
                                 _startIntegratedEdit(
                                   cell: cell,
                                   trigger: EditTrigger.doubleTap,
@@ -1593,6 +1612,7 @@ class _WorksheetState extends State<Worksheet>
                               ? theme.columnHeaderHeight * _controller.zoom
                               : 0.0;
                           if (!widget.editController!.isEditing) {
+                            _cachedEditorOverlay = null;
                             return const Positioned(
                               left: 0,
                               top: 0,
@@ -1601,6 +1621,7 @@ class _WorksheetState extends State<Worksheet>
                           }
                           final cell = widget.editController!.editingCell;
                           if (cell == null) {
+                            _cachedEditorOverlay = null;
                             return const Positioned(
                               left: 0,
                               top: 0,
@@ -1609,6 +1630,7 @@ class _WorksheetState extends State<Worksheet>
                           }
                           final bounds = _controller.getCellScreenBounds(cell);
                           if (bounds == null) {
+                            _cachedEditorOverlay = null;
                             return const Positioned(
                               left: 0,
                               top: 0,
@@ -1621,6 +1643,26 @@ class _WorksheetState extends State<Worksheet>
                           final adjustedBounds = bounds.shift(
                             Offset(-headerLeft, -headerTop),
                           );
+                          // Use precomputed expanded bounds from _onEditTextChanged
+                          final adjustedExpandedBounds = _editingExpandedScreenBounds;
+                          final currentZoom = _controller.zoom;
+                          final contentAreaWidth = _editingContentAreaWidth;
+
+                          // Return the cached widget when layout-relevant props
+                          // haven't changed. Returning the identical instance
+                          // prevents StatefulElement.update from force-rebuilding
+                          // the overlay on every keystroke, which would recreate
+                          // the gesture detector and interfere with the
+                          // EditableText's text input connection.
+                          if (_cachedEditorOverlay != null &&
+                              _cachedEditorCell == cell &&
+                              _cachedEditorCellBounds == adjustedBounds &&
+                              _cachedEditorExpandedBounds == adjustedExpandedBounds &&
+                              _cachedEditorZoom == currentZoom &&
+                              _cachedEditorContentAreaWidth == contentAreaWidth) {
+                            return _cachedEditorOverlay!;
+                          }
+
                           // Resolve per-cell style the same way tile_painter does
                           final cellStyle = CellStyle.defaultStyle.merge(
                             widget.data.getStyle(cell),
@@ -1628,17 +1670,19 @@ class _WorksheetState extends State<Worksheet>
                           final isWrap = cellStyle.wrapText == true;
                           final fontFamily = cellStyle.fontFamily ?? theme.fontFamily;
 
-                          // Use precomputed expanded bounds from _onEditTextChanged
-                          final adjustedExpandedBounds = _editingExpandedScreenBounds;
-
-                          return CellEditorOverlay(
+                          _cachedEditorCell = cell;
+                          _cachedEditorCellBounds = adjustedBounds;
+                          _cachedEditorExpandedBounds = adjustedExpandedBounds;
+                          _cachedEditorZoom = currentZoom;
+                          _cachedEditorContentAreaWidth = contentAreaWidth;
+                          _cachedEditorOverlay = CellEditorOverlay(
                             editController: widget.editController!,
                             cellBounds: adjustedBounds,
                             expandedBounds: adjustedExpandedBounds,
                             onCommit: _onInternalCommit,
                             onCancel: _onInternalCancel,
                             onCommitAndNavigate: _onInternalCommitAndNavigate,
-                            zoom: _controller.zoom,
+                            zoom: currentZoom,
                             fontSize: cellStyle.fontSize ?? theme.fontSize,
                             fontFamily: fontFamily,
                             fontWeight:
@@ -1658,8 +1702,9 @@ class _WorksheetState extends State<Worksheet>
                                 CellVerticalAlignment.middle,
                             wrapText: isWrap,
                             restoreFocusTo: _keyboardFocusNode,
-                            contentAreaWidth: _editingContentAreaWidth,
+                            contentAreaWidth: contentAreaWidth,
                           );
+                          return _cachedEditorOverlay!;
                         },
                       ),
                     ],

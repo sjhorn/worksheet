@@ -142,10 +142,16 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   late RichTextEditingController _textController;
   late FocusNode _focusNode;
   final GlobalKey<EditableTextState> _editableKey = GlobalKey();
+  late final TextSelectionGestureDetectorBuilder _selectionGestureBuilder;
 
   /// When true, a controller listener guards against select-all that the
   /// platform may apply on focus gain, reversing it to cursor-at-end.
   bool _guardSelectAll = false;
+
+  /// Guard flag: true while we are pushing a text change from onChanged into
+  /// the editController. Prevents [_onEditControllerChanged] from reacting
+  /// to its own notification and resetting the text input connection.
+  bool _selfTextUpdate = false;
 
   /// For wrapText cells, the initial vertical offset computed from the
   /// content height at edit start. Fixed for the session so the editor
@@ -176,6 +182,9 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     }
 
     _focusNode = FocusNode(onKeyEvent: _handleKeyEvent);
+    _selectionGestureBuilder = TextSelectionGestureDetectorBuilder(
+      delegate: _EditorSelectionDelegate(_editableKey),
+    );
 
     // Register rich text extractor so external commit paths (click-away)
     // can retrieve rich text spans from the active editing controller.
@@ -254,12 +263,17 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       return;
     }
 
-    // Sync text if it differs (e.g., from external updates)
+    // Skip when the notification originated from our own onChanged callback.
+    // Re-entering here would call _textController.text = ..., which resets the
+    // selection to offset -1 and clears the IME composing region, breaking
+    // the text input connection on web/mobile.
+    if (_selfTextUpdate) return;
+
+    // Sync text from external sources (e.g., programmatic updates).
     if (_textController.text != widget.editController.currentText) {
       _textController.text = widget.editController.currentText;
+      setState(() {});
     }
-
-    setState(() {});
   }
 
   void _onFocusChanged() {
@@ -324,7 +338,9 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   }
 
   void _onTextChanged(String text) {
+    _selfTextUpdate = true;
     widget.editController.updateText(text);
+    _selfTextUpdate = false;
   }
 
   List<TextSpan>? _extractRichText() {
@@ -583,9 +599,7 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
               minWidth: textAreaWidth,
               maxWidth: textAreaWidth,
             ),
-            child: TextSelectionGestureDetectorBuilder(
-              delegate: _EditorSelectionDelegate(_editableKey),
-            ).buildGestureDetector(
+            child: _selectionGestureBuilder.buildGestureDetector(
               behavior: HitTestBehavior.translucent,
               child: EditableText(
                 key: _editableKey,

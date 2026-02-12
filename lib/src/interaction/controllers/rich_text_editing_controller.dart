@@ -296,7 +296,7 @@ class RichTextEditingController extends TextEditingController {
     }
 
     if (oldText.isEmpty) {
-      _charStyles = List.filled(newText.length, null);
+      _charStyles = List.filled(newText.length, null, growable: true);
       return;
     }
 
@@ -342,7 +342,7 @@ class RichTextEditingController extends TextEditingController {
     _charStyles.replaceRange(
       commonPrefix,
       commonPrefix + oldMiddleLen,
-      List.filled(newMiddleLen, insertStyle),
+      List.filled(newMiddleLen, insertStyle, growable: true),
     );
   }
 
