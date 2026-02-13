@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:worksheet/src/core/data/merged_cell_registry.dart';
 import 'package:worksheet/src/core/geometry/layout_solver.dart';
 import 'package:worksheet/src/core/geometry/span_list.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
@@ -567,6 +568,31 @@ void main() {
         expect(bounds, isNotNull);
         expect(bounds!.left, -60.0);
         expect(bounds.top, -30.0);
+      });
+
+      test('getCellScreenBounds returns merged cell bounds', () {
+        final mergedCells = MergedCellRegistry();
+        mergedCells.merge(const CellRange(1, 1, 2, 3)); // 2 rows x 3 cols
+        solver.mergedCells = mergedCells;
+
+        controller.attachLayout(
+          solver,
+          headerWidth: 40.0,
+          headerHeight: 20.0,
+        );
+
+        // Merged region (1,1)-(2,3):
+        // left = 1*80 = 80, top = 1*20 = 20
+        // width = 3 cols * 80 = 240, height = 2 rows * 20 = 40
+        // With headers: left = 80 + 40 = 120, top = 20 + 20 = 40
+        final bounds = controller.getCellScreenBounds(
+          const CellCoordinate(1, 1),
+        );
+        expect(bounds, isNotNull);
+        expect(bounds!.left, 120.0);
+        expect(bounds.top, 40.0);
+        expect(bounds.width, 240.0);
+        expect(bounds.height, 40.0);
       });
 
       testWidgets('ensureCellVisible works with attached layout',

@@ -417,16 +417,13 @@ class WorksheetController extends ChangeNotifier {
     final solver = _layoutSolver;
     if (solver == null) return null;
 
-    final cellLeft = solver.getColumnLeft(cell.column) * zoom;
-    final cellTop = solver.getRowTop(cell.row) * zoom;
-    final cellWidth = solver.getColumnWidth(cell.column) * zoom;
-    final cellHeight = solver.getRowHeight(cell.row) * zoom;
+    final bounds = solver.getCellBounds(cell);
 
     return Rect.fromLTWH(
-      cellLeft - scrollX + _headerWidth * zoom,
-      cellTop - scrollY + _headerHeight * zoom,
-      cellWidth,
-      cellHeight,
+      bounds.left * zoom - scrollX + _headerWidth * zoom,
+      bounds.top * zoom - scrollY + _headerHeight * zoom,
+      bounds.width * zoom,
+      bounds.height * zoom,
     );
   }
 
