@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.0] - 2026-02-13
+
+### Added
+- Trackpad pinch-to-zoom support for desktop and web
+
+### Fixed
+- Drag-to-move to same location no longer deletes cell data
+- Drag-to-move preview now tracks cursor grab point instead of snapping selection top-left to cursor
+- Selection border no longer detectable in header-adjacent zone, preventing accidental move-drag near row/column headers
+
 ## [2.4.0] - 2026-02-13
 
 ### Added
