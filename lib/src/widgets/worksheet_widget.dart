@@ -2016,10 +2016,34 @@ class _WorksheetState extends State<Worksheet>
                                     _isMobileMode ? 12.0 : 0,
                               );
 
-                              // In mobile mode, skip border jump (no hover
-                              // cue for which edge to jump to).
-                              if (_isMobileMode && hit.isSelectionBorder) {
-                                _doubleTapHandledPointerDown = true;
+                              // In mobile mode, selection border / handle
+                              // double-taps should enter edit mode (not jump
+                              // to edge).  The 12px border tolerance can cover
+                              // the entire cell area, so treat border/handle
+                              // hits the same as cell hits for editing.
+                              if (_isMobileMode &&
+                                  (hit.isSelectionBorder ||
+                                      hit.isSelectionHandle)) {
+                                // Resolve the underlying cell and edit it.
+                                final cell = hit.cell ?? _controller.focusCell;
+                                if (cell != null) {
+                                  selectionController.selectCell(cell);
+                                  _doubleTapHandledPointerDown = true;
+                                  if (widget.onEditCell != null ||
+                                      widget.editController != null) {
+                                    widget.onEditCell?.call(cell);
+                                    if (widget.editController != null) {
+                                      if (_lastPointerKind ==
+                                          PointerDeviceKind.touch) {
+                                        _editorFocusNode.requestFocus();
+                                      }
+                                      _startIntegratedEdit(
+                                        cell: cell,
+                                        trigger: EditTrigger.doubleTap,
+                                      );
+                                    }
+                                  }
+                                }
                                 return;
                               }
 

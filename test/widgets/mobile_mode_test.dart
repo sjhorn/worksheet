@@ -6,6 +6,7 @@ import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
 import 'package:worksheet/src/core/models/cell_range.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
+import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
 import 'package:worksheet/src/widgets/worksheet_controller.dart';
 import 'package:worksheet/src/widgets/worksheet_theme.dart';
 import 'package:worksheet/src/widgets/worksheet_widget.dart';
@@ -13,6 +14,7 @@ import 'package:worksheet/src/widgets/worksheet_widget.dart';
 void main() {
   late SparseWorksheetData data;
   late WorksheetController controller;
+  EditController? editController;
 
   setUp(() {
     data = SparseWorksheetData(rowCount: 100, columnCount: 26);
@@ -20,11 +22,13 @@ void main() {
   });
 
   tearDown(() {
+    editController?.dispose();
+    editController = null;
     controller.dispose();
     data.dispose();
   });
 
-  Widget buildWorksheet({bool? mobileMode}) {
+  Widget buildWorksheet({bool? mobileMode, EditController? ec}) {
     return Directionality(
       textDirection: TextDirection.ltr,
       child: MediaQuery(
@@ -37,6 +41,7 @@ void main() {
             child: Worksheet(
               data: data,
               controller: controller,
+              editController: ec,
               rowCount: 100,
               columnCount: 26,
               mobileMode: mobileMode,
@@ -372,6 +377,99 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(controller.scrollY, greaterThan(scrollYBefore));
+    });
+  });
+
+  group('Mobile double-tap to edit', () {
+    // Layout: header width=50, header height=24, cell=100x24
+    // Cell (2,2) center: x=50+2*100+50=300, y=24+2*24+12=84
+
+    testWidgets('double-tap on selected cell enters edit mode in mobile',
+        (tester) async {
+      editController = EditController();
+      data.setCell(
+        const CellCoordinate(2, 2),
+        CellValue.text('Test'),
+      );
+
+      await tester.pumpWidget(
+        buildWorksheet(mobileMode: true, ec: editController),
+      );
+      await tester.pump();
+
+      // Pre-select the cell so it has a selection border
+      controller.selectionController.selectCell(
+        const CellCoordinate(2, 2),
+      );
+      await tester.pump();
+
+      // Double-tap at the CENTER of cell (2,2)
+      // Cell (2,2): x=[250,350], y=[72,96], center=(300, 84)
+      const cellCenter = Offset(300.0, 84.0);
+
+      // First tap
+      final g1 = await tester.startGesture(
+        cellCenter,
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await g1.up();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Second tap (within 300ms double-tap window)
+      final g2 = await tester.startGesture(
+        cellCenter,
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await g2.up();
+      await tester.pumpAndSettle();
+
+      expect(editController!.isEditing, isTrue,
+          reason: 'Double-tap on selected cell should start editing');
+      expect(editController!.editingCell,
+          equals(const CellCoordinate(2, 2)));
+    });
+
+    testWidgets('double-tap on unselected cell enters edit mode in mobile',
+        (tester) async {
+      editController = EditController();
+      data.setCell(
+        const CellCoordinate(3, 3),
+        CellValue.text('Hello'),
+      );
+
+      await tester.pumpWidget(
+        buildWorksheet(mobileMode: true, ec: editController),
+      );
+      await tester.pump();
+
+      // No pre-selection — double-tap cold
+      // Cell (3,3): x=[350,450], y=[96,120], center=(400, 108)
+      const cellCenter = Offset(400.0, 108.0);
+
+      // First tap
+      final g1 = await tester.startGesture(
+        cellCenter,
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await g1.up();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Second tap
+      final g2 = await tester.startGesture(
+        cellCenter,
+        kind: PointerDeviceKind.touch,
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await g2.up();
+      await tester.pumpAndSettle();
+
+      expect(editController!.isEditing, isTrue,
+          reason: 'Double-tap on unselected cell should start editing');
+      expect(editController!.editingCell,
+          equals(const CellCoordinate(3, 3)));
     });
   });
 }
