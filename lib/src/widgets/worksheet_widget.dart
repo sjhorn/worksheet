@@ -308,6 +308,11 @@ class _WorksheetState extends State<Worksheet>
   late final SuppressibleBouncingPhysics _scrollPhysics =
       SuppressibleBouncingPhysics(suppressor: _scrollSuppressor);
 
+  // Track original size for resize cancel (Escape key)
+  double? _resizeDragOriginalSize;
+  int? _resizeDragIndex;
+  bool _resizeDragIsRow = false;
+
   // Auto-scroll during drag selection
   Timer? _autoScrollTimer;
   Offset? _lastPointerPosition;
@@ -584,6 +589,12 @@ class _WorksheetState extends State<Worksheet>
       onEditCell: widget.onEditCell,
       onResizeRow: (row, delta) {
         final currentHeight = _layoutSolver.getRowHeight(row);
+        // Capture original size on first resize callback for cancel support.
+        if (_resizeDragOriginalSize == null) {
+          _resizeDragOriginalSize = currentHeight;
+          _resizeDragIndex = row;
+          _resizeDragIsRow = true;
+        }
         final newHeight = (currentHeight + delta).clamp(10.0, 500.0);
         _layoutSolver.setRowHeight(row, newHeight);
         _tileManager.invalidateAll();
@@ -593,6 +604,12 @@ class _WorksheetState extends State<Worksheet>
       },
       onResizeColumn: (column, delta) {
         final currentWidth = _layoutSolver.getColumnWidth(column);
+        // Capture original size on first resize callback for cancel support.
+        if (_resizeDragOriginalSize == null) {
+          _resizeDragOriginalSize = currentWidth;
+          _resizeDragIndex = column;
+          _resizeDragIsRow = false;
+        }
         final newWidth = (currentWidth + delta).clamp(20.0, 1000.0);
         _layoutSolver.setColumnWidth(column, newWidth);
         _tileManager.invalidateAll();
@@ -1194,18 +1211,27 @@ class _WorksheetState extends State<Worksheet>
     _ensureSelectionVisible();
   }
 
-  /// Handles printable key events for type-to-edit.
+  /// Handles key events that must fire before the Shortcuts widget.
   ///
-  /// Placed on the inner Focus widget so it fires before the Shortcuts widget.
-  /// Returns [KeyEventResult.handled] to prevent the character from also
-  /// triggering a shortcut.
-  KeyEventResult _handleTypeToEdit(FocusNode node, KeyEvent event) {
+  /// Placed on the inner Focus widget. Handles:
+  /// - Escape during active drag → cancels drag without completing
+  /// - Printable characters → type-to-edit
+  KeyEventResult _handleKeyBeforeShortcuts(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+    // Escape cancels any active drag operation (fill, move, resize,
+    // selection) without completing it, unlike mouse-up which completes.
+    if (event.logicalKey == LogicalKeyboardKey.escape &&
+        _gestureHandler.isDragging) {
+      _cancelActiveDrag();
+      return KeyEventResult.handled;
+    }
+
+    // Type-to-edit: printable characters start editing the focused cell.
     final ec = widget.editController;
     if (ec == null || widget.readOnly || ec.isEditing) {
       return KeyEventResult.ignored;
     }
-
-    if (event is! KeyDownEvent) return KeyEventResult.ignored;
 
     // Only intercept printable characters (0x20–0x7E and above 0x7F).
     // Exclude C0 control chars (0x00–0x1F) and DEL (0x7F, sent by
@@ -1234,6 +1260,58 @@ class _WorksheetState extends State<Worksheet>
   }
 
   // Auto-scroll helpers
+
+  /// Resets resize tracking fields when a resize drag begins.
+  ///
+  /// The actual original size is captured lazily on the first
+  /// `onResizeRow`/`onResizeColumn` callback, before any delta is applied.
+  void _saveResizeOriginalSize() {
+    _resizeDragOriginalSize = null;
+    _resizeDragIndex = null;
+    _resizeDragIsRow = false;
+  }
+
+  /// Cancels the active drag operation (Escape key).
+  ///
+  /// Returns true if a drag was actually cancelled.
+  bool _cancelActiveDrag() {
+    if (!_gestureHandler.isDragging) return false;
+
+    final wasResizing = _gestureHandler.isResizing;
+    final wasMoving = _gestureHandler.isMoving;
+
+    // Restore original column/row size if we were resizing
+    if (wasResizing &&
+        _resizeDragOriginalSize != null &&
+        _resizeDragIndex != null) {
+      if (_resizeDragIsRow) {
+        _layoutSolver.setRowHeight(_resizeDragIndex!, _resizeDragOriginalSize!);
+      } else {
+        _layoutSolver.setColumnWidth(
+            _resizeDragIndex!, _resizeDragOriginalSize!);
+      }
+      _tileManager.invalidateAll();
+      _layoutVersion++;
+    }
+
+    // Cancel the drag (restores selection, calls cancel callbacks)
+    _gestureHandler.cancelDrag();
+
+    // Clean up widget-level state
+    _stopAutoScroll();
+    _scrollSuppressor.suppress = false;
+    _selectionLayer.fillPreviewRange = null;
+    _selectionLayer.movePreviewRange = null;
+    _resizeDragOriginalSize = null;
+    _resizeDragIndex = null;
+
+    if (wasMoving) {
+      _currentCursor = SystemMouseCursors.basic;
+    }
+
+    setState(() {});
+    return true;
+  }
 
   Rect _getContentArea(WorksheetThemeData theme) {
     final size = context.size!;
@@ -1523,7 +1601,7 @@ class _WorksheetState extends State<Worksheet>
         child: Focus(
           focusNode: _keyboardFocusNode,
           autofocus: true,
-          onKeyEvent: widget.editController != null ? _handleTypeToEdit : null,
+          onKeyEvent: _handleKeyBeforeShortcuts,
           child: Stack(
             children: [
               Positioned.fill(
@@ -1723,6 +1801,7 @@ class _WorksheetState extends State<Worksheet>
                                     resizeHandleTolerance: 12.0,
                                     selectionBorderTolerance: 12.0,
                                   );
+                                  _saveResizeOriginalSize();
                                 }
                                 // Cell tap/selection is handled via
                                 // GestureDetector.onTapUp in mobile mode.
@@ -1771,6 +1850,8 @@ class _WorksheetState extends State<Worksheet>
                                   _currentCursor = SystemMouseCursors.grabbing;
                                 });
                               }
+                              // Save original size for resize cancel.
+                              _saveResizeOriginalSize();
                             }
                           },
                     onPointerMove: widget.readOnly
@@ -1866,6 +1947,9 @@ class _WorksheetState extends State<Worksheet>
                             _gestureHandler.onDragEnd();
                             // Re-enable scroll after handle/resize drag.
                             _scrollSuppressor.suppress = false;
+                            // Clear resize tracking after normal completion.
+                            _resizeDragOriginalSize = null;
+                            _resizeDragIndex = null;
                             // Restore cursor after move drag ends.
                             if (wasMoving) {
                               setState(() {

@@ -129,6 +129,7 @@ class WorksheetGestureHandler {
   FillAxis? _fillAxis;
   CellRange? _moveSourceRange;
   CellCoordinate? _lastMoveDestination;
+  CellRange? _selectionBeforeDrag;
 
   /// Creates a gesture handler.
   WorksheetGestureHandler({
@@ -164,6 +165,13 @@ class WorksheetGestureHandler {
 
   /// Whether a selection handle drag is in progress.
   bool get isHandleDragging => _isHandleDragging;
+
+  /// Whether any drag operation is currently in progress.
+  bool get isDragging =>
+      _isResizing || _isSelectingRange || _isFilling || _isMoving;
+
+  /// The selection range saved at the start of the current drag.
+  CellRange? get selectionBeforeDrag => _selectionBeforeDrag;
 
   /// Handles tap down event.
   void onTapDown({
@@ -298,6 +306,7 @@ class WorksheetGestureHandler {
     _dragStartHit = hit;
     _dragStartPosition = position;
     _lastDragPosition = position;
+    _selectionBeforeDrag = selectionController.selectedRange;
 
     if (hit.isSelectionHandle) {
       _isHandleDragging = true;
@@ -407,6 +416,34 @@ class WorksheetGestureHandler {
     _resetDragState();
   }
 
+  /// Cancels the current drag operation without completing it.
+  ///
+  /// Unlike [onDragEnd] which completes operations (fill, move, resize),
+  /// this method discards the drag and restores the selection to its
+  /// pre-drag state. Returns `true` if a drag was actually cancelled.
+  ///
+  /// The caller is responsible for:
+  /// - Undoing resize changes (restoring original column/row sizes)
+  /// - Stopping auto-scroll
+  /// - Restoring cursor
+  bool cancelDrag() {
+    if (!isDragging) return false;
+
+    if (_isFilling) {
+      onFillCancel?.call();
+    } else if (_isMoving) {
+      onMoveCancel?.call();
+    }
+
+    // Restore selection to pre-drag state
+    final savedSelection = _selectionBeforeDrag;
+    _resetDragState();
+    if (savedSelection != null) {
+      selectionController.selectRange(savedSelection);
+    }
+    return true;
+  }
+
   /// Resets all drag-related state flags and positions.
   void _resetDragState() {
     _dragStartHit = null;
@@ -422,6 +459,7 @@ class WorksheetGestureHandler {
     _fillSourceRange = null;
     _lastFillDestination = null;
     _fillAxis = null;
+    _selectionBeforeDrag = null;
   }
 
   void _handleResizeUpdate(Offset position, double zoom) {
@@ -635,6 +673,7 @@ class WorksheetGestureHandler {
 
     _isMoving = true;
     _moveSourceRange = selection;
+    _selectionBeforeDrag = selection;
     _dragStartPosition = position;
     _lastDragPosition = position;
   }

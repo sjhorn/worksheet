@@ -1,3 +1,4 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -286,6 +287,157 @@ void main() {
       await tester.pump();
 
       expect(controller.focusCell, const CellCoordinate(10, 3));
+    });
+  });
+
+  group('Escape cancels active drag', () {
+    // Layout: WorksheetThemeData defaults, zoom=1.0
+    // Row header width: 50, Column header height: 24
+    // Default cell: 100 wide, 24 tall
+    //
+    // Cell (r,c): x=[50+c*100, 50+(c+1)*100], y=[24+r*24, 24+(r+1)*24]
+
+    testWidgets('Escape cancels range selection drag', (tester) async {
+      await tester.pumpWidget(buildWorksheet());
+      await tester.pump();
+
+      // Select cell (1,1) first
+      selectCell(1, 1);
+      await tester.pump();
+
+      // Start a mouse drag from cell (1,1) — this puts the gesture
+      // handler into selection-drag mode with selectionBeforeDrag=(1,1).
+      // Cell (1,1) center: x=200, y=60
+      final gesture = await tester.startGesture(
+        const Offset(200.0, 60.0),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      // Move pointer (may or may not extend selection depending on event
+      // routing, but the gesture handler is in drag mode either way).
+      await gesture.moveTo(const Offset(400.0, 108.0));
+      await tester.pump();
+
+      // Press Escape while dragging — should restore to original (1,1)
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+
+      final range = controller.selectedRange!;
+      expect(range.startRow, equals(1));
+      expect(range.startColumn, equals(1));
+      expect(range.endRow, equals(1));
+      expect(range.endColumn, equals(1));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('Escape cancels move drag and restores selection',
+        (tester) async {
+      await tester.pumpWidget(buildWorksheet());
+      await tester.pump();
+
+      // Select range (1,1) to (2,2) programmatically
+      controller.selectionController.selectRange(
+        const CellRange(1, 1, 2, 2),
+      );
+      await tester.pump();
+
+      // Start drag on selection border to move.
+      // Selection (1,1)-(2,2): screen TL=(150,48), BR=(350,96).
+      // Border tolerance=4 → outer=(146,44,354,100), inner=(154,52,346,92).
+      // Position (200, 48): in outer (yes), in inner (48<52 → no) → border.
+      final gesture = await tester.startGesture(
+        const Offset(200.0, 48.0),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      // Move pointer
+      await gesture.moveTo(const Offset(200.0, 200.0));
+      await tester.pump();
+
+      // Press Escape to cancel — should restore to original (1,1)-(2,2)
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+
+      final range = controller.selectedRange!;
+      expect(range.startRow, equals(1));
+      expect(range.startColumn, equals(1));
+      expect(range.endRow, equals(2));
+      expect(range.endColumn, equals(2));
+
+      await gesture.up();
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('Escape during column resize cancels without crash',
+        (tester) async {
+      await tester.pumpWidget(buildWorksheet());
+      await tester.pump();
+
+      // Column 0 right edge resize handle: x ≈ 148 (near 50+100=150),
+      // y=12 (in header area, y < 24)
+      final gesture = await tester.startGesture(
+        const Offset(148.0, 12.0),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      // Drag right to widen column
+      await gesture.moveTo(const Offset(200.0, 12.0));
+      await tester.pump();
+
+      // Press Escape to cancel resize
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+
+      // Release pointer — should not crash or re-apply resize
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // Widget should still be functional — select a cell
+      selectCell(0, 0);
+      await tester.pump();
+      expect(controller.focusCell, const CellCoordinate(0, 0));
+    });
+
+    testWidgets('mouse up after Escape does not re-complete drag',
+        (tester) async {
+      await tester.pumpWidget(buildWorksheet());
+      await tester.pump();
+
+      // Select cell (1,1) to have a starting point
+      selectCell(1, 1);
+      await tester.pump();
+
+      // Start mouse drag — puts handler in drag mode
+      final gesture = await tester.startGesture(
+        const Offset(200.0, 60.0),
+        kind: PointerDeviceKind.mouse,
+      );
+      await tester.pump();
+
+      // Move pointer
+      await gesture.moveTo(const Offset(400.0, 108.0));
+      await tester.pump();
+
+      // Press Escape to cancel drag
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await tester.pump();
+
+      // Selection should be restored to (1,1)
+      expect(controller.selectedRange!.endRow, equals(1));
+
+      // Release mouse — should not re-extend or re-apply the drag
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      // Selection should still be single cell (1,1)
+      final range = controller.selectedRange!;
+      expect(range.endRow, equals(1));
+      expect(range.endColumn, equals(1));
     });
   });
 }

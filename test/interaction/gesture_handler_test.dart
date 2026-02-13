@@ -1903,5 +1903,221 @@ void main() {
         expect(range.endColumn, equals(2));
       });
     });
+
+    group('cancelDrag', () {
+      // Layout: headerWidth=50, headerHeight=30
+      // Cell (r,c): x=[50+c*100, 50+(c+1)*100], y=[30+r*24, 30+(r+1)*24]
+
+      test('cancelDrag returns false when no drag is active', () {
+        expect(handler.cancelDrag(), isFalse);
+      });
+
+      test('cancelDrag during cell selection restores original selection', () {
+        // Select cell (0,0) first
+        selectionController.selectCell(const CellCoordinate(0, 0));
+
+        // Start drag on cell (0,0) — begins range selection
+        handler.onTapDown(
+          position: const Offset(60.0, 40.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        handler.onDragStart(
+          position: const Offset(60.0, 40.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag to extend selection to (2,2)
+        handler.onDragUpdate(
+          position: const Offset(260.0, 82.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Selection should be extended
+        expect(selectionController.selectedRange!.endRow, equals(2));
+
+        // Cancel — should restore to original single-cell selection
+        expect(handler.cancelDrag(), isTrue);
+        expect(handler.isDragging, isFalse);
+
+        final range = selectionController.selectedRange!;
+        expect(range.startRow, equals(0));
+        expect(range.startColumn, equals(0));
+        expect(range.endRow, equals(0));
+        expect(range.endColumn, equals(0));
+      });
+
+      test('cancelDrag during fill calls onFillCancel and restores selection',
+          () {
+        bool fillCancelCalled = false;
+        bool fillCompleteCalled = false;
+
+        final fillHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onFillComplete: (source, dest) => fillCompleteCalled = true,
+          onFillCancel: () => fillCancelCalled = true,
+        );
+
+        // Select range (0,0) to (1,1)
+        selectionController.selectRange(
+          const CellRange(0, 0, 1, 1),
+        );
+        final originalRange = selectionController.selectedRange;
+
+        // Start fill drag from fill handle
+        // Fill handle is at bottom-right of (1,1):
+        // x = 50 + 2*100 = 250, y = 30 + 2*24 = 78
+        fillHandler.onDragStart(
+          position: const Offset(250.0, 78.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(fillHandler.isFilling, isTrue);
+
+        // Update fill drag
+        fillHandler.onDragUpdate(
+          position: const Offset(250.0, 120.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Cancel
+        expect(fillHandler.cancelDrag(), isTrue);
+        expect(fillCancelCalled, isTrue);
+        expect(fillCompleteCalled, isFalse);
+        expect(fillHandler.isDragging, isFalse);
+
+        // Selection restored
+        expect(selectionController.selectedRange, equals(originalRange));
+      });
+
+      test('cancelDrag during move calls onMoveCancel and restores selection',
+          () {
+        bool moveCancelCalled = false;
+        bool moveCompleteCalled = false;
+
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMoveComplete: (source, dest) => moveCompleteCalled = true,
+          onMoveCancel: () => moveCancelCalled = true,
+        );
+
+        // Select range (0,0) to (1,1)
+        selectionController.selectRange(
+          const CellRange(0, 0, 1, 1),
+        );
+
+        // Start move drag from selection border.
+        // Selection (0,0)-(1,1) screen bounds: TL=(50,30), BR=(250,78).
+        // Border tolerance=4 → outerRect=(46,26,254,82), innerRect=(54,34,246,74).
+        // Position (100,31): in outer (yes), in inner (31<34 → no) → border hit.
+        moveHandler.onDragStart(
+          position: const Offset(100.0, 31.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(moveHandler.isMoving, isTrue);
+
+        // Update move drag
+        moveHandler.onDragUpdate(
+          position: const Offset(300.0, 100.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Cancel
+        expect(moveHandler.cancelDrag(), isTrue);
+        expect(moveCancelCalled, isTrue);
+        expect(moveCompleteCalled, isFalse);
+        expect(moveHandler.isDragging, isFalse);
+
+        // Selection restored to original range
+        final range = selectionController.selectedRange!;
+        expect(range.startRow, equals(0));
+        expect(range.endRow, equals(1));
+      });
+
+      test('cancelDrag during resize resets drag state', () {
+        // Start resize drag from column resize handle.
+        // Column 0 right edge at worksheet x=100, screen x=148.
+        // worksheetPos.dx=(148-50)/1=98, colRight=100, dist=2 ≤ 4 → resize.
+        handler.onDragStart(
+          position: const Offset(148.0, 15.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(handler.isResizing, isTrue);
+
+        // Cancel
+        expect(handler.cancelDrag(), isTrue);
+        expect(handler.isDragging, isFalse);
+        expect(handler.isResizing, isFalse);
+      });
+
+      test('cancelDrag during handle drag restores selection', () {
+        // Select range (1,1) to (3,3)
+        selectionController.selectRange(
+          const CellRange(1, 1, 3, 3),
+        );
+
+        // Drag bottom-right handle
+        // Bottom-right of (3,3): x = 50 + 4*100 = 450, y = 30 + 4*24 = 126
+        handler.onDragStart(
+          position: const Offset(450.0, 126.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionHandleSize: 12.0,
+        );
+        expect(handler.isHandleDragging, isTrue);
+
+        // Extend selection via handle drag
+        handler.onDragUpdate(
+          position: const Offset(560.0, 160.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Cancel — should restore to (1,1)-(3,3)
+        expect(handler.cancelDrag(), isTrue);
+        expect(handler.isDragging, isFalse);
+
+        final range = selectionController.selectedRange!;
+        expect(range.startRow, equals(1));
+        expect(range.startColumn, equals(1));
+        expect(range.endRow, equals(3));
+        expect(range.endColumn, equals(3));
+      });
+
+      test('cancelDrag during long-press move calls onMoveCancel', () {
+        bool moveCancelCalled = false;
+
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMoveCancel: () => moveCancelCalled = true,
+        );
+
+        // Select cell (2,2)
+        selectionController.selectCell(const CellCoordinate(2, 2));
+
+        // Long-press on selected cell
+        // Cell (2,2) center: x = 50 + 2*100 + 50 = 300, y = 30 + 2*24 + 12 = 90
+        moveHandler.onLongPressStart(
+          position: const Offset(300.0, 90.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(moveHandler.isMoving, isTrue);
+
+        // Cancel
+        expect(moveHandler.cancelDrag(), isTrue);
+        expect(moveCancelCalled, isTrue);
+        expect(moveHandler.isDragging, isFalse);
+      });
+    });
   });
 }
