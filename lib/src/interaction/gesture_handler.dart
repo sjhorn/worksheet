@@ -129,6 +129,7 @@ class WorksheetGestureHandler {
   FillAxis? _fillAxis;
   CellRange? _moveSourceRange;
   CellCoordinate? _lastMoveDestination;
+  CellCoordinate _moveGrabOffset = const CellCoordinate(0, 0);
   CellRange? _selectionBeforeDrag;
 
   /// Creates a gesture handler.
@@ -337,6 +338,14 @@ class WorksheetGestureHandler {
     } else if (hit.isSelectionBorder) {
       _isMoving = true;
       _moveSourceRange = selectionController.selectedRange;
+      if (hit.cell != null && _moveSourceRange != null) {
+        final src = _moveSourceRange!;
+        _moveGrabOffset = CellCoordinate(
+          (hit.cell!.row - src.startRow).clamp(0, src.endRow - src.startRow),
+          (hit.cell!.column - src.startColumn)
+              .clamp(0, src.endColumn - src.startColumn),
+        );
+      }
     } else if (hit.isResizeHandle) {
       _isResizing = true;
     } else if (hit.isCell) {
@@ -395,7 +404,8 @@ class WorksheetGestureHandler {
 
     // Handle move drag completion
     if (_isMoving) {
-      if (_moveSourceRange != null && _lastMoveDestination != null) {
+      if (_moveSourceRange != null && _lastMoveDestination != null &&
+          _lastMoveDestination != _moveSourceRange!.topLeft) {
         onMoveComplete?.call(_moveSourceRange!, _lastMoveDestination!);
       } else {
         onMoveCancel?.call();
@@ -455,6 +465,7 @@ class WorksheetGestureHandler {
     _isHandleDragging = false;
     _moveSourceRange = null;
     _lastMoveDestination = null;
+    _moveGrabOffset = const CellCoordinate(0, 0);
     _isFilling = false;
     _fillSourceRange = null;
     _lastFillDestination = null;
@@ -633,14 +644,21 @@ class WorksheetGestureHandler {
     final cell = hit.cell!;
     final source = _moveSourceRange!;
 
-    _lastMoveDestination = cell;
+    // Apply grab offset so the cursor stays over the same relative position
+    final sourceHeight = source.endRow - source.startRow;
+    final sourceWidth = source.endColumn - source.startColumn;
+    final maxRow = hitTester.layoutSolver.rowCount - 1 - sourceHeight;
+    final maxCol = hitTester.layoutSolver.columnCount - 1 - sourceWidth;
+    final destRow = (cell.row - _moveGrabOffset.row).clamp(0, maxRow);
+    final destCol = (cell.column - _moveGrabOffset.column).clamp(0, maxCol);
+    _lastMoveDestination = CellCoordinate(destRow, destCol);
 
     // Compute preview range: source dimensions translated to drop position
     final previewRange = CellRange(
-      cell.row,
-      cell.column,
-      cell.row + source.endRow - source.startRow,
-      cell.column + source.endColumn - source.startColumn,
+      destRow,
+      destCol,
+      destRow + sourceHeight,
+      destCol + sourceWidth,
     );
 
     onMovePreviewUpdate?.call(previewRange);
@@ -673,6 +691,10 @@ class WorksheetGestureHandler {
 
     _isMoving = true;
     _moveSourceRange = selection;
+    _moveGrabOffset = CellCoordinate(
+      cell.row - selection.startRow,
+      cell.column - selection.startColumn,
+    );
     _selectionBeforeDrag = selection;
     _dragStartPosition = position;
     _lastDragPosition = position;
@@ -691,7 +713,8 @@ class WorksheetGestureHandler {
   /// Handles long-press end for mobile move gesture.
   void onLongPressEnd() {
     if (!_isMoving) return;
-    if (_moveSourceRange != null && _lastMoveDestination != null) {
+    if (_moveSourceRange != null && _lastMoveDestination != null &&
+        _lastMoveDestination != _moveSourceRange!.topLeft) {
       onMoveComplete?.call(_moveSourceRange!, _lastMoveDestination!);
     } else {
       onMoveCancel?.call();

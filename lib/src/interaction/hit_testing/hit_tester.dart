@@ -191,8 +191,13 @@ class WorksheetHitTester {
       );
 
       if (outerRect.contains(position) && !innerRect.contains(position)) {
-        return WorksheetHitTestResult.selectionBorder(
-            CellCoordinate(row, col));
+        // Don't detect selection border in the header-adjacent zone
+        // to prevent accidental move-drag near row/column headers.
+        if (position.dx >= scaledHeaderWidth + selectionBorderTolerance &&
+            position.dy >= scaledHeaderHeight + selectionBorderTolerance) {
+          return WorksheetHitTestResult.selectionBorder(
+              CellCoordinate(row, col));
+        }
       }
     }
 

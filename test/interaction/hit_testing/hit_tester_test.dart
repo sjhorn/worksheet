@@ -438,11 +438,10 @@ void main() {
       test('works with zoom > 1.0', () {
         // At zoom 2.0, headers scaled to (100, 60)
         // Selection (0,0)-(0,0): row 0 starts at 0, ends at 25; col 0 starts at 0, ends at 100
-        // Screen top-left: (100 + 0*2, 60 + 0*2) = (100, 60)
-        // Screen bottom-right: (100 + 100*2, 60 + 25*2) = (300, 110)
-        // Top edge at y=60
+        // Screen top-left: (100, 60), Screen bottom-right: (300, 110)
+        // Bottom edge at y=110 — far enough from header (60+4=64)
         final result = hitTester.hitTest(
-          position: const Offset(200, 60),
+          position: const Offset(200, 110),
           scrollOffset: Offset.zero,
           zoom: 2.0,
           selectionRange: const CellRange(0, 0, 0, 0),
@@ -480,6 +479,39 @@ void main() {
         );
 
         expect(result.type, HitTestType.cell);
+      });
+
+      test('no selection border near header boundary for cell (0,0)', () {
+        // Selection at (0,0)-(0,0)
+        // Row 0: y=0..25, Col 0: x=0..100
+        // Screen TL: (50, 30), Screen BR: (150, 55)
+        // Top-left border zone includes position near (50, 30)
+        // Test 2px into cell area from header edge: (52, 32)
+        // This is within selectionBorderTolerance (4px) of the header edge
+        final result = hitTester.hitTest(
+          position: const Offset(52, 32),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(0, 0, 0, 0),
+        );
+
+        // Should NOT return selectionBorder — too close to header edge
+        expect(result.type, isNot(HitTestType.selectionBorder));
+      });
+
+      test('selection border still detected far from headers', () {
+        // Selection at (5,5)-(7,7)
+        // Row 5 starts at 125, Col 5 starts at 500
+        // Screen TL: (550, 155)
+        // Left edge at x=550, top edge at y=155 — both well away from headers
+        final result = hitTester.hitTest(
+          position: const Offset(600, 155),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: const CellRange(5, 5, 7, 7),
+        );
+
+        expect(result.type, HitTestType.selectionBorder);
       });
     });
 

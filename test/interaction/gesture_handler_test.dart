@@ -2014,9 +2014,10 @@ void main() {
         // Start move drag from selection border.
         // Selection (0,0)-(1,1) screen bounds: TL=(50,30), BR=(250,78).
         // Border tolerance=4 → outerRect=(46,26,254,82), innerRect=(54,34,246,74).
-        // Position (100,31): in outer (yes), in inner (31<34 → no) → border hit.
+        // Use bottom edge: position (100,77) — in outer, not in inner, and
+        // far enough from headers (>= 30+4=34).
         moveHandler.onDragStart(
-          position: const Offset(100.0, 31.0),
+          position: const Offset(100.0, 77.0),
           scrollOffset: Offset.zero,
           zoom: 1.0,
         );
@@ -2117,6 +2118,246 @@ void main() {
         expect(moveHandler.cancelDrag(), isTrue);
         expect(moveCancelCalled, isTrue);
         expect(moveHandler.isDragging, isFalse);
+      });
+    });
+
+    group('same-cell move is no-op', () {
+      test('drag to same cell calls onMoveCancel not onMoveComplete', () {
+        selectionController.selectRange(const CellRange(1, 1, 2, 2));
+
+        bool moveCancelled = false;
+        CellRange? completedSource;
+
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {
+            completedSource = source;
+          },
+          onMoveCancel: () => moveCancelled = true,
+        );
+
+        // Start at top edge of selection (1,1)-(2,2)
+        // Row 1 at y=24, screen y = 30+24 = 54, border at y=53
+        const startPos = Offset(200.0, 53.0);
+        moveHandler.onDragStart(
+          position: startPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(moveHandler.isMoving, isTrue);
+
+        // Drag to cell (1,1) — same as source top-left
+        // Cell (1,1) center: screen (200, 66)
+        moveHandler.onDragUpdate(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        moveHandler.onDragEnd();
+
+        expect(moveCancelled, isTrue);
+        expect(completedSource, isNull);
+      });
+
+      test('long-press move to same cell calls onMoveCancel', () {
+        selectionController.selectRange(const CellRange(1, 1, 2, 2));
+
+        bool moveCancelled = false;
+        CellRange? completedSource;
+
+        handler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {
+            completedSource = source;
+          },
+          onMoveCancel: () => moveCancelled = true,
+        );
+
+        // Long-press on cell (1,1) — inside selection
+        handler.onLongPressStart(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(handler.isMoving, isTrue);
+
+        // Move to cell (1,1) — same as source top-left
+        handler.onLongPressMoveUpdate(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        handler.onLongPressEnd();
+
+        expect(moveCancelled, isTrue);
+        expect(completedSource, isNull);
+      });
+    });
+
+    group('move grab offset', () {
+      // Layout: headerWidth=50, headerHeight=30, rowHeight=24, colWidth=100
+
+      test('grab offset is applied when moving selection', () {
+        // Select range (1,1)-(2,2)
+        selectionController.selectRange(const CellRange(1, 1, 2, 2));
+
+        CellRange? completedSource;
+        CellCoordinate? completedDest;
+
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {
+            completedSource = source;
+            completedDest = dest;
+          },
+          onMoveCancel: () {},
+        );
+
+        // Grab at bottom border near cell (2,2), away from fill handle
+        // Selection (1,1)-(2,2): screen TL=(150,54), BR=(350,102)
+        // Bottom border at y=101, x=300 — cell underneath is (2,2)
+        // Fill handle at (350,102), distance > 10 → not fill handle
+        const grabPos = Offset(300.0, 101.0);
+        moveHandler.onDragStart(
+          position: grabPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+        expect(moveHandler.isMoving, isTrue);
+
+        // Drag to cell (7,7): screen = (50+7*100+50, 30+7*24+12) = (800, 210)
+        moveHandler.onDragUpdate(
+          position: const Offset(800.0, 210.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        moveHandler.onDragEnd();
+
+        // Grabbed cell is (2,2), source starts at (1,1) → offset = (1,1)
+        // Cursor at (7,7) - offset (1,1) = destination (6,6)
+        expect(completedSource, const CellRange(1, 1, 2, 2));
+        expect(completedDest, const CellCoordinate(6, 6));
+      });
+
+      test('grab offset clamps destination to zero', () {
+        // Select range (1,1)-(2,2)
+        selectionController.selectRange(const CellRange(1, 1, 2, 2));
+
+        CellRange? movePreview;
+
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) => movePreview = range,
+          onMoveComplete: (source, dest) {},
+          onMoveCancel: () {},
+        );
+
+        // Grab at bottom border near cell (2,2), away from fill handle
+        const grabPos = Offset(300.0, 101.0);
+        moveHandler.onDragStart(
+          position: grabPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag to cell (0,0): screen = (60, 40)
+        // Destination = (0-1, 0-1) → clamped to (0, 0)
+        moveHandler.onDragUpdate(
+          position: const Offset(60.0, 40.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(movePreview, isNotNull);
+        expect(movePreview!.startRow, 0);
+        expect(movePreview!.startColumn, 0);
+      });
+
+      test('grab offset works with long-press move', () {
+        // Select range (1,1)-(2,2)
+        selectionController.selectRange(const CellRange(1, 1, 2, 2));
+
+        CellCoordinate? completedDest;
+
+        handler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {
+            completedDest = dest;
+          },
+          onMoveCancel: () {},
+        );
+
+        // Long-press on cell (2,2): center at screen (300, 90)
+        // Grab offset = (2-1, 2-1) = (1, 1)
+        handler.onLongPressStart(
+          position: const Offset(300.0, 90.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Move to cell (5,5): screen = (600, 162)
+        // Destination = (5-1, 5-1) = (4, 4)
+        handler.onLongPressMoveUpdate(
+          position: const Offset(600.0, 162.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        handler.onLongPressEnd();
+
+        expect(completedDest, const CellCoordinate(4, 4));
+      });
+
+      test('grab at top-left has zero offset', () {
+        // Select range (1,1)-(2,2)
+        selectionController.selectRange(const CellRange(1, 1, 2, 2));
+
+        CellCoordinate? completedDest;
+
+        final moveHandler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onMovePreviewUpdate: (range) {},
+          onMoveComplete: (source, dest) {
+            completedDest = dest;
+          },
+          onMoveCancel: () {},
+        );
+
+        // Grab at top edge border near cell (1,1)
+        // Row 1 starts at y=24, screen y = 30+24 = 54, border at 53
+        // Col 1 at x=100..200, screen x = 150..250
+        const grabPos = Offset(200.0, 53.0);
+        moveHandler.onDragStart(
+          position: grabPos,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Drag to cell (5,5): screen = (600, 162)
+        // Grabbed cell is (1,1), offset = (1-1, 1-1) = (0, 0)
+        // Destination = (5, 5)
+        moveHandler.onDragUpdate(
+          position: const Offset(600.0, 162.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        moveHandler.onDragEnd();
+
+        expect(completedDest, const CellCoordinate(5, 5));
       });
     });
   });
