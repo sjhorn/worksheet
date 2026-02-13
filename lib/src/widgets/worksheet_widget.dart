@@ -22,6 +22,7 @@ import '../interaction/clipboard/clipboard_serializer.dart';
 import '../interaction/controllers/edit_controller.dart';
 import '../interaction/controllers/selection_controller.dart';
 import '../interaction/gesture_handler.dart';
+import '../interaction/gestures/scale_handler.dart';
 import '../interaction/hit_testing/hit_test_result.dart';
 import '../interaction/hit_testing/hit_tester.dart';
 import '../shortcuts/default_worksheet_shortcuts.dart';
@@ -167,6 +168,23 @@ class Worksheet extends StatefulWidget {
   /// a custom [Action].
   final Map<Type, Action<Intent>>? actions;
 
+  /// Controls whether mobile interaction mode is enabled.
+  ///
+  /// When `true`, enables touch-friendly interactions:
+  /// - One-finger drag scrolls (instead of selecting)
+  /// - Selection handles at corners for extending selection
+  /// - Long-press to move selected cells
+  /// - Pinch-to-zoom
+  /// - Larger hit targets for resize and selection handles
+  /// - No hover cursor changes
+  ///
+  /// When `false`, uses desktop interaction mode (mouse cursors,
+  /// click-drag selection, hover states, small hit targets).
+  ///
+  /// When `null` (default), auto-detects based on platform:
+  /// iOS and Android use mobile mode, all others use desktop mode.
+  final bool? mobileMode;
+
   const Worksheet({
     super.key,
     required this.data,
@@ -188,6 +206,7 @@ class Worksheet extends StatefulWidget {
     this.scrollbarConfig,
     this.shortcuts,
     this.actions,
+    this.mobileMode,
   });
 
   @override
@@ -229,6 +248,17 @@ class _WorksheetState extends State<Worksheet>
   late HeaderLayer _headerLayer;
 
   bool _initialized = false;
+
+  /// Whether mobile interaction mode is active.
+  ///
+  /// Resolved from [Worksheet.mobileMode]: explicit override if set,
+  /// otherwise auto-detects based on [defaultTargetPlatform].
+  bool get _isMobileMode {
+    if (widget.mobileMode != null) return widget.mobileMode!;
+    return defaultTargetPlatform == TargetPlatform.iOS ||
+        defaultTargetPlatform == TargetPlatform.android;
+  }
+
   WorksheetThemeData? _lastTheme;
   double? _lastDevicePixelRatio;
   MouseCursor _currentCursor = SystemMouseCursors.basic;
@@ -266,6 +296,17 @@ class _WorksheetState extends State<Worksheet>
 
   // Data change subscription for external mutations
   StreamSubscription<DataChangeEvent>? _dataSubscription;
+
+  // Pinch-to-zoom
+  ScaleHandler? _scaleHandler;
+  final Map<int, Offset> _activePointers = {};
+  double _pinchStartDistance = 0;
+
+  // Shared flag checked by _scrollPhysics on every drag update.
+  // Setting suppress = true immediately blocks user-initiated scrolling.
+  final ScrollSuppressor _scrollSuppressor = ScrollSuppressor();
+  late final SuppressibleBouncingPhysics _scrollPhysics =
+      SuppressibleBouncingPhysics(suppressor: _scrollSuppressor);
 
   // Auto-scroll during drag selection
   Timer? _autoScrollTimer;
@@ -399,6 +440,10 @@ class _WorksheetState extends State<Worksheet>
     // Create gesture handler after tile manager so resize callbacks can access it
     _gestureHandler = _createGestureHandler();
 
+    // Create scale handler for pinch-to-zoom
+    _scaleHandler = ScaleHandler(
+        zoomController: _controller.zoomController);
+
     _clipboardHandler = ClipboardHandler(
       data: widget.data,
       selectionController: _controller.selectionController,
@@ -440,7 +485,8 @@ class _WorksheetState extends State<Worksheet>
       selectionController: _controller.selectionController,
       renderer: _selectionRenderer,
       onNeedsPaint: () => setState(() {}),
-      showFillHandle: !widget.readOnly,
+      showFillHandle: !widget.readOnly && !_isMobileMode,
+      showSelectionHandles: _isMobileMode,
     );
 
     _headerLayer = HeaderLayer(
@@ -1448,6 +1494,11 @@ class _WorksheetState extends State<Worksheet>
     }
     _lastViewInsets = viewInsets;
 
+    // Sync mobile-mode-dependent layer flags so toggling mobileMode
+    // at runtime (e.g. via a Switch) takes effect immediately.
+    _selectionLayer.showFillHandle = !widget.readOnly && !_isMobileMode;
+    _selectionLayer.showSelectionHandles = _isMobileMode;
+
     // Use Listener for low-level pointer events to handle:
     // - Left mouse button: tap and drag for selection
     // - Scroll wheel: handled by TwoDimensionalScrollable
@@ -1478,7 +1529,7 @@ class _WorksheetState extends State<Worksheet>
               Positioned.fill(
                 child: MouseRegion(
                   cursor: _currentCursor,
-                  onHover: widget.readOnly
+                  onHover: (widget.readOnly || _isMobileMode)
                       ? null
                       : (event) {
                           final hit = _hitTester.hitTest(
@@ -1518,6 +1569,32 @@ class _WorksheetState extends State<Worksheet>
                         ? null
                         : (event) {
                             _lastPointerKind = event.kind;
+                            // Track pointers for pinch-to-zoom
+                            if (_isMobileMode &&
+                                event.kind == PointerDeviceKind.touch) {
+                              _activePointers[event.pointer] =
+                                  event.localPosition;
+                              if (_activePointers.length == 2) {
+                                // Start pinch zoom
+                                final points =
+                                    _activePointers.values.toList();
+                                final focal = Offset(
+                                  (points[0].dx + points[1].dx) / 2,
+                                  (points[0].dy + points[1].dy) / 2,
+                                );
+                                _pinchStartDistance =
+                                    (points[0] - points[1]).distance;
+                                _scaleHandler?.onScaleStart(
+                                  scale: 1.0,
+                                  focalPoint: focal,
+                                  scrollOffset: Offset(
+                                    _controller.scrollX,
+                                    _controller.scrollY,
+                                  ),
+                                );
+                                return; // Don't process selection
+                              }
+                            }
                             // Only handle primary button (left click) for selection
                             if (event.buttons == kPrimaryButton) {
                               // GestureDetector.onDoubleTapDown fires before
@@ -1593,6 +1670,65 @@ class _WorksheetState extends State<Worksheet>
                                 );
                               }
 
+                              // In mobile mode, skip cell/selectionBorder
+                              // drag-start so one-finger scroll works.
+                              // Still handle selection handles, resize handles,
+                              // and headers.
+                              if (_isMobileMode &&
+                                  event.kind == PointerDeviceKind.touch) {
+                                final hit = _hitTester.hitTest(
+                                  position: event.localPosition,
+                                  scrollOffset: Offset(
+                                    _controller.scrollX,
+                                    _controller.scrollY,
+                                  ),
+                                  zoom: _controller.zoom,
+                                  selectionRange: _controller
+                                      .selectionController.selectedRange,
+                                  selectionHandleSize: 12.0,
+                                  resizeHandleTolerance: 12.0,
+                                  selectionBorderTolerance: 12.0,
+                                );
+                                // Only start drag for handles and headers
+                                if (hit.isSelectionHandle ||
+                                    hit.isResizeHandle ||
+                                    hit.isHeader) {
+                                  // For handle/resize drags, suppress scroll
+                                  // so the TwoDimensionalScrollable doesn't
+                                  // fight with the drag gesture.
+                                  if (hit.isSelectionHandle ||
+                                      hit.isResizeHandle) {
+                                    _activePointers.remove(event.pointer);
+                                    _scrollSuppressor.suppress = true;
+                                  }
+                                  _gestureHandler.onTapDown(
+                                    position: event.localPosition,
+                                    scrollOffset: Offset(
+                                      _controller.scrollX,
+                                      _controller.scrollY,
+                                    ),
+                                    zoom: _controller.zoom,
+                                    selectionHandleSize: 12.0,
+                                    resizeHandleTolerance: 12.0,
+                                    selectionBorderTolerance: 12.0,
+                                  );
+                                  _gestureHandler.onDragStart(
+                                    position: event.localPosition,
+                                    scrollOffset: Offset(
+                                      _controller.scrollX,
+                                      _controller.scrollY,
+                                    ),
+                                    zoom: _controller.zoom,
+                                    selectionHandleSize: 12.0,
+                                    resizeHandleTolerance: 12.0,
+                                    selectionBorderTolerance: 12.0,
+                                  );
+                                }
+                                // Cell tap/selection is handled via
+                                // GestureDetector.onTapUp in mobile mode.
+                                return;
+                              }
+
                               _gestureHandler.onTapDown(
                                 position: event.localPosition,
                                 scrollOffset: Offset(
@@ -1602,6 +1738,12 @@ class _WorksheetState extends State<Worksheet>
                                 zoom: _controller.zoom,
                                 isShiftPressed: HardwareKeyboard
                                     .instance.isShiftPressed,
+                                selectionHandleSize:
+                                    _isMobileMode ? 12.0 : 0,
+                                resizeHandleTolerance:
+                                    _isMobileMode ? 12.0 : 4.0,
+                                selectionBorderTolerance:
+                                    _isMobileMode ? 12.0 : 4.0,
                               );
                               widget.onCellTap?.call(
                                 _controller.focusCell ??
@@ -1616,6 +1758,12 @@ class _WorksheetState extends State<Worksheet>
                                 zoom: _controller.zoom,
                                 isShiftPressed: HardwareKeyboard
                                     .instance.isShiftPressed,
+                                selectionHandleSize:
+                                    _isMobileMode ? 12.0 : 0,
+                                resizeHandleTolerance:
+                                    _isMobileMode ? 12.0 : 4.0,
+                                selectionBorderTolerance:
+                                    _isMobileMode ? 12.0 : 4.0,
                               );
                               // Switch to grabbing cursor during move drag.
                               if (_gestureHandler.isMoving) {
@@ -1628,6 +1776,51 @@ class _WorksheetState extends State<Worksheet>
                     onPointerMove: widget.readOnly
                         ? null
                         : (event) {
+                            // Track pointer positions for pinch-to-zoom
+                            if (_isMobileMode &&
+                                event.kind == PointerDeviceKind.touch &&
+                                _activePointers.containsKey(event.pointer)) {
+                              _activePointers[event.pointer] =
+                                  event.localPosition;
+                              if (_activePointers.length >= 2 &&
+                                  _scaleHandler?.isScaling == true) {
+                                final points =
+                                    _activePointers.values.toList();
+                                final focal = Offset(
+                                  (points[0].dx + points[1].dx) / 2,
+                                  (points[0].dy + points[1].dy) / 2,
+                                );
+                                final distance =
+                                    (points[0] - points[1]).distance;
+                                final scale = _pinchStartDistance > 0
+                                    ? distance / _pinchStartDistance
+                                    : 1.0;
+                                _scaleHandler!.onScaleUpdate(
+                                  scale: scale,
+                                  focalPoint: focal,
+                                );
+                                // Apply scroll adjustment to maintain focal
+                                final adj = _scaleHandler!.scrollAdjustment;
+                                if (adj != Offset.zero) {
+                                  final hc = _controller
+                                      .horizontalScrollController;
+                                  final vc =
+                                      _controller.verticalScrollController;
+                                  if (hc.hasClients) {
+                                    hc.jumpTo((hc.offset + adj.dx).clamp(
+                                        0.0,
+                                        hc.position.maxScrollExtent));
+                                  }
+                                  if (vc.hasClients) {
+                                    vc.jumpTo((vc.offset + adj.dy).clamp(
+                                        0.0,
+                                        vc.position.maxScrollExtent));
+                                  }
+                                }
+                                setState(() {});
+                                return; // Don't process as drag
+                              }
+                            }
                             // Only handle drag when primary button is held
                             if (event.buttons == kPrimaryButton &&
                                 !_pointerInScrollbarArea) {
@@ -1659,10 +1852,20 @@ class _WorksheetState extends State<Worksheet>
                     onPointerUp: widget.readOnly
                         ? null
                         : (event) {
+                            // Clean up pointer tracking for pinch-to-zoom
+                            if (_isMobileMode) {
+                              _activePointers.remove(event.pointer);
+                              if (_scaleHandler?.isScaling == true &&
+                                  _activePointers.length < 2) {
+                                _scaleHandler!.onScaleEnd();
+                              }
+                            }
                             _stopAutoScroll();
                             _pointerInScrollbarArea = false;
                             final wasMoving = _gestureHandler.isMoving;
                             _gestureHandler.onDragEnd();
+                            // Re-enable scroll after handle/resize drag.
+                            _scrollSuppressor.suppress = false;
                             // Restore cursor after move drag ends.
                             if (wasMoving) {
                               setState(() {
@@ -1670,7 +1873,116 @@ class _WorksheetState extends State<Worksheet>
                               });
                             }
                           },
+                    onPointerCancel: _isMobileMode
+                        ? (event) {
+                            _activePointers.remove(event.pointer);
+                            if (_scaleHandler?.isScaling == true &&
+                                _activePointers.length < 2) {
+                              _scaleHandler!.onScaleEnd();
+                            }
+                            _scrollSuppressor.suppress = false;
+                          }
+                        : null,
                     child: GestureDetector(
+                      // Mobile mode: tap on cell selects it (since
+                      // onPointerDown skips cells for touch to allow scroll).
+                      onTapUp: (!_isMobileMode || widget.readOnly)
+                          ? null
+                          : (TapUpDetails details) {
+                              final ec = widget.editController;
+                              if (ec != null && ec.isEditing) {
+                                // If editing, check if tap is inside editing
+                                // area — if so, let TextField handle it.
+                                final editBounds =
+                                    _selectionRenderer.editingFocusBounds;
+                                final editingCell = ec.editingCell;
+                                if (editingCell != null) {
+                                  final Rect? hitRect;
+                                  if (editBounds != null) {
+                                    final zoom = _controller.zoom;
+                                    final hdrLeft = theme.showHeaders
+                                        ? theme.rowHeaderWidth * zoom
+                                        : 0.0;
+                                    final hdrTop = theme.showHeaders
+                                        ? theme.columnHeaderHeight * zoom
+                                        : 0.0;
+                                    hitRect = Rect.fromLTWH(
+                                      editBounds.left * zoom -
+                                          _controller.scrollX +
+                                          hdrLeft,
+                                      editBounds.top * zoom -
+                                          _controller.scrollY +
+                                          hdrTop,
+                                      editBounds.width * zoom,
+                                      editBounds.height * zoom,
+                                    );
+                                  } else {
+                                    hitRect = _controller
+                                        .getCellScreenBounds(editingCell);
+                                  }
+                                  if (hitRect != null &&
+                                      hitRect.contains(
+                                          details.localPosition)) {
+                                    return;
+                                  }
+                                }
+                                final richText = ec.richTextExtractor?.call();
+                                ec.commitEdit(
+                                  onCommit: (cell, value,
+                                      {CellFormat? detectedFormat}) {
+                                    _onInternalCommit(cell, value,
+                                        detectedFormat: detectedFormat,
+                                        richText: richText);
+                                  },
+                                );
+                              }
+                              final hit = _hitTester.hitTest(
+                                position: details.localPosition,
+                                scrollOffset: Offset(
+                                  _controller.scrollX,
+                                  _controller.scrollY,
+                                ),
+                                zoom: _controller.zoom,
+                                selectionRange: _controller
+                                    .selectionController.selectedRange,
+                                selectionHandleSize: 12.0,
+                              );
+                              if (hit.isCell) {
+                                selectionController.selectCell(hit.cell!);
+                                widget.onCellTap?.call(hit.cell!);
+                              }
+                            },
+                      // Mobile mode: long-press on selected cell to move.
+                      onLongPressStart: (!_isMobileMode || widget.readOnly)
+                          ? null
+                          : (LongPressStartDetails details) {
+                              _gestureHandler.onLongPressStart(
+                                position: details.localPosition,
+                                scrollOffset: Offset(
+                                  _controller.scrollX,
+                                  _controller.scrollY,
+                                ),
+                                zoom: _controller.zoom,
+                              );
+                            },
+                      onLongPressMoveUpdate:
+                          (!_isMobileMode || widget.readOnly)
+                              ? null
+                              : (LongPressMoveUpdateDetails details) {
+                                  _gestureHandler.onLongPressMoveUpdate(
+                                    position: details.localPosition,
+                                    scrollOffset: Offset(
+                                      _controller.scrollX,
+                                      _controller.scrollY,
+                                    ),
+                                    zoom: _controller.zoom,
+                                  );
+                                },
+                      onLongPressEnd: (!_isMobileMode || widget.readOnly)
+                          ? null
+                          : (LongPressEndDetails details) {
+                              _gestureHandler.onLongPressEnd();
+                            },
                       // Use onDoubleTapDown (fires on second pointer-down)
                       // instead of onDoubleTap (fires after second pointer-up)
                       // so that editing starts while iOS is still processing
@@ -1696,7 +2008,20 @@ class _WorksheetState extends State<Worksheet>
                                 zoom: _controller.zoom,
                                 selectionRange:
                                     _controller.selectionController.selectedRange,
+                                resizeHandleTolerance:
+                                    _isMobileMode ? 12.0 : 4.0,
+                                selectionBorderTolerance:
+                                    _isMobileMode ? 12.0 : 4.0,
+                                selectionHandleSize:
+                                    _isMobileMode ? 12.0 : 0,
                               );
+
+                              // In mobile mode, skip border jump (no hover
+                              // cue for which edge to jump to).
+                              if (_isMobileMode && hit.isSelectionBorder) {
+                                _doubleTapHandledPointerDown = true;
+                                return;
+                              }
 
                               // Route double-taps through the gesture handler
                               // for resize handles, selection border, and cells.
@@ -1718,6 +2043,12 @@ class _WorksheetState extends State<Worksheet>
                               if (hit.isResizeHandle || hit.isSelectionBorder) {
                                 _doubleTapHandledPointerDown = true;
                                 return;
+                              }
+
+                              // In mobile mode, ensure cell is selected before
+                              // entering edit mode (onPointerDown skips cells).
+                              if (_isMobileMode && hit.isCell) {
+                                selectionController.selectCell(hit.cell!);
                               }
 
                               // Cell edit handling
@@ -2026,11 +2357,11 @@ class _WorksheetState extends State<Worksheet>
       diagonalDragBehavior: widget.diagonalDragBehavior,
       horizontalDetails: ScrollableDetails.horizontal(
         controller: _controller.horizontalScrollController,
-        physics: const BouncingScrollPhysics(),
+        physics: _scrollPhysics,
       ),
       verticalDetails: ScrollableDetails.vertical(
         controller: _controller.verticalScrollController,
-        physics: const BouncingScrollPhysics(),
+        physics: _scrollPhysics,
       ),
       viewportBuilder: (context, verticalPosition, horizontalPosition) {
         return WorksheetViewport(
@@ -2224,5 +2555,54 @@ class _HeaderPainter extends CustomPainter {
         scrollOffset != oldDelegate.scrollOffset ||
         zoom != oldDelegate.zoom ||
         layoutVersion != oldDelegate.layoutVersion;
+  }
+}
+
+/// Mutable flag shared between the widget state and [_SuppressibleBouncingPhysics].
+///
+/// When [suppress] is `true`, the physics returns zero user-offset and no
+/// ballistic simulation, effectively freezing scroll position for user
+/// gestures while still allowing programmatic [ScrollController.jumpTo].
+class ScrollSuppressor {
+  /// Whether to suppress user-initiated scrolling.
+  bool suppress = false;
+}
+
+/// [BouncingScrollPhysics] variant that can be temporarily suppressed via a
+/// shared [ScrollSuppressor].
+///
+/// This is used during selection-handle and resize-handle touch drags to
+/// prevent the [TwoDimensionalScrollable] from scrolling in response to the
+/// same pointer, while still allowing auto-scroll via [ScrollController.jumpTo].
+class SuppressibleBouncingPhysics extends BouncingScrollPhysics {
+  /// Creates physics that delegates to [BouncingScrollPhysics] unless
+  /// [suppressor.suppress] is `true`.
+  // ignore: prefer_const_constructors_in_immutables — suppressor is mutable
+  SuppressibleBouncingPhysics({required this.suppressor, super.parent});
+
+  /// Shared flag that controls whether scrolling is suppressed.
+  final ScrollSuppressor suppressor;
+
+  @override
+  SuppressibleBouncingPhysics applyTo(ScrollPhysics? ancestor) {
+    return SuppressibleBouncingPhysics(
+      suppressor: suppressor,
+      parent: buildParent(ancestor),
+    );
+  }
+
+  @override
+  double applyPhysicsToUserOffset(ScrollMetrics position, double offset) {
+    if (suppressor.suppress) return 0.0;
+    return super.applyPhysicsToUserOffset(position, offset);
+  }
+
+  @override
+  Simulation? createBallisticSimulation(
+    ScrollMetrics position,
+    double velocity,
+  ) {
+    if (suppressor.suppress) return null;
+    return super.createBallisticSimulation(position, velocity);
   }
 }

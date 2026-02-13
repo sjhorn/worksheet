@@ -1566,5 +1566,342 @@ void main() {
         expect(jumpColDelta, equals(-1));
       });
     });
+
+    group('long-press move (mobile)', () {
+      late CellRange? lastMoveSource;
+      late CellCoordinate? lastMoveDest;
+      late CellRange? lastMovePreview;
+      late bool moveCancelled;
+
+      setUp(() {
+        lastMoveSource = null;
+        lastMoveDest = null;
+        lastMovePreview = null;
+        moveCancelled = false;
+
+        handler = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onEditCell: (cell) => lastEditCell = cell,
+          onResizeRow: (row, delta) {
+            lastResizeRow = row;
+            lastResizeDelta = delta;
+          },
+          onResizeColumn: (column, delta) {
+            lastResizeColumn = column;
+            lastResizeDelta = delta;
+          },
+          onMoveComplete: (source, dest) {
+            lastMoveSource = source;
+            lastMoveDest = dest;
+          },
+          onMovePreviewUpdate: (range) {
+            lastMovePreview = range;
+          },
+          onMoveCancel: () {
+            moveCancelled = true;
+          },
+        );
+      });
+
+      test('onLongPressStart on selected cell starts move', () {
+        // Select cell (1, 1)
+        selectionController.selectCell(const CellCoordinate(1, 1));
+
+        // Long-press at cell (1, 1) center
+        // Column 1: x = 100..200, screen x = 150..250
+        // Row 1: y = 24..48, screen y = 54..78
+        handler.onLongPressStart(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(handler.isMoving, isTrue);
+      });
+
+      test('onLongPressStart on unselected cell does NOT start move', () {
+        // Select cell (0, 0)
+        selectionController.selectCell(const CellCoordinate(0, 0));
+
+        // Long-press at cell (1, 1) which is NOT selected
+        handler.onLongPressStart(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(handler.isMoving, isFalse);
+      });
+
+      test('onLongPressMoveUpdate calls onMovePreviewUpdate', () {
+        selectionController.selectCell(const CellCoordinate(1, 1));
+
+        handler.onLongPressStart(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Move to cell (3, 3)
+        // Column 3: x = 300..400, screen x = 350..450
+        // Row 3: y = 72..96, screen y = 102..126
+        handler.onLongPressMoveUpdate(
+          position: const Offset(400.0, 110.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(lastMovePreview, isNotNull);
+      });
+
+      test('onLongPressEnd calls onMoveComplete with correct args', () {
+        selectionController.selectCell(const CellCoordinate(1, 1));
+
+        handler.onLongPressStart(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Move to cell (3, 3)
+        handler.onLongPressMoveUpdate(
+          position: const Offset(400.0, 110.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        handler.onLongPressEnd();
+
+        expect(lastMoveSource, isNotNull);
+        expect(lastMoveDest, isNotNull);
+        expect(handler.isMoving, isFalse);
+      });
+
+      test('onLongPressEnd without move calls onMoveCancel', () {
+        selectionController.selectCell(const CellCoordinate(1, 1));
+
+        handler.onLongPressStart(
+          position: const Offset(200.0, 66.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // End without moving
+        handler.onLongPressEnd();
+
+        expect(moveCancelled, isTrue);
+        expect(handler.isMoving, isFalse);
+      });
+    });
+
+    group('selection handle drag', () {
+      test('selection handle drag extends selection from opposite corner', () {
+        // Select range (1,1) to (3,3)
+        selectionController.selectRange(const CellRange(1, 1, 3, 3));
+
+        // Drag from bottom-right handle
+        // Bottom-right corner of (3,3): row end = 96, col end = 400
+        // Screen: (450, 126)
+        final bottomRightScreen = hitTester.worksheetToScreen(
+          worksheetPosition: Offset(
+            layoutSolver.getColumnEnd(3),
+            layoutSolver.getRowEnd(3),
+          ),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Hit test should detect selection handle with size > 0
+        final hit = hitTester.hitTest(
+          position: bottomRightScreen,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: selectionController.selectedRange,
+          selectionHandleSize: 12.0,
+        );
+        expect(hit.isSelectionHandle, isTrue);
+
+        // Start drag from bottom-right handle
+        handler.onDragStart(
+          position: bottomRightScreen,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionHandleSize: 12.0,
+        );
+
+        expect(handler.isHandleDragging, isTrue);
+        expect(handler.isSelectingRange, isTrue);
+
+        // Anchor should now be at top-left (1,1)
+        expect(selectionController.anchor,
+            equals(const CellCoordinate(1, 1)));
+      });
+
+      test('top-left handle anchors at bottom-right corner', () {
+        // Select range (1,1) to (3,3)
+        selectionController.selectRange(const CellRange(1, 1, 3, 3));
+
+        // Top-left corner of (1,1): row top = 24, col left = 100
+        // Screen: (150, 54)
+        final topLeftScreen = hitTester.worksheetToScreen(
+          worksheetPosition: Offset(
+            layoutSolver.getColumnLeft(1),
+            layoutSolver.getRowTop(1),
+          ),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        final hit = hitTester.hitTest(
+          position: topLeftScreen,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionRange: selectionController.selectedRange,
+          selectionHandleSize: 12.0,
+        );
+        expect(hit.isSelectionHandle, isTrue);
+
+        handler.onDragStart(
+          position: topLeftScreen,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionHandleSize: 12.0,
+        );
+
+        // Anchor should now be at bottom-right (3,3)
+        expect(selectionController.anchor,
+            equals(const CellCoordinate(3, 3)));
+      });
+
+      test('dragging handle extends selection to new cell', () {
+        // Select range (1,1) to (3,3)
+        selectionController.selectRange(const CellRange(1, 1, 3, 3));
+
+        // Drag from bottom-right handle
+        final bottomRightScreen = hitTester.worksheetToScreen(
+          worksheetPosition: Offset(
+            layoutSolver.getColumnEnd(3),
+            layoutSolver.getRowEnd(3),
+          ),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        handler.onDragStart(
+          position: bottomRightScreen,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionHandleSize: 12.0,
+        );
+
+        // Drag to cell (5,5) center
+        // Column 5: x = 500..600, screen x = 550..650
+        // Row 5: y = 120..144, screen y = 150..174
+        handler.onDragUpdate(
+          position: const Offset(600.0, 162.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Selection should now extend from (1,1) to (5,5)
+        final range = selectionController.selectedRange!;
+        expect(range.startRow, equals(1));
+        expect(range.startColumn, equals(1));
+        expect(range.endRow, equals(5));
+        expect(range.endColumn, equals(5));
+      });
+
+      test('dragging handle inward contracts selection', () {
+        // Select range (1,1) to (5,5)
+        selectionController.selectRange(const CellRange(1, 1, 5, 5));
+
+        // Drag from bottom-right handle
+        final bottomRightScreen = hitTester.worksheetToScreen(
+          worksheetPosition: Offset(
+            layoutSolver.getColumnEnd(5),
+            layoutSolver.getRowEnd(5),
+          ),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        handler.onDragStart(
+          position: bottomRightScreen,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionHandleSize: 12.0,
+        );
+
+        // Drag inward to cell (2,2) center — contracts the selection
+        final cell22Screen = hitTester.worksheetToScreen(
+          worksheetPosition: Offset(
+            layoutSolver.getColumnLeft(2) + layoutSolver.getColumnWidth(2) / 2,
+            layoutSolver.getRowTop(2) + layoutSolver.getRowHeight(2) / 2,
+          ),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        handler.onDragUpdate(
+          position: cell22Screen,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Selection should contract from (1,1) to (2,2)
+        final range = selectionController.selectedRange!;
+        expect(range.startRow, equals(1));
+        expect(range.startColumn, equals(1));
+        expect(range.endRow, equals(2));
+        expect(range.endColumn, equals(2));
+      });
+
+      test('dragging handle past opposite corner reverses selection', () {
+        // Select range (2,2) to (4,4)
+        selectionController.selectRange(const CellRange(2, 2, 4, 4));
+
+        // Drag from bottom-right handle
+        final bottomRightScreen = hitTester.worksheetToScreen(
+          worksheetPosition: Offset(
+            layoutSolver.getColumnEnd(4),
+            layoutSolver.getRowEnd(4),
+          ),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        handler.onDragStart(
+          position: bottomRightScreen,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+          selectionHandleSize: 12.0,
+        );
+
+        // Drag past opposite corner to cell (0,0)
+        final cell00Screen = hitTester.worksheetToScreen(
+          worksheetPosition: Offset(
+            layoutSolver.getColumnLeft(0) + layoutSolver.getColumnWidth(0) / 2,
+            layoutSolver.getRowTop(0) + layoutSolver.getRowHeight(0) / 2,
+          ),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        handler.onDragUpdate(
+          position: cell00Screen,
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Selection should reverse — anchor stays at (2,2), focus at (0,0)
+        // selectedRange normalizes: (0,0) to (2,2)
+        final range = selectionController.selectedRange!;
+        expect(range.startRow, equals(0));
+        expect(range.startColumn, equals(0));
+        expect(range.endRow, equals(2));
+        expect(range.endColumn, equals(2));
+      });
+    });
   });
 }

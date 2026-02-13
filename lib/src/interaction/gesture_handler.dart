@@ -123,6 +123,7 @@ class WorksheetGestureHandler {
   bool _isSelectingRange = false;
   bool _isFilling = false;
   bool _isMoving = false;
+  bool _isHandleDragging = false;
   CellRange? _fillSourceRange;
   CellCoordinate? _lastFillDestination;
   FillAxis? _fillAxis;
@@ -161,23 +162,35 @@ class WorksheetGestureHandler {
   /// Whether a move drag is in progress.
   bool get isMoving => _isMoving;
 
+  /// Whether a selection handle drag is in progress.
+  bool get isHandleDragging => _isHandleDragging;
+
   /// Handles tap down event.
   void onTapDown({
     required Offset position,
     required Offset scrollOffset,
     required double zoom,
     bool isShiftPressed = false,
+    double selectionHandleSize = 0,
+    double resizeHandleTolerance = 4.0,
+    double selectionBorderTolerance = 4.0,
   }) {
     final hit = hitTester.hitTest(
       position: position,
       scrollOffset: scrollOffset,
       zoom: zoom,
       selectionRange: selectionController.selectedRange,
+      selectionHandleSize: selectionHandleSize,
+      resizeHandleTolerance: resizeHandleTolerance,
+      selectionBorderTolerance: selectionBorderTolerance,
     );
 
-    // Don't change selection when tapping fill or resize handles —
+    // Don't change selection when tapping fill, resize, or selection handles —
     // those are handled by onDragStart.
-    if (hit.isFillHandle || hit.isResizeHandle || hit.isSelectionBorder) return;
+    if (hit.isFillHandle || hit.isResizeHandle || hit.isSelectionBorder ||
+        hit.isSelectionHandle) {
+      return;
+    }
 
     if (hit.isCell) {
       if (isShiftPressed && selectionController.hasSelection) {
@@ -268,19 +281,46 @@ class WorksheetGestureHandler {
     required Offset scrollOffset,
     required double zoom,
     bool isShiftPressed = false,
+    double selectionHandleSize = 0,
+    double resizeHandleTolerance = 4.0,
+    double selectionBorderTolerance = 4.0,
   }) {
     final hit = hitTester.hitTest(
       position: position,
       scrollOffset: scrollOffset,
       zoom: zoom,
       selectionRange: selectionController.selectedRange,
+      selectionHandleSize: selectionHandleSize,
+      resizeHandleTolerance: resizeHandleTolerance,
+      selectionBorderTolerance: selectionBorderTolerance,
     );
 
     _dragStartHit = hit;
     _dragStartPosition = position;
     _lastDragPosition = position;
 
-    if (hit.isFillHandle) {
+    if (hit.isSelectionHandle) {
+      _isHandleDragging = true;
+      _isSelectingRange = true;
+      // Determine which handle was grabbed by comparing hit coordinate
+      // to selection corners and anchor at the OPPOSITE corner.
+      final sel = selectionController.selectedRange;
+      if (sel != null && hit.cell != null) {
+        final isTopLeft = hit.cell!.row == sel.startRow &&
+            hit.cell!.column == sel.startColumn;
+        if (isTopLeft) {
+          // Anchor at bottom-right
+          selectionController.selectCell(
+            CellCoordinate(sel.endRow, sel.endColumn),
+          );
+        } else {
+          // Anchor at top-left
+          selectionController.selectCell(
+            CellCoordinate(sel.startRow, sel.startColumn),
+          );
+        }
+      }
+    } else if (hit.isFillHandle) {
       _isFilling = true;
       _fillSourceRange = selectionController.selectedRange;
       _lastFillDestination = null;
@@ -375,6 +415,7 @@ class WorksheetGestureHandler {
     _isResizing = false;
     _isSelectingRange = false;
     _isMoving = false;
+    _isHandleDragging = false;
     _moveSourceRange = null;
     _lastMoveDestination = null;
     _isFilling = false;
@@ -565,6 +606,58 @@ class WorksheetGestureHandler {
     );
 
     onMovePreviewUpdate?.call(previewRange);
+  }
+
+  /// Handles long-press start for mobile move gesture.
+  ///
+  /// If the long-press is on a cell within the current selection,
+  /// starts a move drag.
+  void onLongPressStart({
+    required Offset position,
+    required Offset scrollOffset,
+    required double zoom,
+  }) {
+    final hit = hitTester.hitTest(
+      position: position,
+      scrollOffset: scrollOffset,
+      zoom: zoom,
+      selectionRange: selectionController.selectedRange,
+    );
+
+    if (!hit.isCell && !hit.isSelectionBorder) return;
+
+    final selection = selectionController.selectedRange;
+    if (selection == null) return;
+
+    // Only start move if the long-press is within the selection
+    final cell = hit.cell;
+    if (cell == null || !selection.contains(cell)) return;
+
+    _isMoving = true;
+    _moveSourceRange = selection;
+    _dragStartPosition = position;
+    _lastDragPosition = position;
+  }
+
+  /// Handles long-press move update for mobile move gesture.
+  void onLongPressMoveUpdate({
+    required Offset position,
+    required Offset scrollOffset,
+    required double zoom,
+  }) {
+    if (!_isMoving) return;
+    _handleMoveUpdate(position, scrollOffset, zoom);
+  }
+
+  /// Handles long-press end for mobile move gesture.
+  void onLongPressEnd() {
+    if (!_isMoving) return;
+    if (_moveSourceRange != null && _lastMoveDestination != null) {
+      onMoveComplete?.call(_moveSourceRange!, _lastMoveDestination!);
+    } else {
+      onMoveCancel?.call();
+    }
+    _resetDragState();
   }
 
   /// Computes the jump direction for a double-click on a selection border.

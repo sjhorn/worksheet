@@ -348,6 +348,47 @@ class SelectionRenderer {
     canvas.drawRect(handleRect, _fillHandlePaint);
   }
 
+  /// Paints circular selection handles at the top-left and bottom-right
+  /// corners of the selection range (for mobile touch interaction).
+  void paintSelectionHandles({
+    required Canvas canvas,
+    required Offset viewportOffset,
+    required double zoom,
+    required CellRange range,
+    double handleRadius = 8.0,
+    double borderWidth = 2.0,
+  }) {
+    final bounds = layoutSolver.getRangeBounds(
+      startRow: range.startRow,
+      startColumn: range.startColumn,
+      endRow: range.endRow,
+      endColumn: range.endColumn,
+    );
+
+    // Top-left corner
+    final tlX = (bounds.left - viewportOffset.dx) * zoom;
+    final tlY = (bounds.top - viewportOffset.dy) * zoom;
+
+    // Bottom-right corner
+    final brX = (bounds.right - viewportOffset.dx) * zoom;
+    final brY = (bounds.bottom - viewportOffset.dy) * zoom;
+
+    // White fill with border color ring
+    final fillPaint = Paint()
+      ..color = const Color(0xFFFFFFFF)
+      ..style = PaintingStyle.fill;
+    final borderPaint = Paint()
+      ..color = style.borderColor
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = borderWidth;
+
+    canvas.drawCircle(Offset(tlX, tlY), handleRadius, fillPaint);
+    canvas.drawCircle(Offset(tlX, tlY), handleRadius, borderPaint);
+
+    canvas.drawCircle(Offset(brX, brY), handleRadius, fillPaint);
+    canvas.drawCircle(Offset(brX, brY), handleRadius, borderPaint);
+  }
+
   /// Paints a dashed-style preview border for the fill region during drag.
   void paintFillPreview({
     required Canvas canvas,

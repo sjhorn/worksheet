@@ -20,7 +20,11 @@ class SelectionLayer extends RenderLayer {
   final VoidCallback? onNeedsPaint;
 
   /// Whether to show the fill handle at the bottom-right of the selection.
-  final bool showFillHandle;
+  bool showFillHandle;
+
+  /// Whether to show selection handles (touch drag circles) at the
+  /// top-left and bottom-right corners of the selection.
+  bool showSelectionHandles;
 
   /// The fill preview range to display during a fill drag.
   CellRange? fillPreviewRange;
@@ -34,6 +38,7 @@ class SelectionLayer extends RenderLayer {
     required this.renderer,
     this.onNeedsPaint,
     this.showFillHandle = true,
+    this.showSelectionHandles = false,
     super.enabled,
   }) {
     selectionController.addListener(_onSelectionChanged);
@@ -82,6 +87,16 @@ class SelectionLayer extends RenderLayer {
     // Paint fill handle at bottom-right of selection
     if (showFillHandle) {
       renderer.paintFillHandle(
+        canvas: context.canvas,
+        viewportOffset: context.scrollOffset,
+        zoom: context.zoom,
+        range: range,
+      );
+    }
+
+    // Paint selection handles (touch drag circles) at corners
+    if (showSelectionHandles) {
+      renderer.paintSelectionHandles(
         canvas: context.canvas,
         viewportOffset: context.scrollOffset,
         zoom: context.zoom,

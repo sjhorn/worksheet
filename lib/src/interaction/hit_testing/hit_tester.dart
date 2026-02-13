@@ -40,6 +40,7 @@ class WorksheetHitTester {
     CellRange? selectionRange,
     double fillHandleSize = 6.0,
     double selectionBorderTolerance = 4.0,
+    double selectionHandleSize = 0,
   }) {
     // Check for negative positions (outside viewport)
     if (position.dx < 0 || position.dy < 0) {
@@ -101,6 +102,46 @@ class WorksheetHitTester {
 
     if (row < 0 || col < 0) {
       return const WorksheetHitTestResult.none();
+    }
+
+    // Selection handle detection: check proximity to top-left and bottom-right
+    // corners of the selection. Checked before fill handle and selection border.
+    if (selectionRange != null && selectionHandleSize > 0) {
+      final selTop = layoutSolver.getRowTop(selectionRange.startRow);
+      final selLeft = layoutSolver.getColumnLeft(selectionRange.startColumn);
+      final selBottom = layoutSolver.getRowEnd(selectionRange.endRow);
+      final selRight = layoutSolver.getColumnEnd(selectionRange.endColumn);
+
+      final screenTopLeft = worksheetToScreen(
+        worksheetPosition: Offset(selLeft, selTop),
+        scrollOffset: scrollOffset,
+        zoom: zoom,
+      );
+      final screenBottomRight = worksheetToScreen(
+        worksheetPosition: Offset(selRight, selBottom),
+        scrollOffset: scrollOffset,
+        zoom: zoom,
+      );
+
+      // Check top-left handle (circle hit test)
+      final dxTL = position.dx - screenTopLeft.dx;
+      final dyTL = position.dy - screenTopLeft.dy;
+      if (dxTL * dxTL + dyTL * dyTL <=
+          selectionHandleSize * selectionHandleSize) {
+        return WorksheetHitTestResult.selectionHandle(
+          CellCoordinate(selectionRange.startRow, selectionRange.startColumn),
+        );
+      }
+
+      // Check bottom-right handle (circle hit test)
+      final dxBR = position.dx - screenBottomRight.dx;
+      final dyBR = position.dy - screenBottomRight.dy;
+      if (dxBR * dxBR + dyBR * dyBR <=
+          selectionHandleSize * selectionHandleSize) {
+        return WorksheetHitTestResult.selectionHandle(
+          CellCoordinate(selectionRange.endRow, selectionRange.endColumn),
+        );
+      }
     }
 
     // Fill handle detection: check proximity to bottom-right corner of selection

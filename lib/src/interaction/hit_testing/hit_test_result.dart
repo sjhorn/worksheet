@@ -25,6 +25,9 @@ enum HitTestType {
 
   /// The border of the current selection was hit.
   selectionBorder,
+
+  /// A selection handle (touch drag circle) was hit.
+  selectionHandle,
 }
 
 /// Result of a hit test on the worksheet.
@@ -88,6 +91,12 @@ class WorksheetHitTestResult {
         cell = coordinate,
         headerIndex = null;
 
+  /// Creates a result indicating a selection handle was hit.
+  WorksheetHitTestResult.selectionHandle(CellCoordinate coordinate)
+      : type = HitTestType.selectionHandle,
+        cell = coordinate,
+        headerIndex = null;
+
   /// Whether nothing was hit.
   bool get isNone => type == HitTestType.none;
 
@@ -113,6 +122,9 @@ class WorksheetHitTestResult {
 
   /// Whether the selection border was hit.
   bool get isSelectionBorder => type == HitTestType.selectionBorder;
+
+  /// Whether a selection handle was hit.
+  bool get isSelectionHandle => type == HitTestType.selectionHandle;
 
   @override
   bool operator ==(Object other) {
@@ -145,6 +157,8 @@ class WorksheetHitTestResult {
         return 'WorksheetHitTestResult.fillHandle($cell)';
       case HitTestType.selectionBorder:
         return 'WorksheetHitTestResult.selectionBorder($cell)';
+      case HitTestType.selectionHandle:
+        return 'WorksheetHitTestResult.selectionHandle($cell)';
     }
   }
 }
