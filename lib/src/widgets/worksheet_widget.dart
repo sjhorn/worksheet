@@ -302,6 +302,9 @@ class _WorksheetState extends State<Worksheet>
   final Map<int, Offset> _activePointers = {};
   double _pinchStartDistance = 0;
 
+  // Trackpad pinch-to-zoom (macOS/Linux: PointerPanZoom events)
+  double _lastTrackpadScale = 1.0;
+
   // Shared flag checked by _scrollPhysics on every drag update.
   // Setting suppress = true immediately blocks user-initiated scrolling.
   final ScrollSuppressor _scrollSuppressor = ScrollSuppressor();
@@ -879,6 +882,37 @@ class _WorksheetState extends State<Worksheet>
     final adjustedSize = Size(size.width, size.height - keyboardHeight);
 
     _controller.ensureCellVisible(cell, viewportSize: adjustedSize);
+  }
+
+  /// Applies a zoom factor anchored at [anchor] and adjusts scroll to keep
+  /// the anchor point stationary (used by both web and native trackpad zoom).
+  void _applyTrackpadZoom({
+    required double factor,
+    required Offset anchor,
+  }) {
+    final adj = _scaleHandler!.zoomBy(
+      factor: factor,
+      anchor: anchor,
+      scrollOffset: Offset(
+        _controller.scrollX,
+        _controller.scrollY,
+      ),
+    );
+    if (adj != Offset.zero) {
+      final hc = _controller.horizontalScrollController;
+      final vc = _controller.verticalScrollController;
+      if (hc.hasClients) {
+        hc.jumpTo(
+          (hc.offset + adj.dx).clamp(0.0, hc.position.maxScrollExtent),
+        );
+      }
+      if (vc.hasClients) {
+        vc.jumpTo(
+          (vc.offset + adj.dy).clamp(0.0, vc.position.maxScrollExtent),
+        );
+      }
+    }
+    setState(() {});
   }
 
   /// Scrolls to center the cell vertically in the visible area above the keyboard.
@@ -1971,6 +2005,35 @@ class _WorksheetState extends State<Worksheet>
                             _scrollSuppressor.suppress = false;
                           }
                         : null,
+                    // Web: trackpad/browser pinch-to-zoom fires
+                    // PointerScaleEvent (a PointerSignalEvent).
+                    onPointerSignal: (event) {
+                      if (event is PointerScaleEvent) {
+                        _applyTrackpadZoom(
+                          factor: event.scale,
+                          anchor: event.localPosition,
+                        );
+                      }
+                    },
+                    // macOS/Linux: trackpad pinch-to-zoom fires
+                    // PointerPanZoom events with a scale field.
+                    onPointerPanZoomStart: (event) {
+                      _lastTrackpadScale = 1.0;
+                    },
+                    onPointerPanZoomUpdate: (event) {
+                      if (event.scale != _lastTrackpadScale) {
+                        final factor =
+                            event.scale / _lastTrackpadScale;
+                        _lastTrackpadScale = event.scale;
+                        _applyTrackpadZoom(
+                          factor: factor,
+                          anchor: event.localPosition,
+                        );
+                      }
+                    },
+                    onPointerPanZoomEnd: (event) {
+                      _lastTrackpadScale = 1.0;
+                    },
                     child: GestureDetector(
                       // Mobile mode: tap on cell selects it (since
                       // onPointerDown skips cells for touch to allow scroll).
