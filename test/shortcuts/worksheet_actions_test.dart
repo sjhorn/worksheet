@@ -460,6 +460,26 @@ void main() {
       final action = FillDownAction(roCtx);
       expect(action.isEnabled(const FillDownIntent()), false);
     });
+
+    test('preserves merge from first row', () {
+      // First row has a 1×2 merge at (0,0)-(0,1)
+      data.setCell(const CellCoordinate(0, 0), CellValue.text('merged'));
+      data.mergeCells(const CellRange(0, 0, 0, 1));
+
+      selectionController.selectRange(const CellRange(0, 0, 2, 1));
+      final action = FillDownAction(ctx);
+      action.invoke(const FillDownIntent());
+
+      // Merge replicated to rows 1 and 2
+      expect(
+        data.mergedCells.getRegion(const CellCoordinate(1, 0))?.range,
+        const CellRange(1, 0, 1, 1),
+      );
+      expect(
+        data.mergedCells.getRegion(const CellCoordinate(2, 0))?.range,
+        const CellRange(2, 0, 2, 1),
+      );
+    });
   });
 
   group('FillRightAction', () {
@@ -493,6 +513,26 @@ void main() {
       );
       final action = FillRightAction(roCtx);
       expect(action.isEnabled(const FillRightIntent()), false);
+    });
+
+    test('preserves merge from first column', () {
+      // First column has a 2×1 merge at (0,0)-(1,0)
+      data.setCell(const CellCoordinate(0, 0), CellValue.text('merged'));
+      data.mergeCells(const CellRange(0, 0, 1, 0));
+
+      selectionController.selectRange(const CellRange(0, 0, 1, 2));
+      final action = FillRightAction(ctx);
+      action.invoke(const FillRightIntent());
+
+      // Merge replicated to cols 1 and 2
+      expect(
+        data.mergedCells.getRegion(const CellCoordinate(0, 1))?.range,
+        const CellRange(0, 1, 1, 1),
+      );
+      expect(
+        data.mergedCells.getRegion(const CellCoordinate(0, 2))?.range,
+        const CellRange(0, 2, 1, 2),
+      );
     });
   });
 

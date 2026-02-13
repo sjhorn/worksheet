@@ -419,6 +419,113 @@ class SparseWorksheetData implements WorksheetData {
   }
 
   @override
+  void replicateMerges({
+    required CellRange sourceRange,
+    required CellRange targetRange,
+    required bool vertical,
+  }) {
+    _checkNotDisposed();
+
+    // 1. Find merges fully contained within source range
+    final sourceMerges = <CellRange>[];
+    for (final region in _mergedCells.regions) {
+      final r = region.range;
+      if (r.startRow >= sourceRange.startRow &&
+          r.endRow <= sourceRange.endRow &&
+          r.startColumn >= sourceRange.startColumn &&
+          r.endColumn <= sourceRange.endColumn) {
+        sourceMerges.add(r);
+      }
+    }
+
+    // No merges in source = no-op
+    if (sourceMerges.isEmpty) return;
+
+    // 2. Unmerge everything in target range
+    final targetRegions =
+        _mergedCells.regionsInRange(targetRange).toList();
+    for (final region in targetRegions) {
+      _mergedCells.unmerge(region.anchor);
+    }
+
+    // 3. Tile source merges into target
+    if (vertical) {
+      final sourceHeight = sourceRange.rowCount;
+      final targetHeight = targetRange.rowCount;
+
+      for (int offset = 0; offset < targetHeight; offset += sourceHeight) {
+        for (final merge in sourceMerges) {
+          final mergeRelStartRow = merge.startRow - sourceRange.startRow;
+          final mergeRelEndRow = merge.endRow - sourceRange.startRow;
+
+          final newStartRow = targetRange.startRow + offset + mergeRelStartRow;
+          final newEndRow = targetRange.startRow + offset + mergeRelEndRow;
+
+          // Skip incomplete tiles at boundary
+          if (newEndRow > targetRange.endRow) continue;
+
+          final newRange = CellRange(
+            newStartRow,
+            merge.startColumn,
+            newEndRow,
+            merge.endColumn,
+          );
+
+          _mergedCells.merge(newRange);
+
+          // 4. Clear non-anchor cell values
+          final anchor = newRange.topLeft;
+          for (final cell in newRange.cells) {
+            if (cell != anchor) {
+              _values.remove(cell);
+            }
+          }
+        }
+      }
+    } else {
+      final sourceWidth = sourceRange.columnCount;
+      final targetWidth = targetRange.columnCount;
+
+      for (int offset = 0; offset < targetWidth; offset += sourceWidth) {
+        for (final merge in sourceMerges) {
+          final mergeRelStartCol =
+              merge.startColumn - sourceRange.startColumn;
+          final mergeRelEndCol = merge.endColumn - sourceRange.startColumn;
+
+          final newStartCol =
+              targetRange.startColumn + offset + mergeRelStartCol;
+          final newEndCol =
+              targetRange.startColumn + offset + mergeRelEndCol;
+
+          // Skip incomplete tiles at boundary
+          if (newEndCol > targetRange.endColumn) continue;
+
+          final newRange = CellRange(
+            merge.startRow,
+            newStartCol,
+            merge.endRow,
+            newEndCol,
+          );
+
+          _mergedCells.merge(newRange);
+
+          // 4. Clear non-anchor cell values
+          final anchor = newRange.topLeft;
+          for (final cell in newRange.cells) {
+            if (cell != anchor) {
+              _values.remove(cell);
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Fire change event
+    _recalculateBounds();
+    _changeController.add(DataChangeEvent.range(targetRange));
+  }
+
+  @override
   void dispose() {
     if (!_disposed) {
       _disposed = true;
@@ -641,6 +748,12 @@ class SparseWorksheetData implements WorksheetData {
         }
       }
     });
+
+    replicateMerges(
+      sourceRange: range,
+      targetRange: targetRange,
+      vertical: vertical,
+    );
   }
 }
 

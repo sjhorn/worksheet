@@ -1190,5 +1190,229 @@ void main() {
         expect(data.getRichText(CellCoordinate(0, 0)), isNull);
       });
     });
+
+    group('replicateMerges', () {
+      test('fill down tiles single-row merge', () {
+        // Source row 0 has a 1×2 merge at (0,0)-(0,1)
+        data.setCell(CellCoordinate(0, 0), CellValue.text('merged'));
+        data.mergeCells(CellRange(0, 0, 0, 1));
+
+        // Fill down 3 rows: target rows 1-3
+        data.replicateMerges(
+          sourceRange: CellRange(0, 0, 0, 1),
+          targetRange: CellRange(1, 0, 3, 1),
+          vertical: true,
+        );
+
+        // Each target row gets the same 1×2 merge
+        expect(data.mergedCells.getRegion(CellCoordinate(1, 0)), isNotNull);
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(1, 0))!.range,
+          CellRange(1, 0, 1, 1),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(2, 0))!.range,
+          CellRange(2, 0, 2, 1),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(3, 0))!.range,
+          CellRange(3, 0, 3, 1),
+        );
+      });
+
+      test('fill down tiles multi-row pattern', () {
+        // 2-row source with 2×2 merge at (0,0)-(1,1)
+        data.setCell(CellCoordinate(0, 0), CellValue.text('big'));
+        data.mergeCells(CellRange(0, 0, 1, 1));
+
+        // Fill 4 target rows: rows 2-5 → merge appears twice
+        data.replicateMerges(
+          sourceRange: CellRange(0, 0, 1, 1),
+          targetRange: CellRange(2, 0, 5, 1),
+          vertical: true,
+        );
+
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(2, 0))!.range,
+          CellRange(2, 0, 3, 1),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(4, 0))!.range,
+          CellRange(4, 0, 5, 1),
+        );
+      });
+
+      test('fill right tiles single-col merge', () {
+        // Source col 0 has a 2×1 merge at (0,0)-(1,0)
+        data.setCell(CellCoordinate(0, 0), CellValue.text('merged'));
+        data.mergeCells(CellRange(0, 0, 1, 0));
+
+        // Fill right 3 cols: target cols 1-3
+        data.replicateMerges(
+          sourceRange: CellRange(0, 0, 1, 0),
+          targetRange: CellRange(0, 1, 1, 3),
+          vertical: false,
+        );
+
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 1))!.range,
+          CellRange(0, 1, 1, 1),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 2))!.range,
+          CellRange(0, 2, 1, 2),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 3))!.range,
+          CellRange(0, 3, 1, 3),
+        );
+      });
+
+      test('fill right tiles multi-col pattern', () {
+        // 2-col source with 2×2 merge at (0,0)-(1,1)
+        data.setCell(CellCoordinate(0, 0), CellValue.text('big'));
+        data.mergeCells(CellRange(0, 0, 1, 1));
+
+        // Fill 4 target cols: cols 2-5 → merge appears twice
+        data.replicateMerges(
+          sourceRange: CellRange(0, 0, 1, 1),
+          targetRange: CellRange(0, 2, 1, 5),
+          vertical: false,
+        );
+
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 2))!.range,
+          CellRange(0, 2, 1, 3),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 4))!.range,
+          CellRange(0, 4, 1, 5),
+        );
+      });
+
+      test('incomplete tile at boundary skipped', () {
+        // Source: 2-row merge
+        data.setCell(CellCoordinate(0, 0), CellValue.text('merged'));
+        data.mergeCells(CellRange(0, 0, 1, 0));
+
+        // Target has 3 rows (not evenly divisible by 2)
+        data.replicateMerges(
+          sourceRange: CellRange(0, 0, 1, 0),
+          targetRange: CellRange(2, 0, 4, 0),
+          vertical: true,
+        );
+
+        // First tile fits: rows 2-3
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(2, 0))!.range,
+          CellRange(2, 0, 3, 0),
+        );
+        // Second tile would be rows 4-5, but row 5 > target end → skipped
+        expect(data.mergedCells.getRegion(CellCoordinate(4, 0)), isNull);
+      });
+
+      test('existing merges in target cleared', () {
+        // Pre-existing merge in target
+        data.setCell(CellCoordinate(2, 0), CellValue.text('old'));
+        data.mergeCells(CellRange(2, 0, 2, 1));
+
+        // Source merge
+        data.setCell(CellCoordinate(0, 0), CellValue.text('new'));
+        data.mergeCells(CellRange(0, 0, 0, 1));
+
+        data.replicateMerges(
+          sourceRange: CellRange(0, 0, 0, 1),
+          targetRange: CellRange(1, 0, 3, 1),
+          vertical: true,
+        );
+
+        // Old merge at (2,0)-(2,1) is replaced by the new tiled merge
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(2, 0))!.range,
+          CellRange(2, 0, 2, 1),
+        );
+      });
+
+      test('no merges in source = no-op', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('plain'));
+
+        data.replicateMerges(
+          sourceRange: CellRange(0, 0, 0, 0),
+          targetRange: CellRange(1, 0, 3, 0),
+          vertical: true,
+        );
+
+        expect(data.mergedCells.isEmpty, isTrue);
+      });
+
+      test('non-anchor values cleared', () {
+        // Source: merge at (0,0)-(0,1) with anchor value
+        data.setCell(CellCoordinate(0, 0), CellValue.text('anchor'));
+        data.mergeCells(CellRange(0, 0, 0, 1));
+
+        // Set values in target that should be cleared
+        data.setCell(CellCoordinate(1, 0), CellValue.text('keep'));
+        data.setCell(CellCoordinate(1, 1), CellValue.text('clear me'));
+
+        data.replicateMerges(
+          sourceRange: CellRange(0, 0, 0, 1),
+          targetRange: CellRange(1, 0, 1, 1),
+          vertical: true,
+        );
+
+        // Anchor cell (1,0) keeps its value
+        expect(data.getCell(CellCoordinate(1, 0)), CellValue.text('keep'));
+        // Non-anchor cell (1,1) has value cleared
+        expect(data.getCell(CellCoordinate(1, 1)), isNull);
+      });
+    });
+
+    group('smartFill with merges', () {
+      test('smart fill down preserves merges', () {
+        // Source: row 0 with 1×2 merge and values
+        data[(0, 0)] = Cell.number(1);
+        data[(0, 2)] = Cell.number(2);
+        data.mergeCells(CellRange(0, 0, 0, 1));
+
+        // Smart fill down to row 2
+        data.smartFill(
+          CellRange(0, 0, 0, 2),
+          CellCoordinate(2, 2),
+        );
+
+        // Merges tiled into target rows
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(1, 0))!.range,
+          CellRange(1, 0, 1, 1),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(2, 0))!.range,
+          CellRange(2, 0, 2, 1),
+        );
+      });
+
+      test('smart fill right preserves merges', () {
+        // Source: col 0 with 2×1 merge and values
+        data[(0, 0)] = Cell.number(1);
+        data[(2, 0)] = Cell.number(2);
+        data.mergeCells(CellRange(0, 0, 1, 0));
+
+        // Smart fill right to col 2
+        data.smartFill(
+          CellRange(0, 0, 2, 0),
+          CellCoordinate(2, 2),
+        );
+
+        // Merges tiled into target cols
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 1))!.range,
+          CellRange(0, 1, 1, 1),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 2))!.range,
+          CellRange(0, 2, 1, 2),
+        );
+      });
+    });
   });
 }

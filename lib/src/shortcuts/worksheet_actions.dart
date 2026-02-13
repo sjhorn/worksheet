@@ -240,6 +240,17 @@ class FillDownAction extends Action<FillDownIntent> {
         CellRange(range.startRow + 1, col, range.endRow, col),
       );
     }
+    _context.worksheetData.replicateMerges(
+      sourceRange: CellRange(
+        range.startRow, range.startColumn,
+        range.startRow, range.endColumn,
+      ),
+      targetRange: CellRange(
+        range.startRow + 1, range.startColumn,
+        range.endRow, range.endColumn,
+      ),
+      vertical: true,
+    );
     _context.invalidateAndRebuild();
     return null;
   }
@@ -264,6 +275,17 @@ class FillRightAction extends Action<FillRightIntent> {
         CellRange(row, range.startColumn + 1, row, range.endColumn),
       );
     }
+    _context.worksheetData.replicateMerges(
+      sourceRange: CellRange(
+        range.startRow, range.startColumn,
+        range.endRow, range.startColumn,
+      ),
+      targetRange: CellRange(
+        range.startRow, range.startColumn + 1,
+        range.endRow, range.endColumn,
+      ),
+      vertical: false,
+    );
     _context.invalidateAndRebuild();
     return null;
   }

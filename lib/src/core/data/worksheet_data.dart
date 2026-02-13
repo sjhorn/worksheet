@@ -102,6 +102,19 @@ abstract class WorksheetData {
   /// not part of a merged region.
   void unmergeCells(CellCoordinate cell);
 
+  /// Replicates merge patterns from [sourceRange] into [targetRange].
+  ///
+  /// Merges fully contained within [sourceRange] are tiled into
+  /// [targetRange]. When [vertical] is true, merges tile row-wise
+  /// (for fill down/up). When false, merges tile column-wise.
+  ///
+  /// Existing merges in [targetRange] are removed first.
+  void replicateMerges({
+    required CellRange sourceRange,
+    required CellRange targetRange,
+    required bool vertical,
+  }) {} // default no-op — test stubs inherit this
+
   /// Releases resources.
   void dispose();
 }
