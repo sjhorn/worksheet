@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-02-13
+
+### Added
+- Rich text formatting via Intents/Actions — `ToggleBoldIntent`, `ToggleItalicIntent`, `ToggleUnderlineIntent`, `ToggleStrikethroughIntent` with corresponding Action classes, enabled only during editing
+- `EditController.richTextController` — exposes the active `RichTextEditingController` to toolbar buttons and external code during editing
+- `EditController` convenience methods: `toggleBold()`, `toggleItalic()`, `toggleUnderline()`, `toggleStrikethrough()` for toolbar use outside the widget tree
+- `EditController` query getters: `isSelectionBold`, `isSelectionItalic`, `isSelectionUnderline`, `isSelectionStrikethrough`, `getSelectionStyle()` for toolbar active-state display
+- `RichTextEditingController` query methods: `isSelectionBold`, `isSelectionItalic`, `isSelectionUnderline`, `isSelectionStrikethrough`, `getSelectionStyle()`, `_queryProperty()` helper
+- Ctrl+B/I/U and Ctrl+Shift+S shortcut bindings in `DefaultWorksheetShortcuts` (both control and meta variants) mapped to the new formatting intents
+
 ## [2.3.0] - 2026-02-12
 
 ### Added

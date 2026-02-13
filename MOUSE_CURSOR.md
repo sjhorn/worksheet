@@ -1,48 +1,55 @@
-# Excel Mouse Cursor Behavior & State Reference
+# Mouse Cursor Behavior & State Reference
 
-A guide to the stateful, position-dependent, and timing-dependent mouse cursor behaviors in Excel desktop.
+A guide to the stateful, position-dependent mouse cursor behaviors for the worksheet widget's desktop mode. Originally based on Excel desktop behavior, each section is annotated with the implementation status.
+
+> **Legend:** ✅ Implemented | ⚠️ Partial | ❌ Not implemented | 📖 Reference only
 
 ---
 
 ## 1. Cursor Types Overview
 
-Excel uses **8 distinct cursor shapes**, each indicating a different interaction mode. The cursor changes based on *where* the pointer is positioned relative to the selection, headers, and UI elements.
+The worksheet uses distinct cursor shapes, each indicating a different interaction mode. The cursor changes based on *where* the pointer is positioned relative to the selection, headers, and UI elements.
 
-| Cursor | Name | Appearance | Where It Appears |
-|--------|------|-----------|-----------------|
-| **Selection Cross** | Standard / Cell Select | Thick white plus sign (+) | Anywhere over the cell grid (default) |
-| **Move Pointer** | Drag / Move | White arrow with small 4-headed arrow | Edge/border of the current selection |
-| **Copy Pointer** | Copy | White arrow + 4-headed arrow + small "+" | Edge of selection while holding **Ctrl** |
-| **Fill Handle** | AutoFill | Thin black plus sign (+) | Bottom-right corner square of the selection |
-| **Column Select** | Select Column | Thick black downward arrow | Over column letter headers (A, B, C…) |
-| **Row Select** | Select Row | Thick black rightward arrow | Over row number headers (1, 2, 3…) |
-| **Resize (Horizontal)** | Column Resize | Double-headed horizontal arrow (↔) | Border between two column headers |
-| **Resize (Vertical)** | Row Resize | Double-headed vertical arrow (↕) | Border between two row headers |
-| **I-Beam** | Text Edit | Vertical line cursor | Inside the formula bar, or after double-clicking a cell |
+> **Implementation Status:** ⚠️ Partial — 6 of 9 Excel cursor types implemented
+>
+> **Code:** `lib/src/widgets/worksheet_widget.dart` — `_currentCursor` member variable manages cursor state. Cursor is updated inline in gesture handlers and via `onHover` callbacks.
+
+| Cursor | Name | Appearance | Where It Appears | Widget Status |
+|--------|------|-----------|-----------------|---------------|
+| **Selection Cross** | Standard / Cell Select | Thick white plus sign (+) | Anywhere over the cell grid (default) | ✅ `SystemMouseCursors.cell` |
+| **Move Pointer** | Drag / Move | Grab hand / grabbing hand | Edge/border of the current selection | ✅ `SystemMouseCursors.grab` / `.grabbing` |
+| **Copy Pointer** | Copy | White arrow + small "+" | Edge of selection while holding Ctrl | ❌ Not implemented |
+| **Fill Handle** | AutoFill | Thin crosshair (+) | Bottom-right corner square of the selection | ✅ `SystemMouseCursors.precise` |
+| **Column Select** | Select Column | Thick black downward arrow | Over column letter headers (A, B, C…) | ✅ Custom cursor logic |
+| **Row Select** | Select Row | Thick black rightward arrow | Over row number headers (1, 2, 3…) | ✅ Custom cursor logic |
+| **Resize (Horizontal)** | Column Resize | Double-headed horizontal arrow (↔) | Border between two column headers | ✅ `SystemMouseCursors.resizeColumn` |
+| **Resize (Vertical)** | Row Resize | Double-headed vertical arrow (↕) | Border between two row headers | ✅ `SystemMouseCursors.resizeRow` |
+| **I-Beam** | Text Edit | Vertical line cursor | Inside the formula bar, or after double-clicking a cell | ❌ Not implemented |
+
+**Note:** Our widget uses `grab` / `grabbing` cursors for the selection border move pointer instead of Excel's 4-headed arrow. This matches Excel for the Web and Excel for Mac behavior. See Section 2 for details.
 
 ---
 
-## 2. Selection Border Behavior (The "Hover Delay" You Noticed)
+## 2. Selection Border Behavior
 
-This is one of the most nuanced behaviors in Excel. The cursor change at the edge of a selection is **position-sensitive with an implicit hit-test zone**, not purely time-based, though the practical effect feels like a hover delay.
+> **Implementation Status:** ✅ Implemented
+>
+> **Code:** `lib/src/widgets/worksheet_widget.dart` — cursor changes to `SystemMouseCursors.grab` on hover over the selection border, and `SystemMouseCursors.grabbing` during drag. `lib/src/interaction/hit_testing/hit_test_result.dart` — `HitTestType.selectionBorder` identifies the border zone.
+
+This is one of the most nuanced behaviors. The cursor change at the edge of a selection is **position-sensitive with an implicit hit-test zone**.
 
 ### What happens:
 
-- **Fast mouse movement across a selected cell**: The pointer passes through the narrow border hit-zone too quickly for Excel to register it. The cursor stays as the **Selection Cross** the entire time. You can select, click, and interact with cells normally.
+- **Fast mouse movement across a selected cell**: The pointer passes through the narrow border hit-zone too quickly for the hit test to register it. The cursor stays as the **Selection Cross** the entire time.
 
-- **Slow mouse movement or pausing near the border**: The pointer lingers within the border hit-zone long enough for Excel to detect it. The cursor changes to the **Move Pointer** (4-headed arrow). If you then move inward away from the border, it reverts to the **Selection Cross**.
-
-### Why this happens:
-
-Excel's border hit-zone is only a few pixels wide. The cursor change is technically *instantaneous* once the pointer enters the zone, but because the zone is so narrow, fast-moving cursors pass through it between screen refresh cycles. The result *feels* like a hover delay, but it's actually a spatial precision issue combined with polling rate.
+- **Slow mouse movement or pausing near the border**: The pointer lingers within the border hit-zone long enough for detection. The cursor changes to the **grab hand** (Move Pointer). If you then move inward away from the border, it reverts to the **Selection Cross**.
 
 ### Practical implications:
 
 | Mouse speed | Cursor seen | What happens on click |
 |-------------|------------|----------------------|
 | Fast pass-through | Selection Cross stays | Clicking selects/activates a new cell |
-| Slow hover on border | Move Pointer appears | Click-and-drag **moves** the selected range |
-| Slow hover on border + Ctrl | Copy Pointer appears | Click-and-drag **copies** the selected range |
+| Slow hover on border | Grab hand appears | Click-and-drag **moves** the selected range |
 
 ### The state transition:
 
@@ -50,87 +57,68 @@ Excel's border hit-zone is only a few pixels wide. The cursor change is technica
                     ┌──────────────────────────────────┐
                     │                                  │
   Mouse enters      │   CELL INTERIOR                  │
-  cell grid    ───► │   Cursor: Selection Cross (+)    │
+  cell grid    ───► │   Cursor: cell (+)               │
                     │                                  │
                     │   ┌─── BORDER ZONE (few px) ───┐ │
                     │   │                             │ │
-                    │   │  Cursor: Move Pointer (⊕)   │ │
-                    │   │                             │ │
-                    │   │  + Ctrl held:               │ │
-                    │   │  Cursor: Copy Pointer (⊕+)  │ │
+                    │   │  Cursor: grab (hover)       │ │
+                    │   │  Cursor: grabbing (drag)    │ │
                     │   │                             │ │
                     │   └─────────────────────────────┘ │
                     │                                  │
                     │   ┌─ FILL HANDLE (corner sq.) ─┐ │
-                    │   │ Cursor: Fill Cross (✚)      │ │
+                    │   │ Cursor: precise (crosshair) │ │
                     │   └─────────────────────────────┘ │
                     └──────────────────────────────────┘
 ```
+
+**Difference from Excel Windows:** Excel Windows uses a 4-headed move arrow cursor. Our widget uses `grab` / `grabbing` (hand cursors), which matches Excel for the Web and some versions of Excel for Mac.
 
 ---
 
 ## 3. Fill Handle Behavior (Bottom-Right Corner)
 
-The small green/black square at the bottom-right corner of the selection has its own rich set of stateful behaviors.
+> **Implementation Status:** ✅ Implemented (desktop only)
+>
+> **Code:** `lib/src/widgets/worksheet_widget.dart` — fill handle cursor uses `SystemMouseCursors.precise`. The fill handle is hidden in mobile mode (`showFillHandle: !_isMobileMode`). See [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md) for mobile details.
+
+The small square at the bottom-right corner of the selection has its own cursor and drag behavior.
 
 ### 3.1 Cursor Change
 
-When the mouse hovers over the fill handle square, the cursor changes from the thick white Selection Cross to a **thin black plus sign** (the Fill Handle cursor). This is a smaller, more precise-looking cross compared to the selection cursor.
+When the mouse hovers over the fill handle square, the cursor changes from the Selection Cross to `SystemMouseCursors.precise` — a thin crosshair.
 
 ### 3.2 Left-Click Drag
 
 | Source Data | Default Behavior | With Ctrl Held |
 |-------------|-----------------|----------------|
-| Single number | Copies the same value | Creates a series (1, 2, 3…) |
-| Two+ numbers (pattern) | Extends the series | Copies values without series |
-| Date | Extends by 1 day/month/etc. | Copies the same date |
-| Day name (Mon) | Continues sequence (Tue, Wed…) | Copies same value |
-| Month name (Jan) | Continues sequence (Feb, Mar…) | Copies same value |
-| Formula | Copies with relative ref adjustment | Same (Ctrl has no effect on formulas) |
-| Text | Copies the same text | Copies the same text |
-| Text + Number ("Item1") | Extends: Item2, Item3… | Copies same value |
-
-**Note:** Ctrl essentially *toggles* the default. If the default is "copy," Ctrl makes it "fill series," and vice versa.
+| Single number | Copies the same value | 📖 Creates a series (1, 2, 3…) |
+| Two+ numbers (pattern) | Extends the series | 📖 Copies values without series |
+| Date | Extends by 1 day/month/etc. | 📖 Copies the same date |
+| Formula | Copies with relative ref adjustment | 📖 Same (Ctrl has no effect) |
+| Text | Copies the same text | 📖 Copies the same text |
 
 ### 3.3 Right-Click Drag
 
-Dragging the fill handle with the **right mouse button** instead of the left produces a **context menu** on release with expanded options:
-
-- Copy Cells
-- Fill Series
-- Fill Formatting Only
-- Fill Without Formatting
-- Fill Days / Fill Weekdays / Fill Months / Fill Years (for dates)
-- Linear Trend
-- Growth Trend
-- Series… (opens the Series dialog)
-- Flash Fill
+📖 *Reference only — right-click drag context menu not implemented.*
 
 ### 3.4 Double-Click Fill Handle
 
-Double-clicking the fill handle square **auto-fills downward** to match the extent of the adjacent column. Excel looks at the column immediately to the left (or right) of the current selection to determine how far to fill. It stops at the first blank cell in the adjacent column.
-
-**Requirement:** There must be data in an adjacent column. If the adjacent column is empty, double-clicking does nothing.
+📖 *Reference only — double-click auto-fill not implemented.*
 
 ### 3.5 Auto Fill Options Smart Tag
 
-After **any** fill handle drag-and-release (left-click), a small **Auto Fill Options** icon (📋) appears at the bottom-right corner of the filled range. Clicking it reveals:
-
-- **Copy Cells** — duplicate the source values
-- **Fill Series** — continue the detected pattern
-- **Fill Formatting Only** — apply formatting without values
-- **Fill Without Formatting** — fill values but keep destination formatting
-- **Flash Fill** — pattern-based fill (Excel 2013+)
-
-**Note:** If "Show Quick Analysis options on selection" is enabled (File > Options > General), a Quick Analysis tag may appear *instead of* the Auto Fill Options tag when filling a range of data. Disabling Quick Analysis restores the Auto Fill Options tag.
-
-The Auto Fill Options tag disappears when you perform any other action (clicking elsewhere, typing, etc.).
+📖 *Reference only — post-fill options tag not implemented.*
 
 ---
 
 ## 4. Double-Click Behaviors on Selection Borders
 
-When the **Move Pointer** (4-headed arrow) is active on a selection border, **double-clicking** performs a "jump" navigation:
+> **Implementation Status:** ⚠️ Partial
+>
+> Data edge jump is available on desktop via double-tap on the selection border. The jump logic follows the same pattern as Ctrl+Arrow navigation.
+
+When the **grab hand** cursor is active on a selection border, **double-clicking** performs a "jump" navigation:
 
 | Border Position | Double-Click Action |
 |----------------|-------------------|
@@ -139,40 +127,46 @@ When the **Move Pointer** (4-headed arrow) is active on a selection border, **do
 | Left edge | Jumps to the first non-empty cell leftward in that row |
 | Right edge | Jumps to the last non-empty cell rightward in that row |
 
-This is the "flying leap" behavior — it follows the same logic as **Ctrl+Arrow** navigation. If the current cell is adjacent to data, it jumps to the end of that data block. If adjacent to a blank, it jumps to the next non-blank cell.
+This is the "flying leap" behavior — it follows the same logic as **Ctrl+Arrow** navigation.
 
 ---
 
 ## 5. Column & Row Header Behaviors
 
+> **Implementation Status:** ✅ Implemented
+>
+> **Code:** `lib/src/interaction/hit_testing/hit_test_result.dart` — `HitTestType.columnHeader`, `HitTestType.rowHeader`, `HitTestType.columnResizeHandle`, `HitTestType.rowResizeHandle`.
+
 ### Column Headers (A, B, C…)
 
-| Action | Result |
-|--------|--------|
-| Hover | Cursor → thick black downward arrow |
-| Click | Selects entire column |
-| Click + drag horizontally | Selects multiple columns |
-| Ctrl + click | Adds column to selection (non-contiguous) |
-| Hover on border between headers | Cursor → horizontal resize arrow (↔) |
-| Drag on border between headers | Resizes column width |
-| Double-click border between headers | **Auto-fits** column width to content |
+| Action | Result | Widget Status |
+|--------|--------|---------------|
+| Hover | Cursor → column select arrow (↓) | ✅ |
+| Click | Selects entire column | ✅ |
+| Click + drag horizontally | Selects multiple columns | ✅ |
+| Ctrl + click | Adds column to selection (non-contiguous) | 📖 |
+| Hover on border between headers | Cursor → `SystemMouseCursors.resizeColumn` (↔) | ✅ |
+| Drag on border between headers | Resizes column width | ✅ |
+| Double-click border between headers | **Auto-fits** column width to content | ✅ |
 
 ### Row Headers (1, 2, 3…)
 
 Identical behavior to columns but in the vertical axis:
 
-| Action | Result |
-|--------|--------|
-| Hover | Cursor → thick black rightward arrow |
-| Click | Selects entire row |
-| Hover on border between row numbers | Cursor → vertical resize arrow (↕) |
-| Double-click border between rows | **Auto-fits** row height to content |
+| Action | Result | Widget Status |
+|--------|--------|---------------|
+| Hover | Cursor → row select arrow (→) | ✅ |
+| Click | Selects entire row | ✅ |
+| Hover on border between row numbers | Cursor → `SystemMouseCursors.resizeRow` (↕) | ✅ |
+| Double-click border between rows | **Auto-fits** row height to content | ✅ |
 
 ---
 
 ## 6. Keyboard Modifier Interactions
 
-Modifier keys change cursor behavior when combined with mouse actions on a selection:
+> **Implementation Status:** ❌ Not implemented — modifier key combinations during mouse drag are not supported.
+
+📖 *Reference only.* Modifier keys change cursor behavior when combined with mouse actions on a selection in Excel:
 
 | Modifier | Effect on Border Drag | Effect on Fill Handle Drag |
 |----------|----------------------|---------------------------|
@@ -180,7 +174,6 @@ Modifier keys change cursor behavior when combined with mouse actions on a selec
 | **Ctrl** | **Copy** the selection (cursor adds "+" icon) | **Toggle** fill behavior (copy↔series) |
 | **Shift** | **Insert** — shifts existing cells to make room | Overrides range — extends/contracts selection |
 | **Ctrl+Shift** | **Insert copied** cells, shifting existing cells | — |
-| **Alt** | Allows dragging to a **different worksheet tab** | — |
 
 ---
 
@@ -188,247 +181,171 @@ Modifier keys change cursor behavior when combined with mouse actions on a selec
 
 ### 7.1 Extend Selection Mode (F8)
 
-Pressing **F8** activates "Extend Selection" mode. The status bar shows **"Extend Selection"**. The cursor remains as the thick white cross, but clicking any cell extends the current selection to include it (as if Shift-clicking). Press **F8** or **Esc** to exit.
+📖 *Reference only — not implemented in widget.*
 
 ### 7.2 Add to Selection Mode (Shift+F8)
 
-Pressing **Shift+F8** activates "Add to Selection" mode. The status bar shows **"Add to Selection"**. Clicking adds non-contiguous ranges to the selection (as if Ctrl-clicking). Press **Esc** to exit.
+📖 *Reference only — not implemented in widget.*
 
 ### 7.3 Edit Mode (F2 / Double-Click)
 
-Pressing **F2** or **double-clicking** a cell enters Edit Mode. The cursor becomes an **I-Beam** inside the cell. The status bar shows **"Edit"** instead of **"Ready"**. Press **Esc** or **Enter** to exit.
+> **Implementation Status:** ⚠️ Partial — F2 and double-click enter edit mode, but the cursor does not change to I-beam inside the cell. The cell editor overlay handles its own cursor.
 
 ### 7.4 Design Mode (Developer Tab)
 
-When Design Mode is active, clicking form controls or ActiveX controls shows a move/resize cursor instead of executing the control. The 4-headed arrow appears over buttons and objects.
+📖 *Reference only — not applicable to widget.*
 
 ---
 
-## 8. Object & Chart Cursors
+## 8. Mobile Mode Cursor Behavior
 
-When hovering over embedded objects (charts, shapes, images, form controls):
+> **Implementation Status:** ✅ Implemented
+>
+> **Code:** `lib/src/widgets/worksheet_widget.dart` — when `_isMobileMode` is true, all mouse cursor changes are disabled. `MouseRegion.onHover` is set to null, and `_currentCursor` stays as `SystemMouseCursors.basic`.
+
+In mobile mode, all mouse cursors described above are disabled. Touch interaction relies entirely on gestures and visual selection handles rather than cursor feedback. See [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md) for the complete touch interaction model.
+
+### Selection Handles (Touch Only)
+
+In mobile mode, circular selection handles appear at the top-left and bottom-right corners of the selection. These handles are touch-only targets — no cursor change occurs when hovering over them with a mouse (e.g., on iPad with trackpad).
+
+---
+
+## 9. Escape to Cancel Drag
+
+> **Implementation Status:** ✅ Implemented
+>
+> **Code:** `lib/src/interaction/gesture_handler.dart` — pressing Escape during any active drag (selection border drag, resize drag, fill handle drag) cancels the operation and restores the pre-drag state.
+
+When Escape is pressed during any drag operation:
+1. The drag is cancelled
+2. The selection is restored to its pre-drag state
+3. The cursor resets to `SystemMouseCursors.basic`
+
+---
+
+## 10. Read-Only Mode
+
+> **Implementation Status:** ✅ Implemented
+
+When `readOnly: true` is set on the `Worksheet` widget:
+- Selection cursors still work (cell cursor, header cursors)
+- Move/fill cursors are suppressed (no border drag, no fill handle)
+- Resize cursors remain active for column/row resizing
+
+---
+
+## 11. Object & Chart Cursors
+
+> **Implementation Status:** 📖 Reference only — no chart/object support in widget
 
 | Location | Cursor | Action |
 |----------|--------|--------|
 | Interior of object | White arrow / pointer | Click to select object |
 | Edge/border of selected object | 4-headed move arrow | Drag to reposition |
 | Corner handle (selected) | Diagonal double-headed arrow | Drag to resize proportionally |
-| Side handle (selected) | Horizontal or vertical double-headed arrow | Drag to stretch |
-| Over a chart (selected) | Pointer | Double-click to enter chart edit mode |
-| Right-click chart/object | Context menu | Format, copy, delete, etc. |
 
 ---
 
-## 9. Formula Bar Cursors
+## 12. Formula Bar Cursors
+
+> **Implementation Status:** 📖 Reference only — no formula bar in widget
 
 | Location | Cursor | Action |
 |----------|--------|--------|
 | Formula bar text area | I-Beam | Click to position text cursor |
-| Double-click on word | I-Beam | Selects a single word |
-| Triple-click | I-Beam | Selects all formula bar content |
-| Border between Name Box and formula bar | Horizontal resize arrow | Drag to resize Name Box width |
-| Bottom edge of formula bar | Vertical resize arrow | Drag to expand formula bar height |
-| Expand/collapse toggle (▼/▲) | Pointer | Toggle between single-line and expanded formula bar |
-
----
-
-## 10. Scroll Bar Behaviors
-
-| Location | Cursor | Action |
-|----------|--------|--------|
-| Scroll bar thumb | Pointer | Drag to scroll |
-| Scroll bar track | Pointer | Click to page scroll |
-| Three ellipses (left of horizontal scrollbar) | Double-bar with arrows | Drag to resize scrollbar; double-click to reset to default |
-| Right-click on scroll bar | Context menu | Precise scrolling options (scroll here, page up/down, etc.) |
-
----
-
-## 11. Split Pane / Freeze Pane Cursors
-
-| Location | Cursor | Behavior |
-|----------|--------|----------|
-| Split bar (top of vertical scrollbar or right of horizontal) | Split cursor (double bar + arrows) | Drag to create split panes |
-| Over the split line in a split view | Split cursor | Drag to reposition split; double-click to remove |
-| Near freeze pane border | May briefly flash resize cursor | Moving away from the line restores normal cursor |
-
----
-
-## 12. Settings That Affect Cursor Behavior
-
-All under **File > Options > Advanced > Editing options**:
-
-| Setting | Effect |
-|---------|--------|
-| **Enable fill handle and cell drag-and-drop** | Master toggle. When unchecked: no fill handle cursor, no move/copy drag, no border double-click jump. |
-| **Alert before overwriting cells** | Shows warning when dragging over non-empty cells |
-| **Enable AutoComplete for cell values** | Controls text auto-suggestion (not cursor-related but often confused with AutoFill) |
-
-Under **File > Options > Advanced > Display**:
-
-| Setting | Effect |
-|---------|--------|
-| **Disable hardware graphics acceleration** | Can fix laggy/delayed cursor behavior caused by animation smoothing |
-
-Under **File > Options > General**:
-
-| Setting | Effect |
-|---------|--------|
-| **Show Quick Analysis options on selection** | When enabled, may show Quick Analysis tag instead of Auto Fill Options tag |
+| Border between Name Box and formula bar | Horizontal resize arrow | Drag to resize |
 
 ---
 
 ## 13. Summary: State Transition Map
 
 ```
-READY MODE (Status Bar: "Ready")
+READY MODE
 │
-├── Mouse over cell grid ──────────────► Selection Cross (thick white +)
-│   ├── Click ──────────────────────────► Select cell
-│   ├── Click + Drag ───────────────────► Select range
-│   └── Double-click ───────────────────► Enter EDIT MODE → I-Beam cursor
+├── Mouse over cell grid ──────────────► cell cursor (thick +)      ✅
+│   ├── Click ──────────────────────────► Select cell                ✅
+│   ├── Click + Drag ───────────────────► Select range               ✅
+│   └── Double-click ───────────────────► Enter edit mode            ✅
 │
-├── Mouse over selection border ────────► Move Pointer (4-headed arrow)
-│   ├── Click + Drag ───────────────────► Move selection
-│   ├── Ctrl + Click + Drag ────────────► Copy selection (+ icon on cursor)
-│   ├── Shift + Click + Drag ───────────► Insert-move selection
-│   ├── Alt + Drag to sheet tab ────────► Move to different sheet
-│   └── Double-click ───────────────────► Jump to edge of data region
+├── Mouse over selection border ────────► grab cursor (hand)         ✅
+│   ├── Click + Drag ───────────────────► Move selection             ✅
+│   ├── Ctrl + Click + Drag ────────────► (not implemented)          ❌
+│   └── Double-click ───────────────────► Jump to edge of data       ⚠️
 │
-├── Mouse over fill handle ─────────────► Fill Handle cursor (thin black +)
-│   ├── Left-click + Drag ──────────────► AutoFill (series or copy)
-│   │   └── Release ────────────────────► Auto Fill Options tag appears
-│   ├── Right-click + Drag ─────────────► Context menu on release
-│   ├── Ctrl + Left-click + Drag ───────► Toggle fill behavior
-│   └── Double-click ───────────────────► Auto-fill down to adjacent data extent
+├── Mouse over fill handle ─────────────► precise cursor (crosshair) ✅
+│   ├── Left-click + Drag ──────────────► AutoFill                   ✅
+│   └── Double-click ───────────────────► (not implemented)          ❌
 │
-├── Mouse over column header ───────────► Column Select arrow (↓)
-├── Mouse over row header ──────────────► Row Select arrow (→)
-├── Mouse between col headers ──────────► Column Resize arrow (↔)
-├── Mouse between row headers ──────────► Row Resize arrow (↕)
+├── Mouse over column header ───────────► Column Select arrow (↓)    ✅
+├── Mouse over row header ──────────────► Row Select arrow (→)       ✅
+├── Mouse between col headers ──────────► resizeColumn (↔)           ✅
+├── Mouse between row headers ──────────► resizeRow (↕)              ✅
 │
-├── F8 pressed ─────────────────────────► EXTEND SELECTION MODE
-├── Shift+F8 pressed ───────────────────► ADD TO SELECTION MODE
-└── F2 pressed ─────────────────────────► EDIT MODE → I-Beam cursor
+├── Escape during drag ─────────────────► Cancel → basic cursor      ✅
+└── Mobile mode ────────────────────────► All cursors disabled        ✅
 ```
 
 ---
 
 ## 14. Platform Differences: Excel for Mac
 
-Excel for Mac shares most cursor behaviors with Windows, but there are key differences in modifier keys and some UI elements.
+> **Implementation Status:** 📖 Reference only
 
-### 14.1 Modifier Key Mapping
-
-The biggest difference is which modifier keys to use. Mac uses **Option (⌥)** where Windows uses **Ctrl** for mouse drag operations, and **Command (⌘)** replaces Ctrl for most keyboard shortcuts.
+### Modifier Key Mapping
 
 | Action | Windows | Mac |
 |--------|---------|-----|
 | **Copy cells via drag** (border drag) | Ctrl + drag | Option (⌥) + drag |
-| **Copy cells via drag** (fill handle) | Ctrl + drag toggles behavior | Option (⌥) + drag toggles behavior |
 | **Insert-shift via drag** | Shift + drag | Shift + drag (same) |
-| **Drag to another sheet tab** | Alt + drag | Command (⌘) + drag |
-| **Snap object to grid** | Alt + drag object | Command (⌘) + drag object |
-| **Extend selection mode** | F8 | F8 (may require Fn + F8 on MacBook keyboards) |
 | **Edge jump (keyboard)** | Ctrl + Arrow | Command (⌘) + Arrow |
-| **Select to edge** | Ctrl + Shift + Arrow | Command (⌘) + Shift + Arrow |
 
-### 14.2 Cursor Appearance Differences
+### Cursor Appearance Differences
 
-- The **Selection Cross** on Mac appears visually identical (thick white/light cross) but may render slightly differently due to macOS cursor rendering.
-- The **Move Pointer** on Mac shows as a white hand/grab cursor in some versions rather than the 4-headed arrow seen on Windows. This can vary between Excel versions.
+- The **Move Pointer** on Mac shows as a white hand/grab cursor in some versions rather than the 4-headed arrow. Our widget's use of `grab`/`grabbing` aligns with this Mac behavior.
 - The **Fill Handle** cursor (thin black cross) is the same across platforms.
 - Resize cursors (double-headed arrows) are the same.
-
-### 14.3 Settings Location
-
-On Mac, the drag-and-drop / fill handle toggle is in a different location:
-
-| Setting | Windows Path | Mac Path |
-|---------|-------------|----------|
-| Enable fill handle and drag-and-drop | File > Options > Advanced > Editing options | Excel menu > Preferences > Edit > "Allow fill handle and cell drag-and-drop" |
-| Hardware graphics acceleration | File > Options > Advanced > Display | Not applicable (macOS handles graphics differently) |
-| Calculation mode | Formulas > Calculation Options | Excel menu > Preferences > Calculation |
-
-### 14.4 Other Mac-Specific Differences
-
-- **Right-click drag** on the fill handle works the same (context menu on release), but some Mac users with trackpads may find this gesture harder to perform. Control-click is the Mac equivalent of right-click.
-- **Function keys** (F2 for edit mode, F8 for extend selection) require pressing **Fn** on MacBook keyboards by default, unless the system preference "Use F1, F2, etc. keys as standard function keys" is enabled.
-- **Scroll Lock toggle** (Shift + F14 on Mac) may require a USB keyboard on MacBooks that lack an F14 key.
-- Mac occasionally exhibits a bug where the **move cursor appears at the fill handle corner** instead of the fill handle cross, typically caused by invisible objects or shapes overlapping the cell corner. This does not occur on Windows.
 
 ---
 
 ## 15. Platform Differences: Excel for the Web (Online)
 
-Excel for the Web is a significantly simplified version with many cursor-based interactions reduced or missing entirely.
+> **Implementation Status:** 📖 Reference only
 
-### 15.1 What Works
+### Cursor Comparison
 
-| Feature | Status in Excel for Web |
-|---------|------------------------|
-| **Selection Cross** | ✅ Works — standard cell selection cursor |
-| **Fill Handle** (left-click drag) | ✅ Works — basic fill/copy by dragging the corner square |
-| **Column/Row header selection** | ✅ Works — click to select entire column or row |
-| **Column/Row resize** | ✅ Works — drag border between headers |
-| **Double-click to auto-fit** column/row | ✅ Works |
-| **I-Beam in formula bar** | ✅ Works |
-| **Cell edit on double-click** | ✅ Works |
-| **Move cells via drag** (border drag) | ✅ Works — cursor changes to a hand/grab icon instead of 4-headed arrow |
+| Zone | Windows Desktop | Excel for Web | Our Widget |
+|------|----------------|--------------|------------|
+| Cell grid | Thick white cross (custom) | CSS `cell` / `crosshair` | `SystemMouseCursors.cell` |
+| Selection border (move) | 4-headed arrow | Grab hand / move | `SystemMouseCursors.grab` / `.grabbing` |
+| Fill handle | Thin black cross (custom) | CSS `crosshair` | `SystemMouseCursors.precise` |
+| Column/row header | Thick black arrow | CSS `pointer` | Custom arrow logic |
+| Resize between headers | Double-headed arrow | CSS `col-resize` / `row-resize` | `SystemMouseCursors.resizeColumn` / `.resizeRow` |
 
-### 15.2 What Is Missing or Limited
-
-| Feature | Status in Excel for Web |
-|---------|------------------------|
-| **Auto Fill Options smart tag** | ❌ Not available — no post-fill options menu appears after dragging the fill handle |
-| **Right-click drag on fill handle** | ❌ Not available — right-click drag does not produce the expanded context menu (Fill Series, Linear Trend, Growth Trend, etc.) |
-| **Fill Series via ribbon** | ❌ Not available — Home > Editing > Fill series options are not present in the web ribbon |
-| **Ctrl-drag to copy** (on border) | ⚠️ Limited — may not work consistently; behavior varies by browser |
-| **Shift-drag to insert** | ❌ Not available |
-| **Alt-drag to move to another sheet** | ❌ Not available |
-| **Double-click fill handle** (auto-fill down) | ⚠️ Limited — may work in some versions but is inconsistent |
-| **F8 Extend Selection mode** | ❌ Not available |
-| **Shift+F8 Add to Selection mode** | ❌ Not available |
-| **Border double-click jump** (edge navigation) | ❌ Not available |
-| **Flash Fill via fill handle** | ❌ Not available in the fill handle — use Data > Flash Fill from the ribbon instead |
-| **Custom fill options settings** | ❌ No File > Options > Advanced — only Regional Format Settings are available in the web version |
-
-### 15.3 Cursor Appearance in Web
-
-The web version uses browser-native CSS cursors rather than Excel's custom Windows cursors:
-
-| Zone | Windows Desktop Cursor | Web Cursor |
-|------|----------------------|------------|
-| Cell grid | Thick white cross (custom) | CSS `cell` or `crosshair` (browser-dependent) |
-| Selection border (move) | 4-headed arrow + white arrow | Grab hand / move cursor |
-| Fill handle | Thin black cross (custom) | CSS `crosshair` or `cell` cursor |
-| Column/row header | Thick black arrow | CSS `pointer` or `default` arrow |
-| Resize between headers | Double-headed arrow | CSS `col-resize` / `row-resize` |
-
-### 15.4 Key Implications
-
-- The fill handle in Excel for the Web **always defaults to "Fill Series" behavior** for numbers (incrementing 1, 2, 3…). Since there is no Auto Fill Options smart tag and no right-click drag menu, you cannot easily switch between "Copy Cells" and "Fill Series" after the fact. To copy a value without incrementing, use copy-paste (Ctrl+C / Ctrl+V) instead.
-- Settings configured in the desktop version (like disabling fill handle) are **saved with the workbook** on OneDrive, so a workbook saved with "Enable fill handle" unchecked will also have it disabled when opened in the web version.
-- The **hover delay / spatial hit-test behavior** described in Section 2 behaves differently in the web version because browser event handling and CSS cursor zones are less precise than native Windows hit-testing. The border zone for triggering the move cursor may feel wider or narrower depending on the browser and zoom level.
+Our widget's cursor choices most closely match Excel for the Web.
 
 ---
 
-## 16. Platform Comparison Summary
+## 16. Settings Reference
 
-| Behavior | Windows Desktop | Mac Desktop | Web (Online) |
-|----------|----------------|-------------|-------------|
-| Fill handle drag | ✅ Full | ✅ Full | ✅ Basic only |
-| Auto Fill Options tag | ✅ | ✅ | ❌ |
-| Right-click drag menu | ✅ | ✅ | ❌ |
-| Border drag to move | ✅ (4-headed arrow) | ✅ (hand/arrow) | ✅ (hand) |
-| Ctrl/Option-drag to copy | ✅ Ctrl | ✅ Option (⌥) | ❌ |
-| Shift-drag to insert | ✅ | ✅ | ❌ |
-| Alt/Cmd-drag to other sheet | ✅ Alt | ✅ Cmd (⌘) | ❌ |
-| Double-click fill handle | ✅ | ✅ | ⚠️ Inconsistent |
-| Border double-click jump | ✅ | ✅ | ❌ |
-| F8 Extend Selection | ✅ | ✅ (Fn+F8) | ❌ |
-| Settings toggle location | File > Options > Advanced | Excel > Preferences > Edit | ❌ Not configurable |
-| Flash Fill via fill handle | ✅ | ✅ | ❌ |
+> **Implementation Status:** 📖 Reference only — the widget does not expose Excel-style settings toggles.
+
+Excel's relevant settings (for reference):
+
+| Setting | Effect |
+|---------|--------|
+| **Enable fill handle and cell drag-and-drop** | Master toggle for fill/move/copy drag |
+| **Alert before overwriting cells** | Shows warning when dragging over non-empty cells |
 
 ---
 
-*Last updated: February 2026*
+## See Also
+
+- [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md) — Touch gesture equivalents for mobile/tablet
+- [CELL_MERGING.md](CELL_MERGING.md) — Cell merging behavior and restrictions
+- [Cookbook](COOKBOOK.md) — Practical recipes for common tasks
+- [API Reference](API.md) — Quick reference for all classes and methods
+
+---
+
+*This document covers the worksheet widget's desktop mouse cursor behavior. Originally based on Excel desktop, sections are annotated with implementation status. Last updated: February 2026.*

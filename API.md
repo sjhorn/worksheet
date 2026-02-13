@@ -206,6 +206,42 @@ typedef OnCancelCallback = void Function();
 
 The `detectedFormat` parameter is populated when the user types a date — the format they typed (e.g., `m/d/yyyy` for `1/15/2024`) is detected via round-trip matching and passed to the callback so the cell can display the date in the format it was entered.
 
+### EditController Rich Text Methods
+
+When a cell is being edited, `EditController` exposes the active `RichTextEditingController` and provides convenience methods for toolbar buttons and other external code:
+
+```dart
+/// The active rich text controller (set by CellEditorOverlay, null when not editing)
+RichTextEditingController? richTextController;
+
+/// Toggle formatting on the current text selection (no-op when not editing)
+void toggleBold()
+void toggleItalic()
+void toggleUnderline()
+void toggleStrikethrough()
+
+/// Query the current selection style
+TextStyle? getSelectionStyle()
+bool get isSelectionBold
+bool get isSelectionItalic
+bool get isSelectionUnderline
+bool get isSelectionStrikethrough
+```
+
+**Toolbar example:**
+```dart
+IconButton(
+  icon: Icon(Icons.format_bold),
+  isSelected: editController.isSelectionBold,
+  onPressed: editController.isEditing ? () => editController.toggleBold() : null,
+)
+```
+
+**Via Actions (inside widget tree):**
+```dart
+Actions.invoke(context, const ToggleBoldIntent());
+```
+
 ### Worksheet Date Parsing
 
 The `Worksheet` widget accepts a `dateParser` parameter that configures date
@@ -267,10 +303,16 @@ Worksheet(
 | `ClearCellsIntent` | `clearValue`, `clearStyle`, `clearFormat` | Delete, Backspace, Ctrl+\ |
 | `FillDownIntent` | — | Ctrl+D |
 | `FillRightIntent` | — | Ctrl+R |
+| `ToggleBoldIntent` | — | Ctrl+B |
+| `ToggleItalicIntent` | — | Ctrl+I |
+| `ToggleUnderlineIntent` | — | Ctrl+U |
+| `ToggleStrikethroughIntent` | — | Ctrl+Shift+S |
+
+The formatting intents (`ToggleBold/Italic/Underline/Strikethrough`) are the inverse of other worksheet actions: they are **enabled only during editing** (when `editController.isEditing` and `editController.richTextController` are set).
 
 ### Cell Editor Shortcuts
 
-These shortcuts are active while editing a cell (handled by `CellEditorOverlay`, not the Shortcuts/Actions system):
+These shortcuts are active while editing a cell. The overlay's key handler takes precedence when the editor has focus, but the same operations are also available as Actions (see table above) for focus edge cases and toolbar use:
 
 | Key | Action |
 |-----|--------|
@@ -323,7 +365,28 @@ abstract class WorksheetActionContext {
 
 ### DefaultWorksheetShortcuts
 
-`DefaultWorksheetShortcuts.shortcuts` provides ~44 default bindings. Both `control:` and `meta:` variants are included for cross-platform support.
+`DefaultWorksheetShortcuts.shortcuts` provides ~52 default bindings. Both `control:` and `meta:` variants are included for cross-platform support.
+
+### Worksheet Widget Properties
+
+| Property | Type | Default | Description |
+|----------|------|---------|-------------|
+| `data` | `WorksheetData` | required | Data source for the worksheet |
+| `controller` | `WorksheetController?` | null | Controller for selection, zoom, scroll |
+| `rowCount` | `int` | required | Total number of rows |
+| `columnCount` | `int` | required | Total number of columns |
+| `readOnly` | `bool` | `false` | Disables selection and editing |
+| `mobileMode` | `bool?` | `null` | Touch interaction mode. `null` = auto-detect (mobile on iOS/Android, desktop on macOS/Windows/Linux). `true` = force mobile. `false` = force desktop. See [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md). |
+| `onEditCell` | `OnEditCellCallback?` | null | Called on double-tap / F2 |
+| `onCellTap` | `OnCellTapCallback?` | null | Called when a cell is tapped |
+| `onResizeRow` | `OnResizeRowCallback?` | null | Called during row resize |
+| `onResizeColumn` | `OnResizeColumnCallback?` | null | Called during column resize |
+| `shortcuts` | `Map<ShortcutActivator, Intent>?` | null | Override/add shortcut bindings |
+| `actions` | `Map<Type, Action<Intent>>?` | null | Override action implementations |
+| `dateParser` | `AnyDate?` | null | Custom date format detection |
+| `formatLocale` | `FormatLocale?` | null | Locale for number/date formatting |
+| `customRowHeights` | `Map<int, double>?` | null | Custom heights for specific rows |
+| `customColumnWidths` | `Map<int, double>?` | null | Custom widths for specific columns |
 
 ### Usage Example
 
@@ -347,6 +410,7 @@ Worksheet(
     // Handle column resize
     print('Column $column now ${newWidth}px');
   },
+  mobileMode: null,  // Auto-detect platform (default)
 )
 ```
 

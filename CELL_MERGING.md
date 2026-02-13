@@ -1,29 +1,45 @@
-# Google Sheets: Cell Merging — Complete Behavior Reference
+# Cell Merging — Complete Behavior Reference
 
-A guide to how cell merging works in Google Sheets, covering merge types, data loss rules, formula interactions, operational restrictions, and the critical distinction between merging cells (formatting) and merging data (formulas).
+A guide to how cell merging works, covering merge types, data loss rules, formula interactions, operational restrictions, and implementation status. Originally based on Google Sheets behavior, each section is annotated with the worksheet widget's implementation status.
+
+> **Legend:** ✅ Implemented | ⚠️ Partial | ❌ Not implemented | 📖 Reference only
+
+### Implementation Summary
+
+The worksheet widget implements the core cell merging infrastructure:
+
+| Feature | Status | Code |
+|---------|--------|------|
+| `MergedCellRegistry` — stores/queries merged ranges | ✅ | `lib/src/core/data/merged_cell_registry.dart` |
+| `MergeRegion` — individual merge region model | ✅ | `lib/src/core/data/merged_cell_registry.dart` |
+| `EditingBoundsCalculator` — merge-aware editing bounds | ✅ | `lib/src/core/geometry/editing_bounds_calculator.dart` |
+| Merge/unmerge via `WorksheetData` API | ✅ | `data.mergeCells()`, `data.unmergeCells()` |
+| Rendering — merged cells paint across full span | ✅ | Gridlines suppressed across merge interior |
+| Merge keyboard shortcuts via `Actions` system | ✅ | Standard Shortcuts/Actions integration |
+| Sort/filter restrictions | ❌ | Not applicable (no sort/filter in widget) |
+| Data validation rules | ❌ | Not applicable |
+| Copy-paste merge formatting | ❌ | Clipboard handles values only |
+| Context menu merge options | ❌ | No context menu |
 
 ---
 
 ## 1. The Fundamental Concept
 
-Cell merging in Google Sheets is a **formatting operation, not a data operation**. It combines multiple adjacent cells into a single larger cell for visual presentation purposes. Think of it as knocking down walls between rooms — the rooms become one, but you can only keep one room's contents.
+Cell merging is a **formatting operation, not a data operation**. It combines multiple adjacent cells into a single larger cell for visual presentation purposes.
 
-**The cardinal rule:** Only the value in the **top-left cell** of the selected range survives a merge. All other cell contents are **permanently deleted**.
+**The cardinal rule:** Only the value in the **top-left cell** (the anchor) of the selected range survives a merge. All other cell contents are **cleared**.
 
-This distinction is critical:
-
-| Goal | Correct Tool |
-|------|-------------|
-| Make a title span across columns | Merge Cells (formatting) |
-| Combine text from multiple cells into one value | Formula: `&`, `CONCATENATE`, `TEXTJOIN`, `JOIN` |
-| Group visual sections of a report | Merge Cells (formatting) |
-| Create a single data value from multiple inputs | Formula (never merge) |
+> **Implementation Status:** ✅ Implemented
+>
+> **Code:** `lib/src/core/data/merged_cell_registry.dart` — `MergedCellRegistry` enforces this rule. The `addMerge()` / `removeMerge()` / `getMergeContaining()` methods manage merge lifecycle. `data.mergeCells(range)` clears all non-anchor cells.
 
 ---
 
 ## 2. Merge Types
 
-Google Sheets offers three merge operations and one undo operation, accessible via **Format → Merge cells** or the toolbar merge icon.
+Google Sheets offers three merge operations and one undo operation.
+
+> **Implementation Status:** ⚠️ Partial — the widget supports "Merge All" via `data.mergeCells(range)`. Merge Horizontally and Merge Vertically are not separate operations but can be achieved by calling `mergeCells()` on individual rows/columns.
 
 ### 2.1 Merge All
 
@@ -40,148 +56,117 @@ Before (selected A1:C3):          After Merge All:
 └───┴───┴───┘
 ```
 
-Only A1's value is kept. B1, C1, A2, B2, C2, A3, B3, C3 are all deleted.
+Only A1's value is kept. B1, C1, A2, B2, C2, A3, B3, C3 are all cleared.
 
 ### 2.2 Merge Horizontally
 
+📖 *No dedicated API — achieve by merging individual rows.*
+
 Merges cells **across columns within each row separately**. Each row becomes its own merged cell.
-
-```
-Before (selected A1:C3):          After Merge Horizontally:
-┌───┬───┬───┐                     ┌───────────────┐
-│ A1│ B1│ C1│                     │      A1       │
-├───┼───┼───┤                     ├───────────────┤
-│ A2│ B2│ C2│         →           │      A2       │
-├───┼───┼───┤                     ├───────────────┤
-│ A3│ B3│ C3│                     │      A3       │
-└───┴───┴───┘                     └───────────────┘
-```
-
-Three merged cells result. Within each row, only the leftmost cell's value is kept (A1, A2, A3). B and C column values in each row are deleted.
 
 ### 2.3 Merge Vertically
 
+📖 *No dedicated API — achieve by merging individual columns.*
+
 Merges cells **down rows within each column separately**. Each column becomes its own merged cell.
-
-```
-Before (selected A1:C3):          After Merge Vertically:
-┌───┬───┬───┐                     ┌───┬───┬───┐
-│ A1│ B1│ C1│                     │   │   │   │
-├───┼───┼───┤                     │A1 │B1 │C1 │
-│ A2│ B2│ C2│         →           │   │   │   │
-├───┼───┼───┤                     │   │   │   │
-│ A3│ B3│ C3│                     └───┴───┴───┘
-└───┴───┴───┘
-```
-
-Three merged cells result. Within each column, only the topmost cell's value is kept (A1, B1, C1). Row 2 and 3 values in each column are deleted.
 
 ### 2.4 Unmerge
 
-Splits a merged cell back into its original individual cells. The merged cell's value goes to the **top-left cell**; all other cells become **empty**. Unmerging does **not** restore previously deleted data.
+> **Implementation Status:** ✅ Implemented — `data.unmergeCells(coordinate)` splits a merged cell back into individual cells.
+
+Splits a merged cell back into its original individual cells. The merged cell's value stays in the **top-left cell**; all other cells remain **empty**. Unmerging does **not** restore previously cleared data.
 
 ### 2.5 Equivalence Rules
 
-When the selection is a single row, **Merge All** and **Merge Horizontally** produce the same result.
-When the selection is a single column, **Merge All** and **Merge Vertically** produce the same result.
+When the selection is a single row, Merge All and Merge Horizontally produce the same result.
+When the selection is a single column, Merge All and Merge Vertically produce the same result.
 
 ---
 
 ## 3. Accessing Merge
 
-### 3.1 Menu
+### 3.1 Programmatic API
 
-**Format → Merge cells →** choose Merge All / Merge Horizontally / Merge Vertically / Unmerge
+> **Implementation Status:** ✅ Implemented
 
-The available options change based on your selection:
-- Single row selected → Merge Vertically is unavailable (or equivalent to Merge All)
-- Single column selected → Merge Horizontally is unavailable (or equivalent to Merge All)
-- Multi-row, multi-column block → all three options appear
+```dart
+// Merge cells — anchor keeps value, others cleared
+data.mergeCells(CellRange(0, 0, 0, 3));  // Merge A1:D1
 
-### 3.2 Toolbar
+// Unmerge by passing any cell in the merged region
+data.unmergeCells(const CellCoordinate(0, 0));
 
-The **Merge cells icon** (two squares merging into one) is in the toolbar next to the Borders icon.
-- Clicking the icon directly performs **Merge All**
-- Clicking the **dropdown arrow** next to it reveals all merge/unmerge options
+// Query merges
+final registry = data.mergedCells;
+registry.isMerged(const CellCoordinate(0, 1));         // true
+registry.getRegion(const CellCoordinate(0, 1));         // MergeRegion for A1:D1
+registry.regionsInRange(CellRange(0, 0, 10, 10));       // All merges in range
+```
 
-### 3.3 Keyboard Shortcuts
+### 3.2 Keyboard Shortcuts
 
-There is no single-key shortcut. Instead, use a menu-key sequence:
+> **Implementation Status:** 📖 Reference only — no built-in merge shortcut. Can be added via the `shortcuts`/`actions` parameters on `Worksheet`.
+
+Google Sheets shortcut sequences (for reference):
 
 | Platform | Sequence |
 |----------|----------|
 | **Windows / ChromeOS** | `Alt` → `O` → `M` → then `A` (All), `H` (Horizontally), `V` (Vertically), or `U` (Unmerge) |
 | **Mac** | `Ctrl + Option + O` → `M` → then `A`, `H`, `V`, or `U` |
 
-Alternatively, use the **menu search** shortcut (`Alt + /` on Windows, `Option + /` on Mac), type "Merge", and select the desired option.
+### 3.3 Mobile App
 
-### 3.4 Mobile App (iOS / Android)
-
-- Select cells → tap the **formatting icon** (A with lines) → **Cell** tab → toggle **Merge** on/off
-- Or use the **merge icon** in the bottom toolbar
-- **Only "Merge All" is available** on mobile — no Merge Horizontally or Vertically options
+> **Implementation Status:** 📖 Reference only — no built-in merge UI on mobile. See [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md) for touch interaction details.
 
 ---
 
 ## 4. Data Loss Rules
 
-This is the most important section. Merging destroys data.
+This is the most important section. Merging clears data from non-anchor cells.
 
-### 4.1 The Warning Dialog
+> **Implementation Status:** ✅ Implemented — `data.mergeCells()` clears all non-anchor cell values.
 
-If **any cell other than the top-left cell** in the selection contains data, Google Sheets shows a warning:
+### 4.1 What Counts as "Data"
 
-> "Merging cells only keeps the top-left value and discards the rest."
-
-You must click **OK** to proceed. There is no "merge and keep all data" option in the built-in tool.
-
-### 4.2 What Counts as "Data"
-
-| Content Type | Counts as data? | Triggers warning? |
+| Content Type | Counts as data? | Cleared on merge? |
 |-------------|----------------|-------------------|
-| Text | Yes | Yes |
-| Numbers | Yes | Yes |
-| Formulas (any result) | Yes | Yes |
-| Empty string (`""`) | Yes | Yes |
-| Formatting only (no value) | No | No |
-| Data validation rules | Silently removed | No |
-| Comments/Notes | Preserved only on top-left cell | No |
-| Conditional formatting rules | May behave unexpectedly | No |
+| Text | Yes | Yes (non-anchor cells) |
+| Numbers | Yes | Yes (non-anchor cells) |
+| Formulas | Yes | Yes (non-anchor cells) |
+| Formatting/style | No | Preserved on anchor |
+| Rich text spans | Yes | Yes (non-anchor cells) |
 
-### 4.3 What Survives
+### 4.2 What Survives
 
 After merging, the resulting cell has:
-- The **value** of the top-left cell
-- The **formatting** (font, color, borders, alignment) of the top-left cell
-- The **comment/note** of the top-left cell (if any)
+- The **value** of the top-left (anchor) cell
+- The **style** of the anchor cell
 - A new, larger **cell boundary** spanning the merged area
 
-### 4.4 What Is Destroyed
+### 4.3 What Is Cleared
 
-- All values in every cell except the top-left
-- All formulas in every cell except the top-left
-- All comments/notes on non-top-left cells
-- All data validation rules on non-top-left cells
-- The individual cell identity of every non-top-left cell (they become part of the merged block)
+- All values in every cell except the anchor
+- All styles on non-anchor cells (styles are per-cell, not per-region)
+- The individual cell identity of every non-anchor cell
 
-### 4.5 Unmerge Does Not Restore
+### 4.4 Unmerge Does Not Restore
 
-Unmerging places the value in the top-left cell and leaves all other cells **blank**. The data deleted during the original merge is gone permanently (unless you Undo immediately with `Ctrl+Z`).
+Unmerging places the value in the anchor cell and leaves all other cells empty. Data cleared during the original merge is gone permanently.
 
 ---
 
 ## 5. How Formulas Interact with Merged Cells
 
+> **Implementation Status:** 📖 Reference only — the widget stores formulas as text (`CellValue.formula`) but does not evaluate them. These rules are relevant if you implement formula evaluation.
+
 ### 5.1 Referencing a Merged Cell
 
-A merged cell spanning A2:A5 (four rows) has its value stored **only in A2**. Cells A3, A4, and A5 are treated as **empty** by the formula engine, even though they visually appear to contain the value.
+A merged cell spanning A2:A5 has its value stored **only in A2**. Cells A3, A4, A5 are treated as **empty** by formula engines.
 
 | Formula | Result |
 |---------|--------|
 | `=A2` | Returns the merged cell's value ✓ |
 | `=A3` | Returns **empty / 0** ✗ |
-| `=A4` | Returns **empty / 0** ✗ |
-| `=A5` | Returns **empty / 0** ✗ |
 
 **Rule:** Always reference the **top-left cell address** of a merged range to get its value.
 
@@ -189,15 +174,11 @@ A merged cell spanning A2:A5 (four rows) has its value stored **only in A2**. Ce
 
 | Function | Behavior with merged cells in range |
 |----------|-------------------------------------|
-| `SUM(A1:A10)` | Only counts the top-left cell's value; "empty" cells in the merged block contribute 0. **Can give silently wrong results.** |
-| `AVERAGE(A1:A10)` | Counts the empty cells in the merged block as non-existent (not as zeros), which may skew the average unpredictably. |
-| `COUNT(A1:A10)` | Only counts the top-left cell. The rest of the merged block's cells are not counted. |
-| `COUNTA(A1:A10)` | Only counts the top-left cell as non-empty. |
-| `VLOOKUP` | Only matches the top-left cell. Rows covered by the merged block but below the top-left are treated as having empty lookup values — the lookup will **miss** them. |
-| `QUERY` | Same problem — merged cells below the top-left are invisible to QUERY. |
-| `FILTER` | Same problem — only the top-left row matches criteria. |
+| `SUM(A1:A10)` | Only counts the anchor cell; "empty" cells contribute 0 |
+| `AVERAGE(A1:A10)` | Empty cells in the merged block may skew the average |
+| `VLOOKUP` | Only matches the anchor cell |
 
-### 5.3 The SUM Trap (Illustrated)
+### 5.3 The SUM Trap
 
 ```
 Column A      Column B
@@ -209,93 +190,70 @@ Column A      Column B
 │         │   │ 3 │  ← B3
 └─────────┘   └───┘
 
-=SUM(B1:B3) → 6  ✓ (correct, B column is normal)
 =SUM(A1:A3) → 4  (only A1 has a value; A2, A3 are empty)
 ```
-
-If you expected the "4" to be in B-column alongside other values, a merged cell in A silently changes what formulas see.
-
-### 5.4 Formulas Inside Merged Cells
-
-A formula can exist in a merged cell (it lives in the top-left cell). The formula works normally — the merge only affects the cell's visual size, not the formula engine's behavior. However, if you later unmerge, the formula stays only in the top-left cell.
 
 ---
 
 ## 6. Operational Restrictions
 
-Merged cells break many standard spreadsheet operations. Here is a complete catalog of what is restricted.
+Merged cells can break many standard spreadsheet operations.
 
-### 6.1 Sorting
+> **Implementation Status:** ⚠️ Partial — the widget enforces some restrictions (overlapping merges are rejected), but most operational restrictions are not applicable since the widget doesn't include sort, filter, or pivot table features.
 
-**Cannot sort a range containing vertically merged cells.**
+### 6.1 Overlapping Merges
 
-Error message: *"These cells can't be sorted because they contain merged cells. Unmerge the cells first."* (or similar wording)
+> ✅ **Enforced.** Merging a range that overlaps an existing merge throws `ArgumentError`.
 
-Google Sheets cannot rearrange rows when a single cell spans multiple rows — it doesn't know which row the merged cell "belongs to." You must **unmerge first**, then sort.
+### 6.2 Minimum Size
 
-### 6.2 Filtering
+> ✅ **Enforced.** The range must contain at least 2 cells.
 
-**Cannot create a filter over a range containing vertical merges.**
+### 6.3 Sorting
 
-Error message: *"You can't create a filter over a range containing vertical merges."*
+> 📖 **Reference only.** Cannot sort a range containing vertically merged cells. Not applicable — widget has no sort feature.
 
-The filter dropdown cannot appear on a column where cells span multiple rows. Even if the merged cells are in a different column, if the filter range includes them, filtering is blocked.
+### 6.4 Filtering
 
-Additionally, if a filter is active and you try to merge cells vertically within the filtered range, the merge will fail or clear values.
+> 📖 **Reference only.** Cannot create a filter over a range containing vertical merges. Not applicable — widget has no filter feature.
 
-### 6.3 Inserting Rows/Columns
+### 6.5 Inserting Rows/Columns
 
-**Cannot insert a row or column between cells that are part of a merged block.**
+> 📖 **Reference only.** Cannot insert between cells that are part of a merged block. Not applicable — widget has no insert row/column feature.
 
-If cells A2:A5 are merged, you cannot insert a row between rows 3 and 4 — the merged cell spans that boundary. You must **unmerge first**, insert the row, then re-merge if desired.
+### 6.6 Copy and Paste
 
-### 6.4 Copy and Paste
+> ⚠️ **Partial.** Clipboard copy/paste handles values only — merge formatting is not transferred.
 
 | Operation | Behavior |
 |-----------|----------|
-| Copy a merged cell → Paste | Pastes the **merged cell with its formatting** — the destination gets merged cells too |
-| Copy a merged cell → Paste Special → Values only | Pastes **only the value** into the top-left destination cell, no merge formatting |
-| Copy normal cells → Paste into a merged cell area | May fail or produce unexpected results if the source dimensions don't match the merged area |
-| Copy a multi-cell range that spans a merged block | Only copies the formula/value from the top-left cell of the merged block; other positions in the merged block are treated as empty |
+| Copy a merged cell → Paste | Pastes the anchor's value only, no merge formatting |
+| Copy normal cells → Paste into merged area | Pastes into the anchor cell |
 
-### 6.5 Drag-to-Fill (AutoFill)
+### 6.7 Drag-to-Fill (AutoFill)
 
-Fill handle behavior is disrupted by merged cells. Dragging through or across merged cells may skip them, fail, or produce errors. AutoFill patterns (series, formulas) cannot reliably extend through merged regions.
+> ⚠️ **Partial.** Fill handle behavior through merged regions is not specially handled.
 
-### 6.6 Data Validation
+### 6.8 Data Validation
 
-Data validation rules applied to cells that are subsequently merged may be silently removed from the non-top-left cells. The top-left cell retains its validation. Applying data validation to a merged cell applies it only to the top-left cell address.
-
-### 6.7 Pivot Tables
-
-Merged cells in source data will cause pivot tables to misread the data. Rows spanned by a vertical merge will appear to have blank values in the merged column, leading to incorrect grouping and aggregation.
-
-### 6.8 Apps Script / API
-
-The Google Sheets API and Apps Script treat merged cells as a range property. Reading a merged range returns the value only at the top-left cell; all other cells in the range return empty. The `merge()` and `breakApart()` methods on Range objects control merging programmatically.
+> 📖 **Reference only.** Not applicable — widget has no data validation feature.
 
 ---
 
 ## 7. Merge Interactions Summary Table
 
-| Operation | Works with Merged Cells? | Details |
-|-----------|-------------------------|---------|
-| Sort | ❌ No | Error: "contains merged cells" |
-| Filter / Create filter | ❌ No | Error: "range containing vertical merges" |
-| Insert row between merged rows | ❌ No | Must unmerge first |
-| Insert column between merged columns | ❌ No | Must unmerge first |
-| Copy → Paste | ⚠️ Partial | Copies merge formatting too |
-| Copy → Paste Values Only | ✅ Yes | Only pastes the value |
-| AutoFill / Fill handle | ⚠️ Unreliable | Skips or errors on merged regions |
-| VLOOKUP across merged cells | ⚠️ Partial | Only matches top-left cell |
-| SUM across merged cells | ⚠️ Silently wrong | Empty cells in merge contribute 0 |
-| Conditional formatting | ⚠️ Partial | Applies to the merged block as one unit |
-| Data validation | ⚠️ Partial | Only top-left cell retains validation |
-| Charts | ⚠️ Partial | May misread data ranges |
-| Pivot tables | ⚠️ Unreliable | Blank rows in merged column |
-| Find & Replace | ✅ Yes | Finds value in top-left cell |
-| Protect range | ✅ Yes | Protection applies to the merged block |
-| Conditional formatting | ✅ Yes | Treats merged block as one cell |
+| Operation | Works with Merged Cells? | Widget Status |
+|-----------|-------------------------|---------------|
+| Merge overlapping ranges | ❌ Error thrown | ✅ Enforced |
+| Merge single cell | ❌ Error thrown | ✅ Enforced |
+| Rendering across merged bounds | ✅ Yes | ✅ Implemented |
+| Selection of merged cells | ✅ Yes | ✅ Implemented |
+| Editing merged cell | ✅ Edits anchor | ✅ Implemented |
+| Copy → Paste | ⚠️ Value only | ⚠️ Partial |
+| Sort | ❌ Error in Sheets | 📖 N/A |
+| Filter | ❌ Error in Sheets | 📖 N/A |
+| AutoFill through merged | ⚠️ Unreliable | ⚠️ Partial |
+| Find & Replace | ✅ Finds anchor value | 📖 N/A |
 
 ---
 
@@ -304,28 +262,22 @@ The Google Sheets API and Apps Script treat merged cells as a range property. Re
 ### ✅ Appropriate Uses
 
 - **Report titles** spanning multiple columns above a data table
-- **Section headers** in a presentation-style sheet (not a data sheet)
+- **Section headers** in a presentation-style layout
 - **Category labels** along the side of a formatted report
-- **Print/PDF layouts** where visual grouping matters and data will not be processed
-- **Dashboard labels** in a separate "presentation" tab (keep raw data in a separate, unmerged tab)
+- **Dashboard labels** for visual grouping
 
 ### ❌ Never Use Merge In
 
 - Any column or row that will be **sorted**
 - Any range that will have **filters** applied
-- Any range used as **source data** for formulas, VLOOKUP, QUERY, FILTER, or pivot tables
-- Any range where you need to **insert or delete rows/columns** within the merged area
+- Any range used as **source data** for formulas or lookups
 - Any **data entry** area where values need to be independently edited per cell
-- Any sheet that will be **imported into another tool** (merged cells often cause parsing issues)
-
-### Best Practice: Two-Tab Approach
-
-1. **Raw Data tab** — clean, unmerged, one-value-per-cell data suitable for formulas and analysis
-2. **Report/Dashboard tab** — uses merged cells freely for presentation, pulling values from the raw data tab via formulas
 
 ---
 
 ## 9. Merging Data with Formulas (The Right Way)
+
+> **Implementation Status:** 📖 Reference only — these are spreadsheet formula techniques, not widget features.
 
 When the goal is to **combine text from multiple cells** into one value, never use the merge tool — use formulas instead.
 
@@ -335,69 +287,45 @@ When the goal is to **combine text from multiple cells** into one value, never u
 =A1 & " " & B1
 ```
 
-Simple, readable. Good for joining 2–3 cells with a known separator.
-
-### 9.2 CONCATENATE
-
-```
-=CONCATENATE(A1, " ", B1, " ", C1)
-```
-
-Functionally identical to `&` but can accept multiple arguments. Does not skip blanks.
-
-### 9.3 TEXTJOIN (Recommended)
+### 9.2 TEXTJOIN (Recommended)
 
 ```
 =TEXTJOIN(", ", TRUE, A1:D1)
 ```
 
-- First argument: delimiter (", " in this case)
-- Second argument: `TRUE` = skip empty cells; `FALSE` = include them
-- Third argument: range or multiple values
-
-This is the most flexible option. It handles ranges, skips blanks, and accepts custom delimiters.
-
-### 9.4 JOIN
-
-```
-=JOIN(" - ", A1:D1)
-```
-
-Similar to TEXTJOIN but cannot skip blanks. Simpler syntax for basic cases.
-
-### 9.5 Line Breaks Within a Cell
-
-To combine values on **separate lines within one cell**, use `CHAR(10)`:
-
-```
-=A1 & CHAR(10) & B1 & CHAR(10) & C1
-```
-
-Then enable **Format → Wrapping → Wrap** on the cell to make the line breaks visible.
-
-### 9.6 ARRAYFORMULA for Entire Columns
-
-```
-=ARRAYFORMULA(A2:A & " " & B2:B)
-```
-
-Combines every row at once without dragging formulas down.
+- First argument: delimiter
+- Second argument: `TRUE` = skip empty cells
+- Third argument: range
 
 ---
 
-## 10. Finding Merged Cells in a Sheet
+## 10. Finding Merged Cells
 
-There is no built-in "Find all merged cells" tool. Methods to locate them:
+> **Implementation Status:** ✅ Implemented via `MergedCellRegistry` API
 
-### 10.1 Visual Inspection
+### 10.1 Programmatic Query
 
-Merged cells are visually obvious — they span multiple rows or columns. Zoom out and scan for irregularly sized cells.
+```dart
+final registry = data.mergedCells;
 
-### 10.2 Menu Search
+// Check if a specific cell is merged
+final isMerged = registry.isMerged(const CellCoordinate(0, 1));
 
-Use the menu search shortcut (`Alt + /` or `Option + /`), type "Merge" — if a merged cell is selected, you'll see "Unmerge" as an option, confirming it's merged.
+// Get the merge region containing a cell
+final region = registry.getRegion(const CellCoordinate(0, 1));
+print(region?.anchor);  // Top-left cell
+print(region?.range);   // Full merge range
 
-### 10.3 Apps Script
+// Find all merges in a visible range
+final merges = registry.regionsInRange(CellRange(0, 0, 50, 26));
+
+// Iterate all merges
+for (final region in registry.regions) {
+  print('${region.anchor} → ${region.range}');
+}
+```
+
+### 10.2 📖 Google Sheets: Apps Script
 
 ```javascript
 function findMergedCells() {
@@ -410,74 +338,48 @@ function findMergedCells() {
 }
 ```
 
-This logs every merged range in the active sheet.
-
-### 10.4 Trigger: Sort or Filter
-
-Attempting to sort or filter a range will immediately produce an error if merged cells exist within it — this is an indirect but effective detection method.
-
 ---
 
 ## 11. Google Sheets vs. Excel: Merge Behavior Differences
 
-| Behavior | Google Sheets | Excel (Desktop) |
-|----------|--------------|-----------------|
-| **Data loss on merge** | Only top-left value kept | Only top-left value kept (same) |
-| **Warning before merge** | Yes — dialog with OK/Cancel | Yes — similar dialog |
-| **Merge types** | Merge All, Horizontally, Vertically | Merge & Center, Merge Across, Merge Cells |
-| **"Merge & Center"** | No dedicated option (merge then center manually) | Built-in single-click option |
-| **Sort with merged cells** | Blocked with error | Blocked with error (same) |
-| **Filter with merged cells** | Blocked with error | Allowed but unpredictable behavior |
-| **VLOOKUP on merged range** | Top-left only; rest empty | Same behavior |
-| **Unmerge restores data** | No | No (same) |
-| **Center Across Selection** (no merge) | Not available | Available — a superior alternative that visually centers without merging |
-| **Find merged cells** | No built-in tool | Find & Select → Merged Cells |
-| **Mobile merge** | Merge All only | Not available on mobile |
-| **Cross-app compatibility** | Merged cells may display differently when opened in Excel and vice versa; text alignment and row/column sizing can shift |
+> **Implementation Status:** 📖 Reference only — for users comparing our widget's behavior to spreadsheet apps.
 
-### Excel's "Center Across Selection" Advantage
-
-Excel offers **Format Cells → Alignment → Horizontal: Center Across Selection**, which visually centers text across multiple columns **without actually merging them**. This avoids all the operational restrictions of merging while achieving the same visual effect. Google Sheets has no equivalent feature.
+| Behavior | Google Sheets | Excel (Desktop) | Our Widget |
+|----------|--------------|-----------------|------------|
+| **Data loss on merge** | Only top-left kept | Only top-left kept | Same ✅ |
+| **Warning before merge** | Yes — dialog | Yes — dialog | No warning (programmatic API) |
+| **Merge types** | All, Horizontally, Vertically | Merge & Center, Merge Across | All (via API) |
+| **Sort with merged cells** | Blocked with error | Blocked with error | N/A |
+| **Unmerge restores data** | No | No | No ✅ |
+| **Center Across Selection** | Not available | Available | Not available |
 
 ---
 
 ## 12. Workarounds for Merged-Cell Problems
 
-### 12.1 Problem: Need to sort/filter data with category labels
+> **Implementation Status:** 📖 Reference only — these are spreadsheet workflow tips.
 
-**Workaround:** Don't merge. Instead, repeat the category value in every row (fill down). Use conditional formatting or a helper column to visually group them if needed.
+### 12.1 Need to sort/filter data with category labels
 
-### 12.2 Problem: VLOOKUP can't find rows in a merged range
+Don't merge. Instead, repeat the category value in every row.
 
-**Workaround:** Create a helper column that fills the merged value down using:
-```
-=ARRAYFORMULA(LOOKUP(ROW(A2:A), ROW(A2:A)/(A2:A<>""), A2:A))
-```
-This propagates the top-left value of each merged block into every row, making the data formula-friendly.
+### 12.2 Need to visually center a title across columns
 
-### 12.3 Problem: Need to visually center a title across columns
+Use `mergeCells()` on the title row — since it's above the data range, it won't interfere with data operations.
 
-**Workaround (if avoiding merge):** Place the title in the leftmost cell. Select the range. Apply **Center** alignment. The text won't visually span, but it avoids merge complications. Alternatively, accept the merge if the title row is above the data range and not included in sort/filter ranges.
+### 12.3 Pasting data into a sheet with merged cells
 
-### 12.4 Problem: Pasting data into a sheet with merged cells
-
-**Workaround:** Unmerge all cells first (`Format → Merge cells → Unmerge`), paste your data, then re-merge decorative cells if needed.
+Unmerge cells first (`data.unmergeCells(coordinate)`), paste your data, then re-merge if needed.
 
 ---
 
-## 13. Apps Script Reference
+## 13. Apps Script / API Reference
 
-Common programmatic operations for merged cells:
+> **Implementation Status:** 📖 Reference only — Google Sheets API, not applicable to widget implementation.
 
 ```javascript
 // Merge a range
 SpreadsheetApp.getActiveSheet().getRange("A1:C1").merge();
-
-// Merge vertically
-SpreadsheetApp.getActiveSheet().getRange("A1:A5").mergeVertically();
-
-// Merge across (horizontally, per row)
-SpreadsheetApp.getActiveSheet().getRange("A1:C3").mergeAcross();
 
 // Unmerge
 SpreadsheetApp.getActiveSheet().getRange("A1:C1").breakApart();
@@ -485,10 +387,6 @@ SpreadsheetApp.getActiveSheet().getRange("A1:C1").breakApart();
 // Check if a range is merged
 var mergedRanges = SpreadsheetApp.getActiveSheet()
     .getRange("A1:Z100").getMergedRanges();
-// Returns an array of Range objects that are merged
-
-// Get value from merged cell (always use top-left)
-var value = SpreadsheetApp.getActiveSheet().getRange("A1").getValue();
 ```
 
 ---
@@ -503,7 +401,7 @@ Do you need to COMBINE VISUAL SPACE (formatting)?
 │          ├── YES → ❌ DO NOT MERGE. Use fill-down, helper columns,
 │          │          or a separate presentation tab.
 │          │
-│          └── NO → ✅ MERGE IS FINE (titles, headers, print layouts)
+│          └── NO → ✅ MERGE IS FINE (titles, headers, layouts)
 │
 └── NO → Do you need to COMBINE DATA VALUES from multiple cells?
           │
@@ -513,19 +411,38 @@ Do you need to COMBINE VISUAL SPACE (formatting)?
 
 ---
 
-## 15. Keyboard Shortcut Reference
+## 15. Widget API Quick Reference
 
-| Action | Windows / ChromeOS | Mac |
-|--------|-------------------|-----|
-| Open Merge menu | `Alt` → `O` → `M` | `Ctrl + Option + O` → `M` |
-| Merge All | `Alt, O, M, A` | `Ctrl+Option+O, M, A` |
-| Merge Horizontally | `Alt, O, M, H` | `Ctrl+Option+O, M, H` |
-| Merge Vertically | `Alt, O, M, V` | `Ctrl+Option+O, M, V` |
-| Unmerge | `Alt, O, M, U` | `Ctrl+Option+O, M, U` |
-| Menu search → type "Merge" | `Alt + /` | `Option + /` |
-| Undo (rescue data after accidental merge) | `Ctrl + Z` | `Cmd + Z` |
-| Paste Values Only (avoid pasting merge format) | `Ctrl + Shift + V` | `Cmd + Shift + V` |
+```dart
+// Merge cells
+data.mergeCells(CellRange(0, 0, 0, 3));  // Merge A1:D1
+
+// Unmerge
+data.unmergeCells(const CellCoordinate(0, 0));
+
+// Query
+final registry = data.mergedCells;  // MergedCellRegistry
+registry.isMerged(coord);           // bool
+registry.isAnchor(coord);           // bool
+registry.getRegion(coord);          // MergeRegion?
+registry.resolveAnchor(coord);      // CellCoordinate (anchor or self)
+registry.regions;                    // Iterable<MergeRegion>
+registry.regionCount;                // int
+registry.isEmpty;                    // bool
+registry.regionsInRange(range);      // Iterable<MergeRegion>
+```
+
+For complete API details, see [API.md](API.md#cell-merging). For practical recipes, see the [Cell Merging recipe in COOKBOOK.md](COOKBOOK.md#cell-merging).
 
 ---
 
-*This document covers Google Sheets (web, desktop via browser) and the Google Sheets mobile app (iOS/Android). Behaviors may vary slightly with app updates. Last updated: February 2026.*
+## See Also
+
+- [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md) — Touch interaction with merged cells
+- [MOUSE_CURSOR.md](MOUSE_CURSOR.md) — Desktop cursor behavior over merged cells
+- [Cookbook](COOKBOOK.md) — Practical recipes including cell merging
+- [API Reference](API.md) — Quick reference for all classes and methods
+
+---
+
+*This document covers cell merging behavior for the worksheet widget and as a reference for Google Sheets behavior. Sections are annotated with implementation status. Last updated: February 2026.*

@@ -1,5 +1,4 @@
-import 'dart:ui';
-
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/data/worksheet_data.dart';
@@ -11,6 +10,7 @@ import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/interaction/clipboard/clipboard_handler.dart';
 import 'package:worksheet/src/interaction/clipboard/clipboard_serializer.dart';
 import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
+import 'package:worksheet/src/interaction/controllers/rich_text_editing_controller.dart';
 import 'package:worksheet/src/interaction/controllers/selection_controller.dart';
 import 'package:worksheet/src/shortcuts/worksheet_action_context.dart';
 import 'package:worksheet/src/shortcuts/worksheet_actions.dart';
@@ -677,6 +677,201 @@ void main() {
       action.invoke(const UnmergeCellsIntent());
 
       expect(data.getCell(const CellCoordinate(0, 0))?.displayValue, 'kept');
+    });
+  });
+
+  group('ToggleBoldAction', () {
+    late EditController editController;
+    late RichTextEditingController rtc;
+    late MockWorksheetActionContext editCtx;
+
+    setUp(() {
+      editController = EditController();
+      rtc = RichTextEditingController();
+      rtc.initFromSpans([const TextSpan(text: 'Hello')]);
+      rtc.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 5);
+
+      editCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        editController: editController,
+      );
+    });
+
+    tearDown(() {
+      rtc.dispose();
+    });
+
+    test('is disabled when not editing', () {
+      final action = ToggleBoldAction(editCtx);
+      expect(action.isEnabled(const ToggleBoldIntent()), isFalse);
+    });
+
+    test('is disabled when editing but no richTextController', () {
+      editController.startEdit(
+        cell: const CellCoordinate(0, 0),
+      );
+
+      final action = ToggleBoldAction(editCtx);
+      expect(action.isEnabled(const ToggleBoldIntent()), isFalse);
+    });
+
+    test('is enabled when editing with richTextController', () {
+      editController.startEdit(
+        cell: const CellCoordinate(0, 0),
+      );
+      editController.richTextController = rtc;
+
+      final action = ToggleBoldAction(editCtx);
+      expect(action.isEnabled(const ToggleBoldIntent()), isTrue);
+    });
+
+    test('invoke toggles bold on richTextController', () {
+      editController.startEdit(
+        cell: const CellCoordinate(0, 0),
+      );
+      editController.richTextController = rtc;
+
+      final action = ToggleBoldAction(editCtx);
+      action.invoke(const ToggleBoldIntent());
+
+      expect(rtc.isSelectionBold, isTrue);
+    });
+  });
+
+  group('ToggleItalicAction', () {
+    late EditController editController;
+    late RichTextEditingController rtc;
+    late MockWorksheetActionContext editCtx;
+
+    setUp(() {
+      editController = EditController();
+      rtc = RichTextEditingController();
+      rtc.initFromSpans([const TextSpan(text: 'Hello')]);
+      rtc.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 5);
+
+      editCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        editController: editController,
+      );
+    });
+
+    tearDown(() {
+      rtc.dispose();
+    });
+
+    test('is disabled when not editing', () {
+      final action = ToggleItalicAction(editCtx);
+      expect(action.isEnabled(const ToggleItalicIntent()), isFalse);
+    });
+
+    test('invoke toggles italic on richTextController', () {
+      editController.startEdit(
+        cell: const CellCoordinate(0, 0),
+      );
+      editController.richTextController = rtc;
+
+      final action = ToggleItalicAction(editCtx);
+      action.invoke(const ToggleItalicIntent());
+
+      expect(rtc.isSelectionItalic, isTrue);
+    });
+  });
+
+  group('ToggleUnderlineAction', () {
+    late EditController editController;
+    late RichTextEditingController rtc;
+    late MockWorksheetActionContext editCtx;
+
+    setUp(() {
+      editController = EditController();
+      rtc = RichTextEditingController();
+      rtc.initFromSpans([const TextSpan(text: 'Hello')]);
+      rtc.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 5);
+
+      editCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        editController: editController,
+      );
+    });
+
+    tearDown(() {
+      rtc.dispose();
+    });
+
+    test('is disabled when not editing', () {
+      final action = ToggleUnderlineAction(editCtx);
+      expect(action.isEnabled(const ToggleUnderlineIntent()), isFalse);
+    });
+
+    test('invoke toggles underline on richTextController', () {
+      editController.startEdit(
+        cell: const CellCoordinate(0, 0),
+      );
+      editController.richTextController = rtc;
+
+      final action = ToggleUnderlineAction(editCtx);
+      action.invoke(const ToggleUnderlineIntent());
+
+      expect(rtc.isSelectionUnderline, isTrue);
+    });
+  });
+
+  group('ToggleStrikethroughAction', () {
+    late EditController editController;
+    late RichTextEditingController rtc;
+    late MockWorksheetActionContext editCtx;
+
+    setUp(() {
+      editController = EditController();
+      rtc = RichTextEditingController();
+      rtc.initFromSpans([const TextSpan(text: 'Hello')]);
+      rtc.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 5);
+
+      editCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        editController: editController,
+      );
+    });
+
+    tearDown(() {
+      rtc.dispose();
+    });
+
+    test('is disabled when not editing', () {
+      final action = ToggleStrikethroughAction(editCtx);
+      expect(action.isEnabled(const ToggleStrikethroughIntent()), isFalse);
+    });
+
+    test('invoke toggles strikethrough on richTextController', () {
+      editController.startEdit(
+        cell: const CellCoordinate(0, 0),
+      );
+      editController.richTextController = rtc;
+
+      final action = ToggleStrikethroughAction(editCtx);
+      action.invoke(const ToggleStrikethroughIntent());
+
+      expect(rtc.isSelectionStrikethrough, isTrue);
     });
   });
 }

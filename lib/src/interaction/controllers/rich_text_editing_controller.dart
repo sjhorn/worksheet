@@ -220,6 +220,71 @@ class RichTextEditingController extends TextEditingController {
     _applyToSelection((s) => (s ?? const TextStyle()).copyWith(fontSize: size));
   }
 
+  /// Returns the common [TextStyle] across the current selection.
+  ///
+  /// If the selection is collapsed, returns the pending style or the style
+  /// of the character before the cursor. Returns null if there is no valid
+  /// selection or the text is empty.
+  TextStyle? getSelectionStyle() {
+    final sel = selection;
+    if (!sel.isValid) return null;
+
+    _syncLength();
+
+    if (sel.isCollapsed) {
+      return _pendingStyle ??
+          (sel.start > 0 && sel.start <= _charStyles.length
+              ? _charStyles[sel.start - 1]
+              : null);
+    }
+
+    // Return the style of the first character in the selection.
+    // A full "common style" merge is complex; for toolbar display the first
+    // character's style is the conventional choice.
+    return _charStyles[sel.start];
+  }
+
+  /// Whether all characters in the current selection are bold.
+  bool get isSelectionBold =>
+      _queryProperty((s) => s?.fontWeight == FontWeight.bold);
+
+  /// Whether all characters in the current selection are italic.
+  bool get isSelectionItalic =>
+      _queryProperty((s) => s?.fontStyle == FontStyle.italic);
+
+  /// Whether all characters in the current selection are underlined.
+  bool get isSelectionUnderline => _queryProperty(
+      (s) => s?.decoration?.contains(TextDecoration.underline) ?? false);
+
+  /// Whether all characters in the current selection have strikethrough.
+  bool get isSelectionStrikethrough => _queryProperty(
+      (s) => s?.decoration?.contains(TextDecoration.lineThrough) ?? false);
+
+  /// Checks if all characters in the selection satisfy [predicate].
+  ///
+  /// For a collapsed selection, checks the pending style or the style of
+  /// the character before the cursor. Returns false for empty text or
+  /// invalid selection.
+  bool _queryProperty(bool Function(TextStyle?) predicate) {
+    final sel = selection;
+    if (!sel.isValid) return false;
+
+    _syncLength();
+
+    if (sel.isCollapsed) {
+      final style = _pendingStyle ??
+          (sel.start > 0 && sel.start <= _charStyles.length
+              ? _charStyles[sel.start - 1]
+              : null);
+      return predicate(style);
+    }
+
+    for (int i = sel.start; i < sel.end; i++) {
+      if (!predicate(_charStyles[i])) return false;
+    }
+    return true;
+  }
+
   /// Sets the font family on the current selection.
   void setFontFamily(String family) {
     _applyToSelection(

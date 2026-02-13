@@ -190,6 +190,10 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     // can retrieve rich text spans from the active editing controller.
     widget.editController.richTextExtractor = _extractRichText;
 
+    // Expose the rich text controller to EditController so toolbar buttons
+    // and Actions can invoke formatting and query selection style.
+    widget.editController.richTextController = _textController;
+
     // Listen for changes from edit controller
     widget.editController.addListener(_onEditControllerChanged);
 
@@ -217,6 +221,7 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   @override
   void dispose() {
     widget.editController.richTextExtractor = null;
+    widget.editController.richTextController = null;
     widget.editController.removeListener(_onEditControllerChanged);
     _focusNode.removeListener(_onFocusChanged);
     _textController.removeListener(_onSelectionGuard);

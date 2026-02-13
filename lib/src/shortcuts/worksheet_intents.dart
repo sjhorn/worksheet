@@ -171,3 +171,32 @@ class MergeCellsVerticallyIntent extends Intent {
 class UnmergeCellsIntent extends Intent {
   const UnmergeCellsIntent();
 }
+
+/// Toggles bold formatting on the current text selection during editing.
+///
+/// Enabled only when a cell is being edited and a [RichTextEditingController]
+/// is active. Used for Ctrl+B (also handled directly by the overlay).
+class ToggleBoldIntent extends Intent {
+  const ToggleBoldIntent();
+}
+
+/// Toggles italic formatting on the current text selection during editing.
+///
+/// Enabled only when a cell is being edited. Used for Ctrl+I.
+class ToggleItalicIntent extends Intent {
+  const ToggleItalicIntent();
+}
+
+/// Toggles underline formatting on the current text selection during editing.
+///
+/// Enabled only when a cell is being edited. Used for Ctrl+U.
+class ToggleUnderlineIntent extends Intent {
+  const ToggleUnderlineIntent();
+}
+
+/// Toggles strikethrough formatting on the current text selection during editing.
+///
+/// Enabled only when a cell is being edited. Used for Ctrl+Shift+S.
+class ToggleStrikethroughIntent extends Intent {
+  const ToggleStrikethroughIntent();
+}

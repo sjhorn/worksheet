@@ -8,7 +8,7 @@ Add the package to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  worksheet: ^1.0.0
+  worksheet: ^2.3.0
 ```
 
 Then run:
@@ -406,9 +406,25 @@ Worksheet(
 )
 ```
 
+## Mobile Mode
+
+Mobile mode is auto-detected based on platform (iOS/Android = mobile, macOS/Windows/Linux = desktop). In mobile mode, the widget uses touch gestures, selection handles, and pinch-to-zoom. You can override this:
+
+```dart
+Worksheet(
+  data: _data,
+  controller: _controller,
+  mobileMode: true,   // Force mobile mode (null = auto-detect)
+)
+```
+
+See [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md) for the full touch interaction reference.
+
 ## Next Steps
 
 - See [COOKBOOK.md](COOKBOOK.md) for practical recipes
 - See [THEMING.md](THEMING.md) for detailed customization
 - See [PERFORMANCE.md](PERFORMANCE.md) for optimization tips
 - See [API.md](API.md) for complete API reference
+- See [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md) for touch gesture details
+- See [MOUSE_CURSOR.md](MOUSE_CURSOR.md) for desktop cursor behavior

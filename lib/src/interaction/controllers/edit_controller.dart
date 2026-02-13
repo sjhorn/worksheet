@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import '../../core/models/cell_coordinate.dart';
 import '../../core/models/cell_format.dart';
 import '../../core/models/cell_value.dart';
+import 'rich_text_editing_controller.dart';
 
 /// The result of committing a cell edit, including navigation direction.
 ///
@@ -77,6 +78,13 @@ class EditController extends ChangeNotifier {
   /// active editing controller. Used by external commit paths (e.g. click-away)
   /// that don't go through the overlay's own `_commit()` method.
   List<TextSpan>? Function()? richTextExtractor;
+
+  /// The active rich text editing controller, registered by [CellEditorOverlay]
+  /// during editing and cleared on dispose.
+  ///
+  /// Enables toolbar buttons and other external code to invoke formatting
+  /// operations (bold, italic, etc.) and query the current selection style.
+  RichTextEditingController? richTextController;
 
   EditState _state = EditState.idle;
   CellCoordinate? _editingCell;
@@ -240,4 +248,39 @@ class EditController extends ChangeNotifier {
 
     return _originalValue != newValue;
   }
+
+  // -- Rich text formatting convenience methods --
+  // These delegate to [richTextController] for use by toolbars and other
+  // external code that doesn't have direct access to the overlay.
+
+  /// Toggles bold on the active editing selection. No-op if not editing.
+  void toggleBold() => richTextController?.toggleBold();
+
+  /// Toggles italic on the active editing selection. No-op if not editing.
+  void toggleItalic() => richTextController?.toggleItalic();
+
+  /// Toggles underline on the active editing selection. No-op if not editing.
+  void toggleUnderline() => richTextController?.toggleUnderline();
+
+  /// Toggles strikethrough on the active editing selection. No-op if not editing.
+  void toggleStrikethrough() => richTextController?.toggleStrikethrough();
+
+  /// Returns the common [TextStyle] across the current editing selection.
+  ///
+  /// Returns null when not editing or no rich text controller is active.
+  TextStyle? getSelectionStyle() => richTextController?.getSelectionStyle();
+
+  /// Whether all characters in the editing selection are bold.
+  bool get isSelectionBold => richTextController?.isSelectionBold ?? false;
+
+  /// Whether all characters in the editing selection are italic.
+  bool get isSelectionItalic => richTextController?.isSelectionItalic ?? false;
+
+  /// Whether all characters in the editing selection are underlined.
+  bool get isSelectionUnderline =>
+      richTextController?.isSelectionUnderline ?? false;
+
+  /// Whether all characters in the editing selection have strikethrough.
+  bool get isSelectionStrikethrough =>
+      richTextController?.isSelectionStrikethrough ?? false;
 }

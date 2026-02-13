@@ -495,5 +495,178 @@ void main() {
             isTrue);
       });
     });
+
+    group('selection query methods', () {
+      group('isSelectionBold', () {
+        test('returns true when all selected chars are bold', () {
+          const bold = TextStyle(fontWeight: FontWeight.bold);
+          controller.initFromSpans([
+            const TextSpan(text: 'Hello', style: bold),
+          ]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.isSelectionBold, isTrue);
+        });
+
+        test('returns false when some chars are not bold', () {
+          const bold = TextStyle(fontWeight: FontWeight.bold);
+          controller.initFromSpans([
+            const TextSpan(text: 'He', style: bold),
+            const TextSpan(text: 'llo'),
+          ]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.isSelectionBold, isFalse);
+        });
+
+        test('returns false for empty text', () {
+          expect(controller.isSelectionBold, isFalse);
+        });
+
+        test('collapsed selection reads pending style', () {
+          controller.initFromSpans([const TextSpan(text: 'Hi')]);
+          controller.selection = const TextSelection.collapsed(offset: 2);
+
+          // Toggle bold with collapsed selection sets pending style
+          controller.toggleBold();
+
+          expect(controller.isSelectionBold, isTrue);
+        });
+
+        test('collapsed selection reads char before cursor', () {
+          const bold = TextStyle(fontWeight: FontWeight.bold);
+          controller.initFromSpans([
+            const TextSpan(text: 'AB', style: bold),
+            const TextSpan(text: 'CD'),
+          ]);
+          controller.selection = const TextSelection.collapsed(offset: 2);
+
+          expect(controller.isSelectionBold, isTrue);
+        });
+
+        test('collapsed at start with no pending style returns false', () {
+          controller.initFromSpans([const TextSpan(text: 'Hi')]);
+          controller.selection = const TextSelection.collapsed(offset: 0);
+
+          expect(controller.isSelectionBold, isFalse);
+        });
+      });
+
+      group('isSelectionItalic', () {
+        test('returns true when all selected chars are italic', () {
+          const italic = TextStyle(fontStyle: FontStyle.italic);
+          controller.initFromSpans([
+            const TextSpan(text: 'Hello', style: italic),
+          ]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.isSelectionItalic, isTrue);
+        });
+
+        test('returns false when not italic', () {
+          controller.initFromSpans([const TextSpan(text: 'Hello')]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.isSelectionItalic, isFalse);
+        });
+      });
+
+      group('isSelectionUnderline', () {
+        test('returns true when all selected chars are underlined', () {
+          const underline = TextStyle(decoration: TextDecoration.underline);
+          controller.initFromSpans([
+            const TextSpan(text: 'Hello', style: underline),
+          ]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.isSelectionUnderline, isTrue);
+        });
+
+        test('returns false when not underlined', () {
+          controller.initFromSpans([const TextSpan(text: 'Hello')]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.isSelectionUnderline, isFalse);
+        });
+      });
+
+      group('isSelectionStrikethrough', () {
+        test('returns true when all selected chars have strikethrough', () {
+          const strike = TextStyle(decoration: TextDecoration.lineThrough);
+          controller.initFromSpans([
+            const TextSpan(text: 'Hello', style: strike),
+          ]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.isSelectionStrikethrough, isTrue);
+        });
+
+        test('returns false when no strikethrough', () {
+          controller.initFromSpans([const TextSpan(text: 'Hello')]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.isSelectionStrikethrough, isFalse);
+        });
+      });
+
+      group('getSelectionStyle', () {
+        test('returns style of first char in selection', () {
+          const bold = TextStyle(fontWeight: FontWeight.bold);
+          controller.initFromSpans([
+            const TextSpan(text: 'Hello', style: bold),
+          ]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.getSelectionStyle(), bold);
+        });
+
+        test('returns pending style for collapsed selection', () {
+          controller.initFromSpans([const TextSpan(text: 'Hi')]);
+          controller.selection = const TextSelection.collapsed(offset: 2);
+          controller.toggleBold();
+
+          final style = controller.getSelectionStyle();
+          expect(style?.fontWeight, FontWeight.bold);
+        });
+
+        test('returns null for invalid selection', () {
+          expect(controller.getSelectionStyle(), isNull);
+        });
+
+        test('returns null for empty text at offset 0', () {
+          controller.text = '';
+          controller.selection = const TextSelection.collapsed(offset: 0);
+          expect(controller.getSelectionStyle(), isNull);
+        });
+      });
+
+      group('_queryProperty with combined decorations', () {
+        test('detects underline in combined decoration', () {
+          final combined = TextStyle(
+            decoration: TextDecoration.combine([
+              TextDecoration.underline,
+              TextDecoration.lineThrough,
+            ]),
+          );
+          controller.initFromSpans([
+            TextSpan(text: 'Hello', style: combined),
+          ]);
+          controller.selection =
+              const TextSelection(baseOffset: 0, extentOffset: 5);
+
+          expect(controller.isSelectionUnderline, isTrue);
+          expect(controller.isSelectionStrikethrough, isTrue);
+        });
+      });
+    });
   });
 }

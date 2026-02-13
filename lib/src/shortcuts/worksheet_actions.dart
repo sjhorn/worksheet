@@ -349,6 +349,81 @@ class MergeCellsVerticallyAction extends Action<MergeCellsVerticallyIntent> {
   }
 }
 
+/// Toggles bold formatting on the current text selection during editing.
+///
+/// Unlike most worksheet actions which are disabled during editing, this
+/// action is **enabled only during editing** (inverse pattern).
+class ToggleBoldAction extends Action<ToggleBoldIntent> {
+  final WorksheetActionContext _context;
+
+  ToggleBoldAction(this._context);
+
+  @override
+  bool isEnabled(ToggleBoldIntent intent) =>
+      _context.editController?.isEditing == true &&
+      _context.editController?.richTextController != null;
+
+  @override
+  Object? invoke(ToggleBoldIntent intent) {
+    _context.editController!.richTextController!.toggleBold();
+    return null;
+  }
+}
+
+/// Toggles italic formatting on the current text selection during editing.
+class ToggleItalicAction extends Action<ToggleItalicIntent> {
+  final WorksheetActionContext _context;
+
+  ToggleItalicAction(this._context);
+
+  @override
+  bool isEnabled(ToggleItalicIntent intent) =>
+      _context.editController?.isEditing == true &&
+      _context.editController?.richTextController != null;
+
+  @override
+  Object? invoke(ToggleItalicIntent intent) {
+    _context.editController!.richTextController!.toggleItalic();
+    return null;
+  }
+}
+
+/// Toggles underline formatting on the current text selection during editing.
+class ToggleUnderlineAction extends Action<ToggleUnderlineIntent> {
+  final WorksheetActionContext _context;
+
+  ToggleUnderlineAction(this._context);
+
+  @override
+  bool isEnabled(ToggleUnderlineIntent intent) =>
+      _context.editController?.isEditing == true &&
+      _context.editController?.richTextController != null;
+
+  @override
+  Object? invoke(ToggleUnderlineIntent intent) {
+    _context.editController!.richTextController!.toggleUnderline();
+    return null;
+  }
+}
+
+/// Toggles strikethrough formatting on the current text selection during editing.
+class ToggleStrikethroughAction extends Action<ToggleStrikethroughIntent> {
+  final WorksheetActionContext _context;
+
+  ToggleStrikethroughAction(this._context);
+
+  @override
+  bool isEnabled(ToggleStrikethroughIntent intent) =>
+      _context.editController?.isEditing == true &&
+      _context.editController?.richTextController != null;
+
+  @override
+  Object? invoke(ToggleStrikethroughIntent intent) {
+    _context.editController!.richTextController!.toggleStrikethrough();
+    return null;
+  }
+}
+
 /// Unmerges all merge regions overlapping the current selection.
 class UnmergeCellsAction extends Action<UnmergeCellsIntent> {
   final WorksheetActionContext _context;

@@ -22,6 +22,7 @@ Practical recipes for common worksheet tasks.
 16. [Automatic Date Detection](#automatic-date-detection)
 17. [Locale-Aware Formatting](#locale-aware-formatting)
 18. [Multi-Select Resize](#multi-select-resize)
+19. [Mobile Mode](#mobile-mode)
 
 ---
 
@@ -682,13 +683,59 @@ When editing a cell with `editController`, use keyboard shortcuts to apply inlin
 
 The `onCommit` callback receives `richText: List<TextSpan>?` with the edited spans.
 
+### Formatting Toolbar with EditController
+
+Build a toolbar that toggles bold/italic/underline/strikethrough during editing, with active-state highlighting:
+
+```dart
+Widget buildFormattingToolbar(EditController editController) {
+  return ListenableBuilder(
+    listenable: editController,
+    builder: (context, _) {
+      final editing = editController.isEditing;
+      return Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.format_bold),
+            isSelected: editController.isSelectionBold,
+            onPressed: editing ? () => editController.toggleBold() : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.format_italic),
+            isSelected: editController.isSelectionItalic,
+            onPressed: editing ? () => editController.toggleItalic() : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.format_underline),
+            isSelected: editController.isSelectionUnderline,
+            onPressed: editing ? () => editController.toggleUnderline() : null,
+          ),
+          IconButton(
+            icon: const Icon(Icons.format_strikethrough),
+            isSelected: editController.isSelectionStrikethrough,
+            onPressed: editing ? () => editController.toggleStrikethrough() : null,
+          ),
+        ],
+      );
+    },
+  );
+}
+```
+
+Alternatively, use Flutter's Actions system from within the widget tree:
+
+```dart
+// Inside a descendant of the Worksheet's Actions widget:
+Actions.invoke(context, const ToggleBoldIntent());
+```
+
 See `example/rich_text.dart` for a complete working example.
 
 ---
 
 ## Cell Merging
 
-Merge ranges of cells into a single logical cell:
+Merge ranges of cells into a single logical cell. For a comprehensive reference on merge behavior, data loss rules, and restrictions, see [CELL_MERGING.md](CELL_MERGING.md).
 
 ### Basic Merging
 
@@ -1038,7 +1085,7 @@ WorksheetTheme(
 | Ctrl+Home / Ctrl+End | Go to A1 / last cell |
 | Page Up / Page Down | Move up/down by 10 rows |
 | F2 | Edit current cell (via `onEditCell`) |
-| Escape | Collapse range to single cell |
+| Escape | Cancel active drag; or collapse range to single cell |
 | Ctrl+A | Select all |
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy / Cut / Paste |
 | Ctrl+D / Ctrl+R | Fill down / Fill right |
@@ -1763,3 +1810,58 @@ void resizeSelectedColumns(double newWidth) {
   setState(() {});
 }
 ```
+
+---
+
+## Mobile Mode
+
+Configure how the worksheet handles touch input on mobile devices.
+
+### Auto-Detection (Default)
+
+By default, the widget auto-detects the platform and enables mobile mode on iOS/Android:
+
+```dart
+// Auto-detect: mobile on iOS/Android, desktop on macOS/Windows/Linux
+Worksheet(
+  data: data,
+  rowCount: 100,
+  columnCount: 26,
+)
+```
+
+### Force Mobile Mode
+
+Force mobile mode on desktop for testing, or force desktop mode on mobile:
+
+```dart
+// Force mobile mode (useful for testing touch gestures on desktop)
+Worksheet(
+  data: data,
+  rowCount: 100,
+  columnCount: 26,
+  mobileMode: true,
+)
+
+// Force desktop mode on a mobile device
+Worksheet(
+  data: data,
+  rowCount: 100,
+  columnCount: 26,
+  mobileMode: false,
+)
+```
+
+### What Mobile Mode Changes
+
+| Feature | Desktop Mode | Mobile Mode |
+|---------|-------------|-------------|
+| **Scrolling** | Mouse wheel / scrollbar | One-finger swipe |
+| **Zooming** | Ctrl+scroll (if wired) | Pinch-to-zoom |
+| **Selection handles** | Hidden | Circles at TL/BR corners |
+| **Fill handle** | Visible (corner square) | Hidden |
+| **Hit targets** | 4px tolerance | 12px tolerance |
+| **Mouse cursors** | Active (cell, grab, resize) | Disabled |
+| **Long-press** | N/A | Drag-to-move cells |
+
+For the complete touch interaction reference, see [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md). For desktop cursor behavior, see [MOUSE_CURSOR.md](MOUSE_CURSOR.md).

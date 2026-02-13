@@ -271,6 +271,7 @@ for (var row = 0; row < 50000; row++) {
 - **Keyboard navigation**: Arrow keys, Tab, Enter, Home/End, clipboard, and more — fully customizable via Flutter's Shortcuts/Actions
 - **Automatic type detection**: Numbers, booleans, dates, and formulas detected from text input via `CellValue.parse()`
 - **Resize support**: Drag column/row borders to resize
+- **Mobile support**: Touch gestures, selection handles, pinch-to-zoom, configurable via `mobileMode`
 - **Theming**: Full control over colors, fonts, headers — built-in light and dark mode presets
 
 ### Built with Quality
@@ -292,6 +293,9 @@ for (var row = 0; row < 50000; row++) {
 | [Testing](TESTING.md) | Unit tests, widget tests, benchmarks |
 | [API Reference](API.md) | Quick reference for all classes and methods |
 | [Architecture](ARCHITECTURE.md) | Deep dive into the rendering pipeline |
+| [Mobile Interaction](MOBILE_INTERACTION.md) | Touch gestures, selection handles, mobile mode |
+| [Mouse Cursors](MOUSE_CURSOR.md) | Desktop cursor behavior and hit zones |
+| [Cell Merging Reference](CELL_MERGING.md) | Merge types, data rules, restrictions |
 
 ---
 
@@ -301,7 +305,7 @@ Add to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  worksheet: ^2.2.0
+  worksheet: ^2.4.0
 ```
 
 Then run:
@@ -326,11 +330,13 @@ All shortcuts work out of the box. You can override or extend them via the `shor
 | Ctrl+Home / Ctrl+End | Go to A1 / last cell |
 | Page Up / Page Down | Move up/down by 10 rows |
 | F2 | Edit current cell |
-| Escape | Collapse range to single cell |
+| Escape | Cancel active drag; or collapse range to single cell |
 | Ctrl+A | Select all |
 | Ctrl+C / Ctrl+X / Ctrl+V | Copy / Cut / Paste |
 | Ctrl+D / Ctrl+R | Fill down / Fill right |
 | Alt+Enter | Insert newline (when cell has wrapText) |
+| Ctrl+B / Ctrl+I / Ctrl+U | Toggle bold / italic / underline (editing) |
+| Ctrl+Shift+S | Toggle strikethrough (editing) |
 | Delete / Backspace | Clear selected cells |
 | Ctrl+\ | Clear formatting (keep values) |
 

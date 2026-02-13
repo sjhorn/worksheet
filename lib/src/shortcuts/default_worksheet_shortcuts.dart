@@ -142,5 +142,30 @@ class DefaultWorksheetShortcuts {
         const FillRightIntent(),
     const SingleActivator(LogicalKeyboardKey.keyR, meta: true):
         const FillRightIntent(),
+
+    // Rich text formatting (active only during editing)
+    // Ctrl+B: toggle bold
+    const SingleActivator(LogicalKeyboardKey.keyB, control: true):
+        const ToggleBoldIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyB, meta: true):
+        const ToggleBoldIntent(),
+
+    // Ctrl+I: toggle italic
+    const SingleActivator(LogicalKeyboardKey.keyI, control: true):
+        const ToggleItalicIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyI, meta: true):
+        const ToggleItalicIntent(),
+
+    // Ctrl+U: toggle underline
+    const SingleActivator(LogicalKeyboardKey.keyU, control: true):
+        const ToggleUnderlineIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyU, meta: true):
+        const ToggleUnderlineIntent(),
+
+    // Ctrl+Shift+S: toggle strikethrough
+    const SingleActivator(LogicalKeyboardKey.keyS, control: true, shift: true):
+        const ToggleStrikethroughIntent(),
+    const SingleActivator(LogicalKeyboardKey.keyS, meta: true, shift: true):
+        const ToggleStrikethroughIntent(),
   };
 }

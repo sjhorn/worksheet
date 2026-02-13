@@ -370,6 +370,10 @@ class _WorksheetState extends State<Worksheet>
     MergeCellsHorizontallyIntent: MergeCellsHorizontallyAction(this),
     MergeCellsVerticallyIntent: MergeCellsVerticallyAction(this),
     UnmergeCellsIntent: UnmergeCellsAction(this),
+    ToggleBoldIntent: ToggleBoldAction(this),
+    ToggleItalicIntent: ToggleItalicAction(this),
+    ToggleUnderlineIntent: ToggleUnderlineAction(this),
+    ToggleStrikethroughIntent: ToggleStrikethroughAction(this),
   };
 
   @override

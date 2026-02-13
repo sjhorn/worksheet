@@ -1,8 +1,10 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
 import 'package:worksheet/src/core/models/cell_format.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
+import 'package:worksheet/src/interaction/controllers/rich_text_editing_controller.dart';
 
 void main() {
   group('EditCommitResult', () {
@@ -600,6 +602,102 @@ void main() {
         controller.updateText('');
 
         expect(controller.hasChanges, isTrue);
+      });
+    });
+
+    group('richTextController', () {
+      test('is null by default', () {
+        expect(controller.richTextController, isNull);
+      });
+
+      test('can be set and read', () {
+        final rtc = RichTextEditingController();
+        addTearDown(rtc.dispose);
+
+        controller.richTextController = rtc;
+        expect(controller.richTextController, same(rtc));
+      });
+
+      test('can be cleared', () {
+        final rtc = RichTextEditingController();
+        addTearDown(rtc.dispose);
+
+        controller.richTextController = rtc;
+        controller.richTextController = null;
+        expect(controller.richTextController, isNull);
+      });
+    });
+
+    group('rich text convenience methods', () {
+      late RichTextEditingController rtc;
+
+      setUp(() {
+        rtc = RichTextEditingController();
+        rtc.initFromSpans([const TextSpan(text: 'Hello')]);
+        rtc.selection =
+            const TextSelection(baseOffset: 0, extentOffset: 5);
+        controller.richTextController = rtc;
+      });
+
+      tearDown(() {
+        rtc.dispose();
+      });
+
+      test('toggleBold delegates to richTextController', () {
+        controller.toggleBold();
+        expect(rtc.isSelectionBold, isTrue);
+      });
+
+      test('toggleItalic delegates to richTextController', () {
+        controller.toggleItalic();
+        expect(rtc.isSelectionItalic, isTrue);
+      });
+
+      test('toggleUnderline delegates to richTextController', () {
+        controller.toggleUnderline();
+        expect(rtc.isSelectionUnderline, isTrue);
+      });
+
+      test('toggleStrikethrough delegates to richTextController', () {
+        controller.toggleStrikethrough();
+        expect(rtc.isSelectionStrikethrough, isTrue);
+      });
+
+      test('toggleBold is no-op when richTextController is null', () {
+        controller.richTextController = null;
+        controller.toggleBold(); // should not throw
+      });
+
+      test('isSelectionBold delegates to richTextController', () {
+        expect(controller.isSelectionBold, isFalse);
+        controller.toggleBold();
+        expect(controller.isSelectionBold, isTrue);
+      });
+
+      test('isSelectionItalic returns false when no controller', () {
+        controller.richTextController = null;
+        expect(controller.isSelectionItalic, isFalse);
+      });
+
+      test('isSelectionUnderline delegates to richTextController', () {
+        controller.toggleUnderline();
+        expect(controller.isSelectionUnderline, isTrue);
+      });
+
+      test('isSelectionStrikethrough delegates to richTextController', () {
+        controller.toggleStrikethrough();
+        expect(controller.isSelectionStrikethrough, isTrue);
+      });
+
+      test('getSelectionStyle returns null when no controller', () {
+        controller.richTextController = null;
+        expect(controller.getSelectionStyle(), isNull);
+      });
+
+      test('getSelectionStyle delegates to richTextController', () {
+        controller.toggleBold();
+        final style = controller.getSelectionStyle();
+        expect(style?.fontWeight, FontWeight.bold);
       });
     });
   });
