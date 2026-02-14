@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2026-02-14
+
+### Breaking Changes
+- **`CellStyle` no longer contains text appearance fields** — removed `fontWeight`, `fontStyle`, `fontSize`, `fontFamily`, `textColor`, `underline`, `strikethrough`. Text appearance is now exclusively on rich text `TextSpan` styles. `CellStyle` retains cell-level concerns: `backgroundColor`, `textAlignment`, `verticalAlignment`, `borders`, `wrapText`.
+
+### Added
+- `unmergeCellsInRange(CellRange)` on `WorksheetData` — unmerge all merged regions within a range
+- Corner cell (top-left header intersection) tap selects all cells
+- Toggle formatting actions (Bold, Italic, Underline, Strikethrough) now work when not editing — modify rich text spans on all selected cells
+- `ClearCellsAction` unmerges cells when clearing formats
+- Merged cell regions preserved during drag-to-move operations
+- Fill operations expand target range to complete merge tile patterns
+- Text color toolbar in `example/rich_text.dart`
+
+### Fixed
+- Fill range and smart fill now propagate rich text spans alongside value, style, and format
+- `FillPatternDetector` preserves rich text from template cells in linearNumeric, dateSequence, and textWithNumericSuffix patterns
+- Cell editor base text color uses theme default instead of first span's color, preventing color bleed into uncolored spans
+
+### Changed
+- Migrated from `flutter_lints` to `lints` package
+
 ## [2.5.2] - 2026-02-13
 
 ### Fixed
