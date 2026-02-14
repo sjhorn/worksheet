@@ -419,6 +419,64 @@ class SparseWorksheetData implements WorksheetData {
   }
 
   @override
+  void moveMerges(CellRange source, CellCoordinate destination) {
+    _checkNotDisposed();
+
+    final rowOffset = destination.row - source.startRow;
+    final colOffset = destination.column - source.startColumn;
+
+    // Collect merges fully inside source
+    final merges = <CellRange>[];
+    for (final region in _mergedCells.regions) {
+      final r = region.range;
+      if (r.startRow >= source.startRow &&
+          r.endRow <= source.endRow &&
+          r.startColumn >= source.startColumn &&
+          r.endColumn <= source.endColumn) {
+        merges.add(r);
+      }
+    }
+    if (merges.isEmpty) return;
+
+    // Unmerge source merges
+    for (final r in merges) {
+      _mergedCells.unmerge(r.topLeft);
+    }
+
+    // Clear merges at destination
+    final destRange = CellRange(
+      source.startRow + rowOffset,
+      source.startColumn + colOffset,
+      source.endRow + rowOffset,
+      source.endColumn + colOffset,
+    );
+    final destRegions = _mergedCells.regionsInRange(destRange).toList();
+    for (final region in destRegions) {
+      _mergedCells.unmerge(region.anchor);
+    }
+
+    // Re-create at destination offset
+    for (final r in merges) {
+      final newRange = CellRange(
+        r.startRow + rowOffset,
+        r.startColumn + colOffset,
+        r.endRow + rowOffset,
+        r.endColumn + colOffset,
+      );
+      // Skip if out of bounds
+      if (newRange.startRow < 0 ||
+          newRange.startColumn < 0 ||
+          newRange.endRow >= rowCount ||
+          newRange.endColumn >= columnCount) {
+        continue;
+      }
+      _mergedCells.merge(newRange);
+    }
+
+    _changeController.add(DataChangeEvent.range(source));
+  }
+
+  @override
   void replicateMerges({
     required CellRange sourceRange,
     required CellRange targetRange,

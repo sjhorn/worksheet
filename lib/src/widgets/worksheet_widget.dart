@@ -696,6 +696,7 @@ class _WorksheetState extends State<Worksheet>
       batch.copyRange(sourceRange, destination);
       batch.clearRange(sourceRange);
     });
+    widget.data.moveMerges(sourceRange, destination);
     final newRange = CellRange(
       destination.row,
       destination.column,

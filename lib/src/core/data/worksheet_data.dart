@@ -105,6 +105,13 @@ abstract class WorksheetData {
   /// not part of a merged region.
   void unmergeCells(CellCoordinate cell);
 
+  /// Moves merge regions from [source] to [destination].
+  ///
+  /// Merges fully contained in [source] are unmerged and re-created
+  /// at the same relative offset from [destination]. Merges that would
+  /// extend beyond worksheet bounds are skipped.
+  void moveMerges(CellRange source, CellCoordinate destination) {}
+
   /// Replicates merge patterns from [sourceRange] into [targetRange].
   ///
   /// Merges fully contained within [sourceRange] are tiled into

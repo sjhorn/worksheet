@@ -1367,6 +1367,117 @@ void main() {
       });
     });
 
+    group('moveMerges', () {
+      test('single merge moves to destination', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('merged'));
+        data.mergeCells(CellRange(0, 0, 1, 1));
+
+        data.moveMerges(CellRange(0, 0, 1, 1), CellCoordinate(5, 5));
+
+        // Source merge removed
+        expect(data.mergedCells.getRegion(CellCoordinate(0, 0)), isNull);
+        // Destination merge created
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(5, 5))!.range,
+          CellRange(5, 5, 6, 6),
+        );
+      });
+
+      test('multiple merges move together', () {
+        data.mergeCells(CellRange(0, 0, 0, 1));
+        data.mergeCells(CellRange(1, 0, 1, 1));
+
+        data.moveMerges(CellRange(0, 0, 1, 1), CellCoordinate(5, 5));
+
+        expect(data.mergedCells.getRegion(CellCoordinate(0, 0)), isNull);
+        expect(data.mergedCells.getRegion(CellCoordinate(1, 0)), isNull);
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(5, 5))!.range,
+          CellRange(5, 5, 5, 6),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(6, 5))!.range,
+          CellRange(6, 5, 6, 6),
+        );
+      });
+
+      test('source merges are removed', () {
+        data.mergeCells(CellRange(2, 2, 3, 3));
+
+        data.moveMerges(CellRange(2, 2, 3, 3), CellCoordinate(0, 0));
+
+        expect(data.mergedCells.getRegion(CellCoordinate(2, 2)), isNull);
+        expect(data.mergedCells.getRegion(CellCoordinate(3, 3)), isNull);
+      });
+
+      test('non-merge cells unaffected', () {
+        // Merge outside the source range
+        data.mergeCells(CellRange(8, 8, 9, 9));
+        // Merge inside the source range
+        data.mergeCells(CellRange(0, 0, 1, 1));
+
+        data.moveMerges(CellRange(0, 0, 1, 1), CellCoordinate(5, 5));
+
+        // Outside merge untouched
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(8, 8))!.range,
+          CellRange(8, 8, 9, 9),
+        );
+      });
+
+      test('out-of-bounds merge skipped', () {
+        final smallData =
+            SparseWorksheetData(rowCount: 5, columnCount: 5);
+        smallData.mergeCells(CellRange(0, 0, 1, 1));
+
+        // Move to (4,4) would create merge at (4,4)-(5,5) which is out of bounds
+        smallData.moveMerges(CellRange(0, 0, 1, 1), CellCoordinate(4, 4));
+
+        // Source merge removed
+        expect(smallData.mergedCells.getRegion(CellCoordinate(0, 0)), isNull);
+        // Destination merge not created (out of bounds)
+        expect(smallData.mergedCells.getRegion(CellCoordinate(4, 4)), isNull);
+
+        smallData.dispose();
+      });
+
+      test('no-op when no merges', () {
+        data.setCell(CellCoordinate(0, 0), CellValue.text('plain'));
+
+        // Should not throw
+        data.moveMerges(CellRange(0, 0, 1, 1), CellCoordinate(5, 5));
+
+        expect(data.mergedCells.regions, isEmpty);
+      });
+
+      test('destination existing merges are cleared', () {
+        // Merge at destination
+        data.mergeCells(CellRange(5, 5, 6, 6));
+        // Merge at source
+        data.mergeCells(CellRange(0, 0, 1, 1));
+
+        data.moveMerges(CellRange(0, 0, 1, 1), CellCoordinate(5, 5));
+
+        // Old destination merge replaced by moved merge
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(5, 5))!.range,
+          CellRange(5, 5, 6, 6),
+        );
+      });
+
+      test('emits change event', () async {
+        data.mergeCells(CellRange(0, 0, 1, 1));
+
+        final events = <DataChangeEvent>[];
+        data.changes.listen(events.add);
+
+        data.moveMerges(CellRange(0, 0, 1, 1), CellCoordinate(5, 5));
+        await Future<void>.delayed(Duration.zero);
+
+        expect(events, hasLength(1));
+      });
+    });
+
     group('smartFill with merges', () {
       test('smart fill down preserves merges', () {
         // Source: row 0 with 1×2 merge and values
