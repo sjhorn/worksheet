@@ -80,6 +80,9 @@ class _MergeDemoState extends State<MergeDemo> {
     super.dispose();
   }
 
+  bool get _hasAnySelection =>
+      _controller.selectionController.selectedRange != null;
+
   bool get _hasSelection {
     final range = _controller.selectionController.selectedRange;
     return range != null && range.cellCount >= 2;
@@ -129,6 +132,32 @@ class _MergeDemoState extends State<MergeDemo> {
     setState(() {});
   }
 
+  void _clearAll() {
+    final range = _controller.selectionController.selectedRange;
+    if (range == null) return;
+    _data.clearRange(range);
+    _data.unmergeCellsInRange(range);
+    setState(() {});
+  }
+
+  void _clearValues() {
+    final range = _controller.selectionController.selectedRange;
+    if (range == null) return;
+    _data.batchUpdate((batch) => batch.clearValues(range));
+    setState(() {});
+  }
+
+  void _clearFormats() {
+    final range = _controller.selectionController.selectedRange;
+    if (range == null) return;
+    _data.batchUpdate((batch) {
+      batch.clearStyles(range);
+      batch.clearFormats(range);
+    });
+    _data.unmergeCellsInRange(range);
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     final range = _controller.selectionController.selectedRange;
@@ -165,6 +194,25 @@ class _MergeDemoState extends State<MergeDemo> {
             label: 'Unmerge',
             onPressed: _selectionHasMerge ? _unmerge : null,
             tooltip: 'Unmerge selected cells',
+          ),
+          const VerticalDivider(color: Colors.white38, width: 24),
+          _ToolbarButton(
+            icon: Icons.delete_sweep,
+            label: 'Clear All',
+            onPressed: _hasAnySelection ? _clearAll : null,
+            tooltip: 'Clear values, styles, formats & unmerge',
+          ),
+          _ToolbarButton(
+            icon: Icons.text_fields_outlined,
+            label: 'Clear Values',
+            onPressed: _hasAnySelection ? _clearValues : null,
+            tooltip: 'Clear values only (keeps formatting & merges)',
+          ),
+          _ToolbarButton(
+            icon: Icons.format_color_reset,
+            label: 'Clear Formats',
+            onPressed: _hasAnySelection ? _clearFormats : null,
+            tooltip: 'Clear styles, formats & unmerge (keeps values)',
           ),
           const SizedBox(width: 16),
         ],

@@ -216,6 +216,11 @@ class ClearCellsAction extends Action<ClearCellsIntent> {
       });
     }
 
+    // Unmerge cells when clearing formatting (styles or formats).
+    if (intent.clearStyle || intent.clearFormat) {
+      _context.worksheetData.unmergeCellsInRange(range);
+    }
+
     _context.invalidateAndRebuild();
     return null;
   }

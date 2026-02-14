@@ -426,6 +426,51 @@ void main() {
         false,
       );
     });
+
+    test('clear-all unmerges cells', () {
+      data.setCell(const CellCoordinate(0, 0), CellValue.text('hello'));
+      data.mergeCells(const CellRange(0, 0, 1, 1));
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent());
+
+      expect(data.mergedCells.isEmpty, isTrue);
+      expect(data.getCell(const CellCoordinate(0, 0)), isNull);
+    });
+
+    test('clear formats-only unmerges but preserves values', () {
+      const coord = CellCoordinate(0, 0);
+      data.setCell(coord, CellValue.text('hello'));
+      data.mergeCells(const CellRange(0, 0, 1, 1));
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: false,
+        clearStyle: false,
+        clearFormat: true,
+      ));
+
+      expect(data.mergedCells.isEmpty, isTrue);
+      expect(data.getCell(coord)?.displayValue, 'hello');
+    });
+
+    test('clear values-only does NOT unmerge', () {
+      data.setCell(const CellCoordinate(0, 0), CellValue.text('hello'));
+      data.mergeCells(const CellRange(0, 0, 1, 1));
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = ClearCellsAction(ctx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: true,
+        clearStyle: false,
+        clearFormat: false,
+      ));
+
+      expect(data.mergedCells.isEmpty, isFalse);
+      expect(data.getCell(const CellCoordinate(0, 0)), isNull);
+    });
   });
 
   group('FillDownAction', () {
