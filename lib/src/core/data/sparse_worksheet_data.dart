@@ -419,6 +419,23 @@ class SparseWorksheetData implements WorksheetData {
   }
 
   @override
+  void unmergeCellsInRange(CellRange range) {
+    _checkNotDisposed();
+
+    final anchors = _mergedCells
+        .regionsInRange(range)
+        .map((r) => r.anchor)
+        .toList();
+    if (anchors.isEmpty) return;
+
+    for (final anchor in anchors) {
+      _mergedCells.unmerge(anchor);
+    }
+
+    _changeController.add(DataChangeEvent.range(range));
+  }
+
+  @override
   void moveMerges(CellRange source, CellCoordinate destination) {
     _checkNotDisposed();
 

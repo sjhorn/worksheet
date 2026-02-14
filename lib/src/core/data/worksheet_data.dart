@@ -105,6 +105,12 @@ abstract class WorksheetData {
   /// not part of a merged region.
   void unmergeCells(CellCoordinate cell);
 
+  /// Unmerges all merge regions that intersect [range].
+  ///
+  /// Every merge region touching [range] is removed. Anchor cell values
+  /// are preserved. Does nothing if no merges intersect [range].
+  void unmergeCellsInRange(CellRange range) {}
+
   /// Moves merge regions from [source] to [destination].
   ///
   /// Merges fully contained in [source] are unmerged and re-created

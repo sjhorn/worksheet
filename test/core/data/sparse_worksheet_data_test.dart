@@ -1069,6 +1069,66 @@ void main() {
       });
     });
 
+    group('unmergeCellsInRange', () {
+      test('unmerges single merge in range', () {
+        data.mergeCells(CellRange(0, 0, 1, 1));
+
+        data.unmergeCellsInRange(CellRange(0, 0, 1, 1));
+
+        expect(data.mergedCells.getRegion(CellCoordinate(0, 0)), isNull);
+      });
+
+      test('unmerges multiple merges in range', () {
+        data.mergeCells(CellRange(0, 0, 0, 1));
+        data.mergeCells(CellRange(1, 0, 1, 1));
+
+        data.unmergeCellsInRange(CellRange(0, 0, 1, 1));
+
+        expect(data.mergedCells.getRegion(CellCoordinate(0, 0)), isNull);
+        expect(data.mergedCells.getRegion(CellCoordinate(1, 0)), isNull);
+      });
+
+      test('merges outside range untouched', () {
+        data.mergeCells(CellRange(0, 0, 0, 1));
+        data.mergeCells(CellRange(5, 5, 6, 6));
+
+        data.unmergeCellsInRange(CellRange(0, 0, 2, 2));
+
+        expect(data.mergedCells.getRegion(CellCoordinate(0, 0)), isNull);
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(5, 5))!.range,
+          CellRange(5, 5, 6, 6),
+        );
+      });
+
+      test('no-op when no merges in range', () async {
+        final events = <DataChangeEvent>[];
+        final subscription = data.changes.listen(events.add);
+
+        data.unmergeCellsInRange(CellRange(0, 0, 5, 5));
+
+        await Future.delayed(Duration.zero);
+        await subscription.cancel();
+
+        expect(events, isEmpty);
+      });
+
+      test('emits change event', () async {
+        data.mergeCells(CellRange(0, 0, 1, 1));
+
+        final events = <DataChangeEvent>[];
+        final subscription = data.changes.listen(events.add);
+
+        data.unmergeCellsInRange(CellRange(0, 0, 3, 3));
+
+        await Future.delayed(Duration.zero);
+        await subscription.cancel();
+
+        expect(events, hasLength(1));
+        expect(events[0].type, DataChangeType.range);
+      });
+    });
+
     group('dispose', () {
       test('closes change stream', () async {
         final completer = Completer<void>();

@@ -466,16 +466,7 @@ class UnmergeCellsAction extends Action<UnmergeCellsIntent> {
     final range = _context.selectionController.selectedRange;
     if (range == null) return null;
 
-    final mergedCells = _context.worksheetData.mergedCells;
-    // Collect anchors first to avoid modifying during iteration
-    final anchors = mergedCells
-        .regionsInRange(range)
-        .map((r) => r.anchor)
-        .toList();
-
-    for (final anchor in anchors) {
-      _context.worksheetData.unmergeCells(anchor);
-    }
+    _context.worksheetData.unmergeCellsInRange(range);
 
     _context.invalidateAndRebuild();
     return null;
