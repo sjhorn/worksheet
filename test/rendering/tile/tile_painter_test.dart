@@ -76,10 +76,17 @@ void main() {
         CellCoordinate(0, 0),
         const CellStyle(
           backgroundColor: Color(0xFFFFFF00),
-          textColor: Color(0xFF0000FF),
-          fontWeight: FontWeight.bold,
         ),
       );
+      data.setRichText(CellCoordinate(0, 0), [
+        const TextSpan(
+          text: 'Styled',
+          style: TextStyle(
+            color: Color(0xFF0000FF),
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ]);
 
       final picture = painter.renderTile(
         coordinate: TileCoordinate(0, 0),

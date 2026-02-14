@@ -62,12 +62,17 @@ class _MobileExampleState extends State<MobileExample> {
     ];
     const headerStyle = CellStyle(
       backgroundColor: Color(0xFF4472C4),
-      textColor: Color(0xFFFFFFFF),
+    );
+    const headerTextStyle = TextStyle(
+      color: Color(0xFFFFFFFF),
       fontWeight: FontWeight.bold,
     );
     for (var c = 0; c < headers.length; c++) {
       data.setCell(CellCoordinate(0, c), CellValue.text(headers[c]));
       data.setStyle(CellCoordinate(0, c), headerStyle);
+      data.setRichText(CellCoordinate(0, c), [
+        TextSpan(text: headers[c], style: headerTextStyle),
+      ]);
     }
 
     // Sample data

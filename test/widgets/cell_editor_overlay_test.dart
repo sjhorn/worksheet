@@ -154,13 +154,10 @@ void main() {
         cellBounds: bounds,
       ));
 
-      // Positioned includes the text offset (cellPadding for left,
-      // vertical centering for top). At zoom=1, screen offset = unzoomed offset.
+      // Positioned.fromRect places at cell origin; padding is internal.
       final positioned = tester.widget<Positioned>(find.byType(Positioned));
-      // Left is shifted by cellPadding (default 4.0) for left-aligned text
-      expect(positioned.left, bounds.left + 4.0);
-      // Top is shifted by vertical centering offset
-      expect(positioned.top, greaterThanOrEqualTo(bounds.top));
+      expect(positioned.left, bounds.left);
+      expect(positioned.top, bounds.top);
     });
 
     testWidgets('respects minimum width', (tester) async {
@@ -173,11 +170,13 @@ void main() {
         cellBounds: narrowBounds,
       ));
 
-      // Find the Positioned > Transform > FocusScope > ConstrainedBox
-      final positioned = tester.widget<Positioned>(find.byType(Positioned));
-      final transform = positioned.child as Transform;
-      final focusScope = transform.child as FocusScope;
-      final constrainedBox = focusScope.child as ConstrainedBox;
+      // Find the ConstrainedBox wrapping EditableText
+      final constrainedBox = tester.widget<ConstrainedBox>(
+        find.ancestor(
+          of: find.byType(EditableText),
+          matching: find.byType(ConstrainedBox),
+        ),
+      );
 
       // Text area width = max(cellWidth, minWidth) - 2 * cellPadding.
       // minWidth (60) kicks in since cell is narrow (20).
@@ -800,11 +799,12 @@ void main() {
           wrapText: true,
         ));
 
-        // Navigate widget tree: Positioned > Transform > FocusScope > ConstrainedBox
-        final positioned = tester.widget<Positioned>(find.byType(Positioned));
-        final transform = positioned.child as Transform;
-        final focusScope = transform.child as FocusScope;
-        final constrainedBox = focusScope.child as ConstrainedBox;
+        final constrainedBox = tester.widget<ConstrainedBox>(
+          find.ancestor(
+            of: find.byType(EditableText),
+            matching: find.byType(ConstrainedBox),
+          ),
+        );
         // Height is unconstrained — EditableText can grow for multi-line text
         expect(constrainedBox.constraints.maxHeight, double.infinity);
         expect(constrainedBox.constraints.minHeight, 0.0);
@@ -919,11 +919,12 @@ void main() {
           ),
         );
 
-        // Navigate widget tree: Positioned > Transform > FocusScope > ConstrainedBox
-        final positioned = tester.widget<Positioned>(find.byType(Positioned));
-        final transform = positioned.child as Transform;
-        final focusScope = transform.child as FocusScope;
-        final constrainedBox = focusScope.child as ConstrainedBox;
+        final constrainedBox = tester.widget<ConstrainedBox>(
+          find.ancestor(
+            of: find.byType(EditableText),
+            matching: find.byType(ConstrainedBox),
+          ),
+        );
 
         // The expanded width minus padding should be used
         // 200px / 1.0 zoom - 2 * 4.0 padding = 192.0
@@ -957,10 +958,12 @@ void main() {
           ),
         );
 
-        final positioned = tester.widget<Positioned>(find.byType(Positioned));
-        final transform = positioned.child as Transform;
-        final focusScope = transform.child as FocusScope;
-        final constrainedBox = focusScope.child as ConstrainedBox;
+        final constrainedBox = tester.widget<ConstrainedBox>(
+          find.ancestor(
+            of: find.byType(EditableText),
+            matching: find.byType(ConstrainedBox),
+          ),
+        );
 
         // Width should be original cell width minus padding, not expanded
         // 80px / 1.0 zoom - 2 * 4.0 padding = 72.0
@@ -1040,10 +1043,12 @@ void main() {
           ),
         );
 
-        final positioned = tester.widget<Positioned>(find.byType(Positioned));
-        final transform = positioned.child as Transform;
-        final focusScope = transform.child as FocusScope;
-        final constrainedBox = focusScope.child as ConstrainedBox;
+        final constrainedBox = tester.widget<ConstrainedBox>(
+          find.ancestor(
+            of: find.byType(EditableText),
+            matching: find.byType(ConstrainedBox),
+          ),
+        );
 
         // Clamped to 196.0
         expect(constrainedBox.constraints.maxWidth, 196.0);
@@ -1077,10 +1082,12 @@ void main() {
           ),
         );
 
-        final positioned = tester.widget<Positioned>(find.byType(Positioned));
-        final transform = positioned.child as Transform;
-        final focusScope = transform.child as FocusScope;
-        final constrainedBox = focusScope.child as ConstrainedBox;
+        final constrainedBox = tester.widget<ConstrainedBox>(
+          find.ancestor(
+            of: find.byType(EditableText),
+            matching: find.byType(ConstrainedBox),
+          ),
+        );
 
         // Wrap-text: width should be original cell width minus padding = 72.0
         expect(constrainedBox.constraints.maxWidth, 72.0);
@@ -1114,10 +1121,12 @@ void main() {
           ),
         );
 
-        final positioned = tester.widget<Positioned>(find.byType(Positioned));
-        final transform = positioned.child as Transform;
-        final focusScope = transform.child as FocusScope;
-        final constrainedBox = focusScope.child as ConstrainedBox;
+        final constrainedBox = tester.widget<ConstrainedBox>(
+          find.ancestor(
+            of: find.byType(EditableText),
+            matching: find.byType(ConstrainedBox),
+          ),
+        );
 
         // Not clamped — original expanded width used: 200 - 8 = 192
         expect(constrainedBox.constraints.maxWidth, 192.0);

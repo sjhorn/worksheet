@@ -534,24 +534,20 @@ class FrozenLayer extends RenderLayer {
       text = value.displayValue;
     }
 
-    // Create text painter — format color overrides style/error color
-    final fontFamily = mergedStyle.fontFamily ?? defaultFontFamily;
-    final Color textColor;
+    // Base style from theme defaults — text appearance comes from rich text spans
+    final Color baseTextColor;
     if (formatResult?.color != null) {
-      textColor = formatResult!.color!;
+      baseTextColor = formatResult!.color!;
     } else if (value.isError) {
-      textColor = const Color(0xFFCC0000);
+      baseTextColor = const Color(0xFFCC0000);
     } else {
-      textColor = mergedStyle.textColor ?? defaultTextColor;
+      baseTextColor = defaultTextColor;
     }
-    final textStyle = TextStyle(
-      color: textColor,
-      fontSize: (mergedStyle.fontSize ?? defaultFontSize) * zoom,
-      fontWeight: mergedStyle.fontWeight ?? FontWeight.normal,
-      fontStyle: mergedStyle.fontStyle ?? FontStyle.normal,
-      fontFamily: fontFamily,
-      package: WorksheetThemeData.resolveFontPackage(fontFamily),
-      decoration: _resolveDecoration(mergedStyle),
+    final baseTextStyle = TextStyle(
+      color: baseTextColor,
+      fontSize: defaultFontSize * zoom,
+      fontFamily: defaultFontFamily,
+      package: WorksheetThemeData.resolveFontPackage(defaultFontFamily),
     );
 
     // Use rich text spans when available for inline styling
@@ -569,9 +565,9 @@ class FrozenLayer extends RenderLayer {
         }
         return span;
       }).toList();
-      textSpan = TextSpan(style: textStyle, children: scaledChildren);
+      textSpan = TextSpan(style: baseTextStyle, children: scaledChildren);
     } else {
-      textSpan = TextSpan(text: text, style: textStyle);
+      textSpan = TextSpan(text: text, style: baseTextStyle);
     }
 
     final wrapText = mergedStyle.wrapText == true;
@@ -780,20 +776,6 @@ class FrozenLayer extends RenderLayer {
       case CellTextAlignment.right:
         return TextAlign.right;
     }
-  }
-
-  /// Resolves underline/strikethrough from [CellStyle] into a [TextDecoration].
-  static TextDecoration? _resolveDecoration(CellStyle style) {
-    final u = style.underline == true;
-    final s = style.strikethrough == true;
-    if (!u && !s) return null;
-    if (u && s) {
-      return TextDecoration.combine([
-        TextDecoration.underline,
-        TextDecoration.lineThrough,
-      ]);
-    }
-    return u ? TextDecoration.underline : TextDecoration.lineThrough;
   }
 
   @override

@@ -1,5 +1,3 @@
-// ignore_for_file: deprecated_member_use_from_same_package
-
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -198,28 +196,16 @@ void main() {
     test('creates with all null values', () {
       const style = CellStyle();
       expect(style.backgroundColor, isNull);
-      expect(style.fontFamily, isNull);
-      expect(style.fontSize, isNull);
-      expect(style.fontWeight, isNull);
-      expect(style.fontStyle, isNull);
-      expect(style.textColor, isNull);
       expect(style.textAlignment, isNull);
       expect(style.verticalAlignment, isNull);
       expect(style.borders, isNull);
       expect(style.wrapText, isNull);
-      expect(style.underline, isNull);
-      expect(style.strikethrough, isNull);
       expect(style.numberFormat, isNull);
     });
 
     test('creates with custom values', () {
       const style = CellStyle(
         backgroundColor: Color(0xFFFFFF00),
-        fontFamily: 'Arial',
-        fontSize: 16.0,
-        fontWeight: FontWeight.bold,
-        fontStyle: FontStyle.italic,
-        textColor: Color(0xFF000000),
         textAlignment: CellTextAlignment.center,
         verticalAlignment: CellVerticalAlignment.top,
         borders: CellBorders.none,
@@ -228,11 +214,6 @@ void main() {
       );
 
       expect(style.backgroundColor, const Color(0xFFFFFF00));
-      expect(style.fontFamily, 'Arial');
-      expect(style.fontSize, 16.0);
-      expect(style.fontWeight, FontWeight.bold);
-      expect(style.fontStyle, FontStyle.italic);
-      expect(style.textColor, const Color(0xFF000000));
       expect(style.textAlignment, CellTextAlignment.center);
       expect(style.verticalAlignment, CellVerticalAlignment.top);
       expect(style.borders, CellBorders.none);
@@ -241,73 +222,68 @@ void main() {
     });
 
     test('defaultStyle has expected values', () {
-      expect(CellStyle.defaultStyle.fontFamily, 'Roboto');
-      expect(CellStyle.defaultStyle.fontSize, 14.0);
-      expect(CellStyle.defaultStyle.fontWeight, FontWeight.normal);
-      expect(CellStyle.defaultStyle.fontStyle, FontStyle.normal);
-      expect(CellStyle.defaultStyle.textColor, const Color(0xFF000000));
       expect(CellStyle.defaultStyle.textAlignment, isNull);
       expect(CellStyle.defaultStyle.verticalAlignment, CellVerticalAlignment.middle);
       expect(CellStyle.defaultStyle.borders, CellBorders.none);
       expect(CellStyle.defaultStyle.wrapText, isFalse);
-      expect(CellStyle.defaultStyle.underline, isFalse);
-      expect(CellStyle.defaultStyle.strikethrough, isFalse);
     });
 
     group('merge', () {
       test('returns this when other is null', () {
-        const style = CellStyle(fontSize: 16.0);
+        const style = CellStyle(backgroundColor: Color(0xFFFFFF00));
         expect(style.merge(null), style);
       });
 
       test('other values take precedence', () {
         const base = CellStyle(
-          fontSize: 14.0,
-          fontFamily: 'Arial',
-          textColor: Color(0xFF000000),
+          backgroundColor: Color(0xFFFFFF00),
+          textAlignment: CellTextAlignment.left,
+          wrapText: false,
         );
         const overlay = CellStyle(
-          fontSize: 18.0,
-          fontWeight: FontWeight.bold,
+          backgroundColor: Color(0xFF00FF00),
+          verticalAlignment: CellVerticalAlignment.top,
         );
 
         final merged = base.merge(overlay);
 
-        expect(merged.fontSize, 18.0); // from overlay
-        expect(merged.fontFamily, 'Arial'); // from base
-        expect(merged.textColor, const Color(0xFF000000)); // from base
-        expect(merged.fontWeight, FontWeight.bold); // from overlay
+        expect(merged.backgroundColor, const Color(0xFF00FF00)); // from overlay
+        expect(merged.textAlignment, CellTextAlignment.left); // from base
+        expect(merged.wrapText, isFalse); // from base
+        expect(merged.verticalAlignment, CellVerticalAlignment.top); // from overlay
       });
 
       test('preserves base values when other has nulls', () {
         const base = CellStyle(
-          fontSize: 14.0,
-          fontFamily: 'Arial',
+          backgroundColor: Color(0xFFFFFF00),
+          textAlignment: CellTextAlignment.center,
         );
         const overlay = CellStyle();
 
         final merged = base.merge(overlay);
 
-        expect(merged.fontSize, 14.0);
-        expect(merged.fontFamily, 'Arial');
+        expect(merged.backgroundColor, const Color(0xFFFFFF00));
+        expect(merged.textAlignment, CellTextAlignment.center);
       });
     });
 
     group('copyWith', () {
       test('copies with new values', () {
         const original = CellStyle(
-          fontSize: 14.0,
-          fontFamily: 'Arial',
+          backgroundColor: Color(0xFFFFFF00),
+          textAlignment: CellTextAlignment.left,
         );
 
-        final copy = original.copyWith(fontSize: 18.0);
+        final copy = original.copyWith(
+          backgroundColor: const Color(0xFF00FF00),
+        );
 
-        expect(copy.fontSize, 18.0);
-        expect(copy.fontFamily, 'Arial');
+        expect(copy.backgroundColor, const Color(0xFF00FF00));
+        expect(copy.textAlignment, CellTextAlignment.left);
       });
 
       test('returns equivalent when nothing specified', () {
-        const original = CellStyle(fontSize: 14.0);
+        const original = CellStyle(backgroundColor: Color(0xFFFFFF00));
         final copy = original.copyWith();
 
         expect(copy, original);
@@ -317,11 +293,6 @@ void main() {
         const original = CellStyle();
         final copy = original.copyWith(
           backgroundColor: const Color(0xFFFFFFFF),
-          fontFamily: 'Courier',
-          fontSize: 12.0,
-          fontWeight: FontWeight.w500,
-          fontStyle: FontStyle.italic,
-          textColor: const Color(0xFF333333),
           textAlignment: CellTextAlignment.right,
           verticalAlignment: CellVerticalAlignment.bottom,
           borders: CellBorders.none,
@@ -330,11 +301,6 @@ void main() {
         );
 
         expect(copy.backgroundColor, const Color(0xFFFFFFFF));
-        expect(copy.fontFamily, 'Courier');
-        expect(copy.fontSize, 12.0);
-        expect(copy.fontWeight, FontWeight.w500);
-        expect(copy.fontStyle, FontStyle.italic);
-        expect(copy.textColor, const Color(0xFF333333));
         expect(copy.textAlignment, CellTextAlignment.right);
         expect(copy.verticalAlignment, CellVerticalAlignment.bottom);
         expect(copy.borders, CellBorders.none);
@@ -345,37 +311,49 @@ void main() {
 
     group('equality', () {
       test('equal styles are equal', () {
-        const a = CellStyle(fontSize: 14.0, fontFamily: 'Arial');
-        const b = CellStyle(fontSize: 14.0, fontFamily: 'Arial');
+        const a = CellStyle(
+          backgroundColor: Color(0xFFFFFF00),
+          textAlignment: CellTextAlignment.center,
+        );
+        const b = CellStyle(
+          backgroundColor: Color(0xFFFFFF00),
+          textAlignment: CellTextAlignment.center,
+        );
 
         expect(a, b);
       });
 
       test('different styles are not equal', () {
-        const a = CellStyle(fontSize: 14.0);
-        const b = CellStyle(fontSize: 16.0);
+        const a = CellStyle(backgroundColor: Color(0xFFFFFF00));
+        const b = CellStyle(backgroundColor: Color(0xFF00FF00));
 
         expect(a == b, isFalse);
       });
 
       test('identical returns true for same instance', () {
-        const a = CellStyle(fontSize: 14.0);
+        const a = CellStyle(backgroundColor: Color(0xFFFFFF00));
         expect(a == a, isTrue);
       });
     });
 
     group('hashCode', () {
       test('equal styles have same hashCode', () {
-        const a = CellStyle(fontSize: 14.0, fontFamily: 'Arial');
-        const b = CellStyle(fontSize: 14.0, fontFamily: 'Arial');
+        const a = CellStyle(
+          backgroundColor: Color(0xFFFFFF00),
+          textAlignment: CellTextAlignment.center,
+        );
+        const b = CellStyle(
+          backgroundColor: Color(0xFFFFFF00),
+          textAlignment: CellTextAlignment.center,
+        );
 
         expect(a.hashCode, b.hashCode);
       });
 
       test('can be used in set', () {
         final set = <CellStyle>{};
-        set.add(const CellStyle(fontSize: 14.0));
-        set.add(const CellStyle(fontSize: 14.0));
+        set.add(const CellStyle(backgroundColor: Color(0xFFFFFF00)));
+        set.add(const CellStyle(backgroundColor: Color(0xFFFFFF00)));
 
         expect(set.length, 1);
       });
@@ -465,66 +443,6 @@ void main() {
       final merged = CellStyle.defaultStyle.merge(style);
       expect(merged.textAlignment, isNull);
       // The caller would then use implicitAlignment based on value type.
-    });
-  });
-
-  group('CellStyle underline and strikethrough', () {
-    test('underline can be set to true', () {
-      const style = CellStyle(underline: true);
-      expect(style.underline, isTrue);
-    });
-
-    test('strikethrough can be set to true', () {
-      const style = CellStyle(strikethrough: true);
-      expect(style.strikethrough, isTrue);
-    });
-
-    test('merge preserves underline from other', () {
-      const base = CellStyle(underline: false);
-      const overlay = CellStyle(underline: true);
-      final merged = base.merge(overlay);
-      expect(merged.underline, isTrue);
-    });
-
-    test('merge preserves strikethrough from other', () {
-      const base = CellStyle(strikethrough: false);
-      const overlay = CellStyle(strikethrough: true);
-      final merged = base.merge(overlay);
-      expect(merged.strikethrough, isTrue);
-    });
-
-    test('merge falls back to base when other is null', () {
-      const base = CellStyle(underline: true, strikethrough: true);
-      const overlay = CellStyle();
-      final merged = base.merge(overlay);
-      expect(merged.underline, isTrue);
-      expect(merged.strikethrough, isTrue);
-    });
-
-    test('copyWith updates underline', () {
-      const original = CellStyle(underline: false);
-      final copy = original.copyWith(underline: true);
-      expect(copy.underline, isTrue);
-    });
-
-    test('copyWith updates strikethrough', () {
-      const original = CellStyle(strikethrough: false);
-      final copy = original.copyWith(strikethrough: true);
-      expect(copy.strikethrough, isTrue);
-    });
-
-    test('equality includes underline and strikethrough', () {
-      const a = CellStyle(underline: true, strikethrough: false);
-      const b = CellStyle(underline: true, strikethrough: false);
-      const c = CellStyle(underline: false, strikethrough: true);
-      expect(a, b);
-      expect(a == c, isFalse);
-    });
-
-    test('hashCode includes underline and strikethrough', () {
-      const a = CellStyle(underline: true, strikethrough: true);
-      const b = CellStyle(underline: true, strikethrough: true);
-      expect(a.hashCode, b.hashCode);
     });
   });
 }

@@ -85,7 +85,7 @@ void main() {
 
       test('stores and retrieves custom style', () {
         final coord = CellCoordinate(5, 10);
-        final style = CellStyle(fontSize: 16.0);
+        final style = CellStyle(backgroundColor: Color(0xFFFF0000));
         data.setStyle(coord, style);
 
         expect(data.getStyle(coord), style);
@@ -93,7 +93,7 @@ void main() {
 
       test('clears style when set to null', () {
         final coord = CellCoordinate(5, 10);
-        data.setStyle(coord, CellStyle(fontSize: 16.0));
+        data.setStyle(coord, CellStyle(backgroundColor: Color(0xFFFF0000)));
         expect(data.getStyle(coord), isNotNull);
 
         data.setStyle(coord, null);
@@ -172,7 +172,7 @@ void main() {
         final events = <DataChangeEvent>[];
         final subscription = data.changes.listen(events.add);
 
-        data.setStyle(coord, CellStyle(fontSize: 16.0));
+        data.setStyle(coord, CellStyle(backgroundColor: Color(0xFFFF0000)));
 
         await Future.delayed(Duration.zero);
         await subscription.cancel();
@@ -260,16 +260,16 @@ void main() {
 
       test('batch setStyle applies styles', () {
         data.batchUpdate((batch) {
-          batch.setStyle(CellCoordinate(0, 0), const CellStyle(fontSize: 14.0));
-          batch.setStyle(CellCoordinate(1, 1), const CellStyle(fontSize: 16.0));
+          batch.setStyle(CellCoordinate(0, 0), const CellStyle(backgroundColor: Color(0xFFFF0000)));
+          batch.setStyle(CellCoordinate(1, 1), const CellStyle(backgroundColor: Color(0xFF00FF00)));
         });
 
-        expect(data.getStyle(CellCoordinate(0, 0))?.fontSize, 14.0);
-        expect(data.getStyle(CellCoordinate(1, 1))?.fontSize, 16.0);
+        expect(data.getStyle(CellCoordinate(0, 0))?.backgroundColor, const Color(0xFFFF0000));
+        expect(data.getStyle(CellCoordinate(1, 1))?.backgroundColor, const Color(0xFF00FF00));
       });
 
       test('batch setStyle with null removes style', () {
-        data.setStyle(CellCoordinate(0, 0), const CellStyle(fontSize: 14.0));
+        data.setStyle(CellCoordinate(0, 0), const CellStyle(backgroundColor: Color(0xFFFF0000)));
 
         data.batchUpdate((batch) {
           batch.setStyle(CellCoordinate(0, 0), null);
@@ -301,8 +301,8 @@ void main() {
       test('batch clearRange clears cells and styles', () {
         data.setCell(CellCoordinate(0, 0), CellValue.text('A1'));
         data.setCell(CellCoordinate(5, 5), CellValue.text('F6'));
-        data.setStyle(CellCoordinate(0, 0), const CellStyle(fontSize: 14.0));
-        data.setStyle(CellCoordinate(5, 5), const CellStyle(fontSize: 16.0));
+        data.setStyle(CellCoordinate(0, 0), const CellStyle(backgroundColor: Color(0xFFFF0000)));
+        data.setStyle(CellCoordinate(5, 5), const CellStyle(backgroundColor: Color(0xFF00FF00)));
 
         data.batchUpdate((batch) {
           batch.clearRange(CellRange(0, 0, 10, 10));
@@ -386,9 +386,9 @@ void main() {
       });
 
       test('clears styles in range', () {
-        data.setStyle(CellCoordinate(0, 0), const CellStyle(fontSize: 14.0));
-        data.setStyle(CellCoordinate(5, 5), const CellStyle(fontSize: 16.0));
-        data.setStyle(CellCoordinate(100, 50), const CellStyle(fontSize: 18.0));
+        data.setStyle(CellCoordinate(0, 0), const CellStyle(backgroundColor: Color(0xFFFF0000)));
+        data.setStyle(CellCoordinate(5, 5), const CellStyle(backgroundColor: Color(0xFF00FF00)));
+        data.setStyle(CellCoordinate(100, 50), const CellStyle(backgroundColor: Color(0xFF0000FF)));
 
         data.clearRange(CellRange(0, 0, 10, 10));
 
@@ -452,7 +452,7 @@ void main() {
           cells: {
             (0, 0): Cell.text(
               'Name',
-              style: const CellStyle(fontWeight: FontWeight.bold),
+              style: const CellStyle(backgroundColor: Color(0xFF00FF00)),
             ),
             (1, 0): Cell.number(42),
           },
@@ -460,8 +460,8 @@ void main() {
 
         expect(d.getCell(const CellCoordinate(0, 0)), CellValue.text('Name'));
         expect(
-          d.getStyle(const CellCoordinate(0, 0))?.fontWeight,
-          FontWeight.bold,
+          d.getStyle(const CellCoordinate(0, 0))?.backgroundColor,
+          const Color(0xFF00FF00),
         );
         expect(d.getCell(const CellCoordinate(1, 0)), CellValue.number(42));
         expect(d.getStyle(const CellCoordinate(1, 0)), isNull);
@@ -474,11 +474,11 @@ void main() {
         final d = SparseWorksheetData(
           rowCount: 10,
           columnCount: 10,
-          cells: {(0, 0): const Cell.withStyle(CellStyle(fontSize: 14.0))},
+          cells: {(0, 0): const Cell.withStyle(CellStyle(backgroundColor: Color(0xFFFF0000)))},
         );
 
         expect(d.getCell(const CellCoordinate(0, 0)), isNull);
-        expect(d.getStyle(const CellCoordinate(0, 0))?.fontSize, 14.0);
+        expect(d.getStyle(const CellCoordinate(0, 0))?.backgroundColor, const Color(0xFFFF0000));
 
         d.dispose();
       });
@@ -526,13 +526,13 @@ void main() {
         data.setCell(const CellCoordinate(0, 0), CellValue.text('hi'));
         data.setStyle(
           const CellCoordinate(0, 0),
-          const CellStyle(fontSize: 12.0),
+          const CellStyle(backgroundColor: Color(0xFFFF0000)),
         );
 
         final cell = data[(0, 0)];
         expect(cell, isNotNull);
         expect(cell!.value, CellValue.text('hi'));
-        expect(cell.style?.fontSize, 12.0);
+        expect(cell.style?.backgroundColor, const Color(0xFFFF0000));
       });
 
       test('returns Cell with value only', () {
@@ -547,13 +547,13 @@ void main() {
       test('returns Cell with style only', () {
         data.setStyle(
           const CellCoordinate(2, 2),
-          const CellStyle(fontWeight: FontWeight.bold),
+          const CellStyle(backgroundColor: Color(0xFF00FF00)),
         );
 
         final cell = data[(2, 2)];
         expect(cell, isNotNull);
         expect(cell!.value, isNull);
-        expect(cell.style?.fontWeight, FontWeight.bold);
+        expect(cell.style?.backgroundColor, const Color(0xFF00FF00));
       });
 
       test('returns null for empty cell', () {
@@ -583,14 +583,14 @@ void main() {
       test('sets both value and style', () {
         data[(0, 0)] = Cell.text(
           'hello',
-          style: const CellStyle(fontSize: 14.0),
+          style: const CellStyle(backgroundColor: Color(0xFFFF0000)),
         );
 
         expect(
           data.getCell(const CellCoordinate(0, 0)),
           CellValue.text('hello'),
         );
-        expect(data.getStyle(const CellCoordinate(0, 0))?.fontSize, 14.0);
+        expect(data.getStyle(const CellCoordinate(0, 0))?.backgroundColor, const Color(0xFFFF0000));
       });
 
       test('sets value only when style is null', () {
@@ -604,7 +604,7 @@ void main() {
         data.setCell(const CellCoordinate(0, 0), CellValue.text('hi'));
         data.setStyle(
           const CellCoordinate(0, 0),
-          const CellStyle(fontSize: 12.0),
+          const CellStyle(backgroundColor: Color(0xFFFF0000)),
         );
 
         data[(0, 0)] = null;
@@ -614,19 +614,19 @@ void main() {
       });
 
       test('overwrites existing value and style', () {
-        data[(0, 0)] = Cell.text('old', style: const CellStyle(fontSize: 10.0));
-        data[(0, 0)] = Cell.number(99, style: const CellStyle(fontSize: 20.0));
+        data[(0, 0)] = Cell.text('old', style: const CellStyle(backgroundColor: Color(0xFFFF0000)));
+        data[(0, 0)] = Cell.number(99, style: const CellStyle(backgroundColor: Color(0xFF00FF00)));
 
         expect(data.getCell(const CellCoordinate(0, 0)), CellValue.number(99));
-        expect(data.getStyle(const CellCoordinate(0, 0))?.fontSize, 20.0);
+        expect(data.getStyle(const CellCoordinate(0, 0))?.backgroundColor, const Color(0xFF00FF00));
       });
 
       test('Cell with null value clears existing value', () {
         data.setCell(const CellCoordinate(0, 0), CellValue.text('hi'));
-        data[(0, 0)] = const Cell.withStyle(CellStyle(fontSize: 14.0));
+        data[(0, 0)] = const Cell.withStyle(CellStyle(backgroundColor: Color(0xFFFF0000)));
 
         expect(data.getCell(const CellCoordinate(0, 0)), isNull);
-        expect(data.getStyle(const CellCoordinate(0, 0))?.fontSize, 14.0);
+        expect(data.getStyle(const CellCoordinate(0, 0))?.backgroundColor, const Color(0xFFFF0000));
       });
 
       test('emits change event', () async {
@@ -668,22 +668,22 @@ void main() {
         data.setCell(const CellCoordinate(1, 1), CellValue.number(42));
         data.setStyle(
           const CellCoordinate(1, 1),
-          const CellStyle(fontSize: 12.0),
+          const CellStyle(backgroundColor: Color(0xFFFF0000)),
         );
         data.setStyle(
           const CellCoordinate(2, 2),
-          const CellStyle(fontWeight: FontWeight.bold),
+          const CellStyle(backgroundColor: Color(0xFF00FF00)),
         );
 
         final cells = data.cells;
         expect(cells.length, 3);
         expect(cells[const CellCoordinate(0, 0)]?.value, CellValue.text('A'));
         expect(cells[const CellCoordinate(1, 1)]?.value, CellValue.number(42));
-        expect(cells[const CellCoordinate(1, 1)]?.style?.fontSize, 12.0);
+        expect(cells[const CellCoordinate(1, 1)]?.style?.backgroundColor, const Color(0xFFFF0000));
         expect(cells[const CellCoordinate(2, 2)]?.value, isNull);
         expect(
-          cells[const CellCoordinate(2, 2)]?.style?.fontWeight,
-          FontWeight.bold,
+          cells[const CellCoordinate(2, 2)]?.style?.backgroundColor,
+          const Color(0xFF00FF00),
         );
       });
 
@@ -728,7 +728,7 @@ void main() {
           batch.setCell(CellCoordinate(0, 0), CellValue.number(42));
           batch.setStyle(
             CellCoordinate(0, 0),
-            const CellStyle(fontSize: 14.0),
+            const CellStyle(backgroundColor: Color(0xFFFF0000)),
           );
           batch.setFormat(CellCoordinate(0, 0), CellFormat.currency);
         });
@@ -738,7 +738,7 @@ void main() {
         });
 
         expect(data.getCell(CellCoordinate(3, 3)), CellValue.number(42));
-        expect(data.getStyle(CellCoordinate(3, 3))?.fontSize, 14.0);
+        expect(data.getStyle(CellCoordinate(3, 3))?.backgroundColor, const Color(0xFFFF0000));
         expect(data.getFormat(CellCoordinate(3, 3)), CellFormat.currency);
       });
     });
@@ -760,7 +760,7 @@ void main() {
       test('copies style and format from source', () {
         data[(0, 0)] = Cell.number(
           100,
-          style: const CellStyle(fontSize: 14.0),
+          style: const CellStyle(backgroundColor: Color(0xFFFF0000)),
           format: CellFormat.currency,
         );
 
@@ -770,10 +770,10 @@ void main() {
         );
 
         expect(data.getCell(CellCoordinate(1, 0)), CellValue.number(100));
-        expect(data.getStyle(CellCoordinate(1, 0))?.fontSize, 14.0);
+        expect(data.getStyle(CellCoordinate(1, 0))?.backgroundColor, const Color(0xFFFF0000));
         expect(data.getFormat(CellCoordinate(1, 0)), CellFormat.currency);
         expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(100));
-        expect(data.getStyle(CellCoordinate(2, 0))?.fontSize, 14.0);
+        expect(data.getStyle(CellCoordinate(2, 0))?.backgroundColor, const Color(0xFFFF0000));
         expect(data.getFormat(CellCoordinate(2, 0)), CellFormat.currency);
       });
 
@@ -1049,12 +1049,12 @@ void main() {
       test('preserves style and format', () {
         data[(0, 0)] = Cell.number(
           10,
-          style: const CellStyle(fontSize: 14.0),
+          style: const CellStyle(backgroundColor: Color(0xFFFF0000)),
           format: CellFormat.currency,
         );
         data[(1, 0)] = Cell.number(
           20,
-          style: const CellStyle(fontSize: 14.0),
+          style: const CellStyle(backgroundColor: Color(0xFFFF0000)),
           format: CellFormat.currency,
         );
 
@@ -1064,7 +1064,7 @@ void main() {
         );
 
         expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(30));
-        expect(data.getStyle(CellCoordinate(2, 0))?.fontSize, 14.0);
+        expect(data.getStyle(CellCoordinate(2, 0))?.backgroundColor, const Color(0xFFFF0000));
         expect(data.getFormat(CellCoordinate(2, 0)), CellFormat.currency);
       });
     });

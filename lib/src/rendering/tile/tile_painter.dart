@@ -401,25 +401,21 @@ class TilePainter implements TileRenderer {
       text = value.displayValue;
     }
 
-    // Create text painter — format color overrides style color
-    final fontFamily = mergedStyle.fontFamily ?? defaultFontFamily;
-    final textStyle = TextStyle(
-      color: formatResult?.color ?? _getTextColor(value, mergedStyle),
-      fontSize: mergedStyle.fontSize ?? defaultFontSize,
-      fontWeight: mergedStyle.fontWeight ?? FontWeight.normal,
-      fontStyle: mergedStyle.fontStyle ?? FontStyle.normal,
-      fontFamily: fontFamily,
-      package: WorksheetThemeData.resolveFontPackage(fontFamily),
-      decoration: _resolveDecoration(mergedStyle),
+    // Base style from theme defaults — text appearance comes from rich text spans
+    final baseTextStyle = TextStyle(
+      color: formatResult?.color ?? _getBaseTextColor(value),
+      fontSize: defaultFontSize,
+      fontFamily: defaultFontFamily,
+      package: WorksheetThemeData.resolveFontPackage(defaultFontFamily),
     );
 
     // Use rich text spans when available for inline styling
     final TextSpan textSpan;
     final richText = coord != null ? data.getRichText(coord) : null;
     if (richText != null && richText.isNotEmpty) {
-      textSpan = TextSpan(style: textStyle, children: richText);
+      textSpan = TextSpan(style: baseTextStyle, children: richText);
     } else {
-      textSpan = TextSpan(text: text, style: textStyle);
+      textSpan = TextSpan(text: text, style: baseTextStyle);
     }
 
     final textPainter = TextPainter(
@@ -454,12 +450,12 @@ class TilePainter implements TileRenderer {
     textPainters.add(textPainter);
   }
 
-  Color _getTextColor(CellValue value, CellStyle style) {
+  Color _getBaseTextColor(CellValue value) {
     // Error values are red by default
     if (value.isError) {
-      return style.textColor ?? const Color(0xFFCC0000);
+      return const Color(0xFFCC0000);
     }
-    return style.textColor ?? defaultTextColor;
+    return defaultTextColor;
   }
 
   Offset _calculateTextOffset(
@@ -688,20 +684,6 @@ class TilePainter implements TileRenderer {
       case ZoomBucket.quadruple:
         return true;
     }
-  }
-
-  /// Resolves underline/strikethrough from [CellStyle] into a [TextDecoration].
-  static TextDecoration? _resolveDecoration(CellStyle style) {
-    final u = style.underline == true;
-    final s = style.strikethrough == true;
-    if (!u && !s) return null;
-    if (u && s) {
-      return TextDecoration.combine([
-        TextDecoration.underline,
-        TextDecoration.lineThrough,
-      ]);
-    }
-    return u ? TextDecoration.underline : TextDecoration.lineThrough;
   }
 
   static TextAlign _toTextAlign(CellTextAlignment alignment) {

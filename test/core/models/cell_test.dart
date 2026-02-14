@@ -28,7 +28,7 @@ void main() {
     });
 
     test('constructor with style only', () {
-      const style = CellStyle(fontSize: 14.0);
+      const style = CellStyle(backgroundColor: Color(0xFFFF0000));
       const cell = Cell(style: style);
       expect(cell.value, isNull);
       expect(cell.style, style);
@@ -38,7 +38,7 @@ void main() {
     });
 
     test('constructor with both value and style', () {
-      const style = CellStyle(fontWeight: FontWeight.bold);
+      const style = CellStyle(backgroundColor: Color(0xFF00FF00));
       const cell = Cell(value: CellValue.text('hi'), style: style);
       expect(cell.value, CellValue.text('hi'));
       expect(cell.style, style);
@@ -54,7 +54,7 @@ void main() {
       });
 
       test('Cell.text with style', () {
-        const style = CellStyle(fontSize: 12.0);
+        const style = CellStyle(backgroundColor: Color(0xFFFF0000));
         final cell = Cell.text('hello', style: style);
         expect(cell.value, CellValue.text('hello'));
         expect(cell.style, style);
@@ -117,8 +117,8 @@ void main() {
       });
 
       test('different styles are not equal', () {
-        final a = Cell.text('hi', style: const CellStyle(fontSize: 12.0));
-        final b = Cell.text('hi', style: const CellStyle(fontSize: 14.0));
+        final a = Cell.text('hi', style: const CellStyle(backgroundColor: Color(0xFFFF0000)));
+        final b = Cell.text('hi', style: const CellStyle(backgroundColor: Color(0xFF00FF00)));
         expect(a, isNot(equals(b)));
       });
 
@@ -174,7 +174,7 @@ void main() {
       });
 
       test('Cell.withStyle has null format', () {
-        const cell = Cell.withStyle(CellStyle(fontSize: 12.0));
+        const cell = Cell.withStyle(CellStyle(backgroundColor: Color(0xFFFF0000)));
         expect(cell.format, isNull);
         expect(cell.hasFormat, isFalse);
       });
@@ -233,7 +233,7 @@ void main() {
 
     group('copyWithFormat', () {
       test('copies with new format', () {
-        final original = Cell.number(42, style: const CellStyle(fontSize: 14));
+        final original = Cell.number(42, style: const CellStyle(backgroundColor: Color(0xFFFF0000)));
         final copied = original.copyWithFormat(CellFormat.currency);
         expect(copied.value, original.value);
         expect(copied.style, original.style);

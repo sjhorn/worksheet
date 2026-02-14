@@ -276,7 +276,7 @@ void main() {
     test('clears only values when clearStyle and clearFormat are false', () {
       const coord = CellCoordinate(5, 5);
       data.setCell(coord, CellValue.text('hello'));
-      data.setStyle(coord, const CellStyle(fontWeight: FontWeight.bold));
+      data.setStyle(coord, const CellStyle(backgroundColor: Color(0xFF00FF00)));
       data.setFormat(coord, CellFormat.currency);
       selectionController.selectCell(coord);
 
@@ -289,7 +289,7 @@ void main() {
 
       expect(data.getCell(coord), isNull);
       expect(data.getStyle(coord), isNotNull);
-      expect(data.getStyle(coord)!.fontWeight, FontWeight.bold);
+      expect(data.getStyle(coord)!.backgroundColor, const Color(0xFF00FF00));
       expect(data.getFormat(coord), CellFormat.currency);
       expect(ctx.invalidateAndRebuildCount, 1);
     });
@@ -297,7 +297,7 @@ void main() {
     test('clears only style and format when clearValue is false', () {
       const coord = CellCoordinate(5, 5);
       data.setCell(coord, CellValue.text('hello'));
-      data.setStyle(coord, const CellStyle(fontWeight: FontWeight.bold));
+      data.setStyle(coord, const CellStyle(backgroundColor: Color(0xFF00FF00)));
       data.setFormat(coord, CellFormat.currency);
       selectionController.selectCell(coord);
 
@@ -317,7 +317,7 @@ void main() {
     test('clears everything by default (backward compatible)', () {
       const coord = CellCoordinate(5, 5);
       data.setCell(coord, CellValue.text('hello'));
-      data.setStyle(coord, const CellStyle(fontWeight: FontWeight.bold));
+      data.setStyle(coord, const CellStyle(backgroundColor: Color(0xFF00FF00)));
       data.setFormat(coord, CellFormat.currency);
       selectionController.selectCell(coord);
 
@@ -333,7 +333,7 @@ void main() {
     test('no-op when all flags are false', () {
       const coord = CellCoordinate(5, 5);
       data.setCell(coord, CellValue.text('hello'));
-      data.setStyle(coord, const CellStyle(fontWeight: FontWeight.bold));
+      data.setStyle(coord, const CellStyle(backgroundColor: Color(0xFF00FF00)));
       selectionController.selectCell(coord);
 
       final action = ClearCellsAction(ctx);
@@ -344,7 +344,7 @@ void main() {
       ));
 
       expect(data.getCell(coord)?.displayValue, 'hello');
-      expect(data.getStyle(coord)!.fontWeight, FontWeight.bold);
+      expect(data.getStyle(coord)!.backgroundColor, const Color(0xFF00FF00));
       expect(ctx.invalidateAndRebuildCount, 1);
     });
 
@@ -791,8 +791,22 @@ void main() {
       rtc.dispose();
     });
 
-    test('is disabled when not editing', () {
+    test('is enabled when not editing with selection', () {
       final action = ToggleBoldAction(editCtx);
+      expect(action.isEnabled(const ToggleBoldIntent()), isTrue);
+    });
+
+    test('is disabled when readOnly', () {
+      final roCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        readOnly: true,
+        editController: editController,
+      );
+      final action = ToggleBoldAction(roCtx);
       expect(action.isEnabled(const ToggleBoldIntent()), isFalse);
     });
 
@@ -826,6 +840,21 @@ void main() {
 
       expect(rtc.isSelectionBold, isTrue);
     });
+
+    test('toggles bold on data-layer spans when not editing', () {
+      data.setCell(
+        const CellCoordinate(5, 5),
+        CellValue.text('Hello'),
+      );
+      selectionController.selectCell(const CellCoordinate(5, 5));
+
+      final action = ToggleBoldAction(editCtx);
+      action.invoke(const ToggleBoldIntent());
+
+      final spans = data.getRichText(const CellCoordinate(5, 5));
+      expect(spans, isNotNull);
+      expect(spans!.first.style?.fontWeight, FontWeight.bold);
+    });
   });
 
   group('ToggleItalicAction', () {
@@ -854,8 +883,22 @@ void main() {
       rtc.dispose();
     });
 
-    test('is disabled when not editing', () {
+    test('is enabled when not editing with selection', () {
       final action = ToggleItalicAction(editCtx);
+      expect(action.isEnabled(const ToggleItalicIntent()), isTrue);
+    });
+
+    test('is disabled when readOnly', () {
+      final roCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        readOnly: true,
+        editController: editController,
+      );
+      final action = ToggleItalicAction(roCtx);
       expect(action.isEnabled(const ToggleItalicIntent()), isFalse);
     });
 
@@ -869,6 +912,21 @@ void main() {
       action.invoke(const ToggleItalicIntent());
 
       expect(rtc.isSelectionItalic, isTrue);
+    });
+
+    test('toggles italic on data-layer spans when not editing', () {
+      data.setCell(
+        const CellCoordinate(5, 5),
+        CellValue.text('Hello'),
+      );
+      selectionController.selectCell(const CellCoordinate(5, 5));
+
+      final action = ToggleItalicAction(editCtx);
+      action.invoke(const ToggleItalicIntent());
+
+      final spans = data.getRichText(const CellCoordinate(5, 5));
+      expect(spans, isNotNull);
+      expect(spans!.first.style?.fontStyle, FontStyle.italic);
     });
   });
 
@@ -898,8 +956,22 @@ void main() {
       rtc.dispose();
     });
 
-    test('is disabled when not editing', () {
+    test('is enabled when not editing with selection', () {
       final action = ToggleUnderlineAction(editCtx);
+      expect(action.isEnabled(const ToggleUnderlineIntent()), isTrue);
+    });
+
+    test('is disabled when readOnly', () {
+      final roCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        readOnly: true,
+        editController: editController,
+      );
+      final action = ToggleUnderlineAction(roCtx);
       expect(action.isEnabled(const ToggleUnderlineIntent()), isFalse);
     });
 
@@ -913,6 +985,21 @@ void main() {
       action.invoke(const ToggleUnderlineIntent());
 
       expect(rtc.isSelectionUnderline, isTrue);
+    });
+
+    test('toggles underline on data-layer spans when not editing', () {
+      data.setCell(
+        const CellCoordinate(5, 5),
+        CellValue.text('Hello'),
+      );
+      selectionController.selectCell(const CellCoordinate(5, 5));
+
+      final action = ToggleUnderlineAction(editCtx);
+      action.invoke(const ToggleUnderlineIntent());
+
+      final spans = data.getRichText(const CellCoordinate(5, 5));
+      expect(spans, isNotNull);
+      expect(spans!.first.style?.decoration, TextDecoration.underline);
     });
   });
 
@@ -942,8 +1029,22 @@ void main() {
       rtc.dispose();
     });
 
-    test('is disabled when not editing', () {
+    test('is enabled when not editing with selection', () {
       final action = ToggleStrikethroughAction(editCtx);
+      expect(action.isEnabled(const ToggleStrikethroughIntent()), isTrue);
+    });
+
+    test('is disabled when readOnly', () {
+      final roCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        readOnly: true,
+        editController: editController,
+      );
+      final action = ToggleStrikethroughAction(roCtx);
       expect(action.isEnabled(const ToggleStrikethroughIntent()), isFalse);
     });
 
@@ -957,6 +1058,220 @@ void main() {
       action.invoke(const ToggleStrikethroughIntent());
 
       expect(rtc.isSelectionStrikethrough, isTrue);
+    });
+
+    test('toggles strikethrough on data-layer spans when not editing', () {
+      data.setCell(
+        const CellCoordinate(5, 5),
+        CellValue.text('Hello'),
+      );
+      selectionController.selectCell(const CellCoordinate(5, 5));
+
+      final action = ToggleStrikethroughAction(editCtx);
+      action.invoke(const ToggleStrikethroughIntent());
+
+      final spans = data.getRichText(const CellCoordinate(5, 5));
+      expect(spans, isNotNull);
+      expect(spans!.first.style?.decoration, TextDecoration.lineThrough);
+    });
+  });
+
+  group('SetCellStyleAction', () {
+    test('sets background on selected cell', () {
+      selectionController.selectCell(const CellCoordinate(2, 3));
+
+      final action = SetCellStyleAction(ctx);
+      action.invoke(const SetCellStyleIntent(
+        CellStyle(backgroundColor: Color(0xFFFF0000)),
+      ));
+
+      final style = data.getStyle(const CellCoordinate(2, 3));
+      expect(style, isNotNull);
+      expect(style!.backgroundColor, const Color(0xFFFF0000));
+      expect(ctx.invalidateAndRebuildCount, 1);
+    });
+
+    test('merges style into existing style', () {
+      const coord = CellCoordinate(2, 3);
+      data.setStyle(coord, const CellStyle(backgroundColor: Color(0xFF00FF00)));
+      selectionController.selectCell(coord);
+
+      final action = SetCellStyleAction(ctx);
+      action.invoke(const SetCellStyleIntent(
+        CellStyle(wrapText: true),
+      ));
+
+      final style = data.getStyle(coord);
+      expect(style, isNotNull);
+      expect(style!.backgroundColor, const Color(0xFF00FF00));
+      expect(style.wrapText, isTrue);
+    });
+
+    test('works during editing (not disabled)', () {
+      final editController = EditController();
+      editController.startEdit(cell: const CellCoordinate(2, 3));
+      final editCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        editController: editController,
+      );
+
+      final action = SetCellStyleAction(editCtx);
+      expect(action.isEnabled(const SetCellStyleIntent(
+        CellStyle(backgroundColor: Color(0xFFFF0000)),
+      )), isTrue);
+    });
+
+    test('no-op without selection', () {
+      selectionController.clear();
+
+      final action = SetCellStyleAction(ctx);
+      action.invoke(const SetCellStyleIntent(
+        CellStyle(backgroundColor: Color(0xFFFF0000)),
+      ));
+
+      expect(ctx.invalidateAndRebuildCount, 0);
+    });
+
+    test('is disabled when readOnly', () {
+      final roCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        readOnly: true,
+      );
+      final action = SetCellStyleAction(roCtx);
+      expect(action.isEnabled(const SetCellStyleIntent(
+        CellStyle(backgroundColor: Color(0xFFFF0000)),
+      )), isFalse);
+    });
+
+    test('applies to multi-cell range', () {
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = SetCellStyleAction(ctx);
+      action.invoke(const SetCellStyleIntent(
+        CellStyle(backgroundColor: Color(0xFFAABBCC)),
+      ));
+
+      for (int r = 0; r <= 1; r++) {
+        for (int c = 0; c <= 1; c++) {
+          final style = data.getStyle(CellCoordinate(r, c));
+          expect(style?.backgroundColor, const Color(0xFFAABBCC));
+        }
+      }
+    });
+  });
+
+  group('ClearCellsAction during editing', () {
+    late EditController editController;
+    late RichTextEditingController rtc;
+    late MockWorksheetActionContext editCtx;
+
+    setUp(() {
+      editController = EditController();
+      rtc = RichTextEditingController();
+      rtc.initFromSpans([
+        const TextSpan(
+          text: 'Hello',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ]);
+      rtc.selection =
+          const TextSelection(baseOffset: 0, extentOffset: 5);
+
+      editCtx = MockWorksheetActionContext(
+        selectionController: selectionController,
+        maxRow: 100,
+        maxColumn: 26,
+        worksheetData: data,
+        clipboardHandler: clipboardHandler,
+        editController: editController,
+      );
+    });
+
+    tearDown(() {
+      rtc.dispose();
+    });
+
+    test('is enabled during editing for style-only clearing', () {
+      editController.startEdit(cell: const CellCoordinate(5, 5));
+      editController.richTextController = rtc;
+
+      final action = ClearCellsAction(editCtx);
+      expect(action.isEnabled(const ClearCellsIntent(
+        clearValue: false,
+        clearStyle: true,
+        clearFormat: false,
+      )), isTrue);
+    });
+
+    test('is disabled during editing when clearValue is true', () {
+      editController.startEdit(cell: const CellCoordinate(5, 5));
+      editController.richTextController = rtc;
+
+      final action = ClearCellsAction(editCtx);
+      expect(action.isEnabled(const ClearCellsIntent()), isFalse);
+    });
+
+    test('clears styles while editing', () {
+      const coord = CellCoordinate(5, 5);
+      data.setStyle(coord, const CellStyle(backgroundColor: Color(0xFF00FF00)));
+      selectionController.selectCell(coord);
+      editController.startEdit(cell: coord);
+      editController.richTextController = rtc;
+
+      final action = ClearCellsAction(editCtx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: false,
+        clearStyle: true,
+        clearFormat: false,
+      ));
+
+      expect(data.getStyle(coord), isNull);
+      expect(editCtx.invalidateAndRebuildCount, 1);
+    });
+
+    test('strips rich text spans when clearing styles during editing', () {
+      const coord = CellCoordinate(5, 5);
+      selectionController.selectCell(coord);
+      editController.startEdit(cell: coord);
+      editController.richTextController = rtc;
+
+      // Verify rich styles exist before clearing
+      expect(rtc.hasRichStyles, isTrue);
+
+      final action = ClearCellsAction(editCtx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: false,
+        clearStyle: true,
+        clearFormat: false,
+      ));
+
+      expect(rtc.hasRichStyles, isFalse);
+    });
+
+    test('does not strip rich text when only clearing values', () {
+      const coord = CellCoordinate(5, 5);
+      data.setCell(coord, CellValue.text('hello'));
+      selectionController.selectCell(coord);
+      editController.startEdit(cell: coord);
+      editController.richTextController = rtc;
+
+      final action = ClearCellsAction(editCtx);
+      action.invoke(const ClearCellsIntent(
+        clearValue: true,
+        clearStyle: false,
+        clearFormat: false,
+      ));
+
+      // Rich styles should still be present
+      expect(rtc.hasRichStyles, isTrue);
     });
   });
 }

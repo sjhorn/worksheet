@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../core/models/cell_coordinate.dart';
 import '../core/models/cell_range.dart';
+import '../core/models/cell_style.dart';
 import 'worksheet_action_context.dart';
 import 'worksheet_intents.dart';
 
@@ -198,8 +199,15 @@ class ClearCellsAction extends Action<ClearCellsIntent> {
   ClearCellsAction(this._context);
 
   @override
-  bool isEnabled(ClearCellsIntent intent) =>
-      !_context.readOnly && _context.editController?.isEditing != true;
+  bool isEnabled(ClearCellsIntent intent) {
+    if (_context.readOnly) return false;
+    // When editing, only allow clearing styles/formats (toolbar use).
+    // Block clearing values so Backspace/Delete are handled by the text editor.
+    if (_context.editController?.isEditing == true && intent.clearValue) {
+      return false;
+    }
+    return true;
+  }
 
   @override
   Object? invoke(ClearCellsIntent intent) {
@@ -219,6 +227,20 @@ class ClearCellsAction extends Action<ClearCellsIntent> {
     // Unmerge cells when clearing formatting (styles or formats).
     if (intent.clearStyle || intent.clearFormat) {
       _context.worksheetData.unmergeCellsInRange(range);
+    }
+
+    // Strip rich text formatting when clearing styles.
+    if (intent.clearStyle) {
+      if (_context.editController?.isEditing == true) {
+        _context.editController?.richTextController?.clearFormatting();
+      } else {
+        // Clear rich text spans from data
+        for (int r = range.startRow; r <= range.endRow; r++) {
+          for (int c = range.startColumn; c <= range.endColumn; c++) {
+            _context.worksheetData.setRichText(CellCoordinate(r, c), null);
+          }
+        }
+      }
     }
 
     _context.invalidateAndRebuild();
@@ -376,79 +398,197 @@ class MergeCellsVerticallyAction extends Action<MergeCellsVerticallyIntent> {
   }
 }
 
-/// Toggles bold formatting on the current text selection during editing.
+/// Toggles bold formatting on the current text selection or all selected cells.
 ///
-/// Unlike most worksheet actions which are disabled during editing, this
-/// action is **enabled only during editing** (inverse pattern).
+/// When editing: toggles bold on the text selection via [RichTextEditingController].
+/// When not editing: toggles bold on rich text spans for all selected cells.
 class ToggleBoldAction extends Action<ToggleBoldIntent> {
   final WorksheetActionContext _context;
 
   ToggleBoldAction(this._context);
 
   @override
-  bool isEnabled(ToggleBoldIntent intent) =>
-      _context.editController?.isEditing == true &&
-      _context.editController?.richTextController != null;
+  bool isEnabled(ToggleBoldIntent intent) {
+    if (_context.readOnly) return false;
+    if (_context.editController?.isEditing == true) {
+      return _context.editController?.richTextController != null;
+    }
+    return _context.selectionController.selectedRange != null;
+  }
 
   @override
   Object? invoke(ToggleBoldIntent intent) {
-    _context.editController!.richTextController!.toggleBold();
+    if (_context.editController?.isEditing == true) {
+      _context.editController!.richTextController!.toggleBold();
+    } else {
+      _toggleOnSelection(
+        _context,
+        test: (s) => s?.fontWeight == FontWeight.bold,
+        apply: (s) =>
+            (s ?? const TextStyle()).copyWith(fontWeight: FontWeight.bold),
+        remove: (s) =>
+            (s ?? const TextStyle()).copyWith(fontWeight: FontWeight.normal),
+      );
+    }
+    _context.invalidateAndRebuild();
     return null;
   }
 }
 
-/// Toggles italic formatting on the current text selection during editing.
+/// Toggles italic formatting on the current text selection or all selected cells.
 class ToggleItalicAction extends Action<ToggleItalicIntent> {
   final WorksheetActionContext _context;
 
   ToggleItalicAction(this._context);
 
   @override
-  bool isEnabled(ToggleItalicIntent intent) =>
-      _context.editController?.isEditing == true &&
-      _context.editController?.richTextController != null;
+  bool isEnabled(ToggleItalicIntent intent) {
+    if (_context.readOnly) return false;
+    if (_context.editController?.isEditing == true) {
+      return _context.editController?.richTextController != null;
+    }
+    return _context.selectionController.selectedRange != null;
+  }
 
   @override
   Object? invoke(ToggleItalicIntent intent) {
-    _context.editController!.richTextController!.toggleItalic();
+    if (_context.editController?.isEditing == true) {
+      _context.editController!.richTextController!.toggleItalic();
+    } else {
+      _toggleOnSelection(
+        _context,
+        test: (s) => s?.fontStyle == FontStyle.italic,
+        apply: (s) =>
+            (s ?? const TextStyle()).copyWith(fontStyle: FontStyle.italic),
+        remove: (s) =>
+            (s ?? const TextStyle()).copyWith(fontStyle: FontStyle.normal),
+      );
+    }
+    _context.invalidateAndRebuild();
     return null;
   }
 }
 
-/// Toggles underline formatting on the current text selection during editing.
+/// Toggles underline formatting on the current text selection or all selected cells.
 class ToggleUnderlineAction extends Action<ToggleUnderlineIntent> {
   final WorksheetActionContext _context;
 
   ToggleUnderlineAction(this._context);
 
   @override
-  bool isEnabled(ToggleUnderlineIntent intent) =>
-      _context.editController?.isEditing == true &&
-      _context.editController?.richTextController != null;
+  bool isEnabled(ToggleUnderlineIntent intent) {
+    if (_context.readOnly) return false;
+    if (_context.editController?.isEditing == true) {
+      return _context.editController?.richTextController != null;
+    }
+    return _context.selectionController.selectedRange != null;
+  }
 
   @override
   Object? invoke(ToggleUnderlineIntent intent) {
-    _context.editController!.richTextController!.toggleUnderline();
+    if (_context.editController?.isEditing == true) {
+      _context.editController!.richTextController!.toggleUnderline();
+    } else {
+      _toggleOnSelection(
+        _context,
+        test: (s) => s?.decoration == TextDecoration.underline,
+        apply: (s) => (s ?? const TextStyle())
+            .copyWith(decoration: TextDecoration.underline),
+        remove: (s) =>
+            (s ?? const TextStyle()).copyWith(decoration: TextDecoration.none),
+      );
+    }
+    _context.invalidateAndRebuild();
     return null;
   }
 }
 
-/// Toggles strikethrough formatting on the current text selection during editing.
+/// Toggles strikethrough formatting on the current text selection or all selected cells.
 class ToggleStrikethroughAction extends Action<ToggleStrikethroughIntent> {
   final WorksheetActionContext _context;
 
   ToggleStrikethroughAction(this._context);
 
   @override
-  bool isEnabled(ToggleStrikethroughIntent intent) =>
-      _context.editController?.isEditing == true &&
-      _context.editController?.richTextController != null;
+  bool isEnabled(ToggleStrikethroughIntent intent) {
+    if (_context.readOnly) return false;
+    if (_context.editController?.isEditing == true) {
+      return _context.editController?.richTextController != null;
+    }
+    return _context.selectionController.selectedRange != null;
+  }
 
   @override
   Object? invoke(ToggleStrikethroughIntent intent) {
-    _context.editController!.richTextController!.toggleStrikethrough();
+    if (_context.editController?.isEditing == true) {
+      _context.editController!.richTextController!.toggleStrikethrough();
+    } else {
+      _toggleOnSelection(
+        _context,
+        test: (s) => s?.decoration == TextDecoration.lineThrough,
+        apply: (s) => (s ?? const TextStyle())
+            .copyWith(decoration: TextDecoration.lineThrough),
+        remove: (s) =>
+            (s ?? const TextStyle()).copyWith(decoration: TextDecoration.none),
+      );
+    }
+    _context.invalidateAndRebuild();
     return null;
   }
+}
+
+/// Toggles a text style property on all rich text spans in the selected cells.
+///
+/// If all spans across all selected cells match [test], [remove] is applied;
+/// otherwise [apply] is applied to all spans.
+void _toggleOnSelection(
+  WorksheetActionContext context, {
+  required bool Function(TextStyle?) test,
+  required TextStyle Function(TextStyle?) apply,
+  required TextStyle Function(TextStyle?) remove,
+}) {
+  final range = context.selectionController.selectedRange;
+  if (range == null) return;
+
+  // Check if ALL spans across ALL cells match
+  bool allMatch = true;
+  for (int r = range.startRow; allMatch && r <= range.endRow; r++) {
+    for (int c = range.startColumn; allMatch && c <= range.endColumn; c++) {
+      final coord = CellCoordinate(r, c);
+      final spans = _ensureSpans(context, coord);
+      if (spans.isEmpty) {
+        allMatch = false;
+        break;
+      }
+      if (!spans.every((s) => test(s.style))) allMatch = false;
+    }
+  }
+
+  // Apply or remove across all cells
+  for (int r = range.startRow; r <= range.endRow; r++) {
+    for (int c = range.startColumn; c <= range.endColumn; c++) {
+      final coord = CellCoordinate(r, c);
+      final spans = _ensureSpans(context, coord);
+      if (spans.isEmpty) continue;
+      final toggled = spans
+          .map((s) => TextSpan(
+                text: s.text,
+                style: allMatch ? remove(s.style) : apply(s.style),
+              ))
+          .toList();
+      context.worksheetData.setRichText(coord, toggled);
+    }
+  }
+}
+
+/// Returns existing rich text spans for [coord], or creates a single span
+/// from the cell's display value if no rich text exists.
+List<TextSpan> _ensureSpans(WorksheetActionContext context, CellCoordinate coord) {
+  final existing = context.worksheetData.getRichText(coord);
+  if (existing != null && existing.isNotEmpty) return existing;
+  final value = context.worksheetData.getCell(coord);
+  if (value == null) return [];
+  return [TextSpan(text: value.displayValue)];
 }
 
 /// Unmerges all merge regions overlapping the current selection.
@@ -472,6 +612,40 @@ class UnmergeCellsAction extends Action<UnmergeCellsIntent> {
     if (range == null) return null;
 
     _context.worksheetData.unmergeCellsInRange(range);
+
+    _context.invalidateAndRebuild();
+    return null;
+  }
+}
+
+/// Applies a [CellStyle] to the selected cells by merging it into each
+/// cell's existing style.
+///
+/// Works during and outside editing — no `isEditing` guard. Only non-null
+/// fields in the intent's style override existing values.
+class SetCellStyleAction extends Action<SetCellStyleIntent> {
+  final WorksheetActionContext _context;
+
+  SetCellStyleAction(this._context);
+
+  @override
+  bool isEnabled(SetCellStyleIntent intent) => !_context.readOnly;
+
+  @override
+  Object? invoke(SetCellStyleIntent intent) {
+    final range = _context.selectionController.selectedRange;
+    if (range == null) return null;
+
+    for (int row = range.startRow; row <= range.endRow; row++) {
+      for (int col = range.startColumn; col <= range.endColumn; col++) {
+        final coord = CellCoordinate(row, col);
+        final current = _context.worksheetData.getStyle(coord);
+        final merged = current != null
+            ? current.merge(intent.style)
+            : intent.style;
+        _context.worksheetData.setStyle(coord, merged);
+      }
+    }
 
     _context.invalidateAndRebuild();
     return null;

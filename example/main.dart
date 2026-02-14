@@ -115,8 +115,6 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     // Header style with thick bottom border
     const headerStyle = CellStyle(
       backgroundColor: Color(0xFF4472C4),
-      textColor: Color(0xFFFFFFFF),
-      fontWeight: FontWeight.bold,
       textAlignment: CellTextAlignment.center,
       borders: CellBorders(
         bottom: BorderStyle(
@@ -133,6 +131,15 @@ class _WorksheetExampleState extends State<WorksheetExample> {
         const CellCoordinate(0, 0).copyWith(column: col),
         headerStyle,
       );
+      _data.setRichText(CellCoordinate(0, col), [
+        TextSpan(
+          text: headers[col],
+          style: const TextStyle(
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFFFFFFF),
+          ),
+        ),
+      ]);
     }
 
     // Sample data arrays
@@ -278,13 +285,15 @@ class _WorksheetExampleState extends State<WorksheetExample> {
 
       // Highlight cancelled orders in red
       if (status == 'Cancelled') {
-        _data.setStyle(
-          CellCoordinate(row, 11),
-          const CellStyle(
-            textColor: Color(0xFFCC0000),
-            fontWeight: FontWeight.bold,
+        _data.setRichText(CellCoordinate(row, 11), [
+          const TextSpan(
+            text: 'Cancelled',
+            style: TextStyle(
+              color: Color(0xFFCC0000),
+              fontWeight: FontWeight.bold,
+            ),
           ),
-        );
+        ]);
       }
     }
 
@@ -298,13 +307,17 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     _data.setStyle(
       const CellCoordinate(summaryStartRow, 0),
       const CellStyle(
-        fontWeight: FontWeight.bold,
-        fontSize: 14,
         borders: CellBorders(
           top: BorderStyle(width: 2.0, lineStyle: BorderLineStyle.double),
         ),
       ),
     );
+    _data.setRichText(const CellCoordinate(summaryStartRow, 0), const [
+      TextSpan(
+        text: 'SUMMARY',
+        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+      ),
+    ]);
 
     // Add dashed border to a few cells for demonstration
     for (var col = 1; col < 5; col++) {
@@ -358,12 +371,17 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     );
     _data.setStyle(
       const CellCoordinate(0, 16),
-      const CellStyle(
-        fontWeight: FontWeight.bold,
-        backgroundColor: Color(0xFF70AD47),
-        textColor: Color(0xFFFFFFFF),
-      ),
+      const CellStyle(backgroundColor: Color(0xFF70AD47)),
     );
+    _data.setRichText(const CellCoordinate(0, 16), const [
+      TextSpan(
+        text: 'PRODUCT CATALOG',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFFFFFFF),
+        ),
+      ),
+    ]);
 
     final catalogHeaders = ['Code', 'Name', 'Base Price', 'In Stock'];
     for (var col = 0; col < catalogHeaders.length; col++) {
@@ -373,11 +391,14 @@ class _WorksheetExampleState extends State<WorksheetExample> {
       );
       _data.setStyle(
         CellCoordinate(1, 16 + col),
-        const CellStyle(
-          backgroundColor: Color(0xFFE2EFDA),
-          fontWeight: FontWeight.bold,
-        ),
+        const CellStyle(backgroundColor: Color(0xFFE2EFDA)),
       );
+      _data.setRichText(CellCoordinate(1, 16 + col), [
+        TextSpan(
+          text: catalogHeaders[col],
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ]);
     }
 
     for (var i = 0; i < products.length; i++) {
@@ -405,11 +426,14 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     );
     _data.setStyle(
       const CellCoordinate(100000, 0),
-      const CellStyle(
-        fontWeight: FontWeight.bold,
-        backgroundColor: Color(0xFFFFEB9C),
-      ),
+      const CellStyle(backgroundColor: Color(0xFFFFEB9C)),
     );
+    _data.setRichText(const CellCoordinate(100000, 0), const [
+      TextSpan(
+        text: 'DATA AT ROW 100,001',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+    ]);
     for (var col = 1; col < 10; col++) {
       _data.setCell(
         CellCoordinate(100000, col),
@@ -424,11 +448,14 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     );
     _data.setStyle(
       const CellCoordinate(500000, 0),
-      const CellStyle(
-        fontWeight: FontWeight.bold,
-        backgroundColor: Color(0xFFFFEB9C),
-      ),
+      const CellStyle(backgroundColor: Color(0xFFFFEB9C)),
     );
+    _data.setRichText(const CellCoordinate(500000, 0), const [
+      TextSpan(
+        text: 'DATA AT ROW 500,001',
+        style: TextStyle(fontWeight: FontWeight.bold),
+      ),
+    ]);
     for (var col = 1; col < 10; col++) {
       _data.setCell(
         CellCoordinate(500000, col),
@@ -443,12 +470,17 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     );
     _data.setStyle(
       const CellCoordinate(1048575, 0),
-      const CellStyle(
-        fontWeight: FontWeight.bold,
-        backgroundColor: Color(0xFFFF6B6B),
-        textColor: Color(0xFFFFFFFF),
-      ),
+      const CellStyle(backgroundColor: Color(0xFFFF6B6B)),
     );
+    _data.setRichText(const CellCoordinate(1048575, 0), const [
+      TextSpan(
+        text: 'LAST ROW (1,048,576)',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFFFFFFF),
+        ),
+      ),
+    ]);
 
     // Data at column 1000 (ALM)
     _data.setCell(
@@ -457,12 +489,17 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     );
     _data.setStyle(
       const CellCoordinate(0, 1000),
-      const CellStyle(
-        fontWeight: FontWeight.bold,
-        backgroundColor: Color(0xFF9B59B6),
-        textColor: Color(0xFFFFFFFF),
-      ),
+      const CellStyle(backgroundColor: Color(0xFF9B59B6)),
     );
+    _data.setRichText(const CellCoordinate(0, 1000), const [
+      TextSpan(
+        text: 'COLUMN 1001 (ALM)',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFFFFFFF),
+        ),
+      ),
+    ]);
     for (var row = 1; row <= 100; row++) {
       _data.setCell(
         CellCoordinate(row, 1000),
@@ -477,12 +514,17 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     );
     _data.setStyle(
       const CellCoordinate(0, 10000),
-      const CellStyle(
-        fontWeight: FontWeight.bold,
-        backgroundColor: Color(0xFF3498DB),
-        textColor: Color(0xFFFFFFFF),
-      ),
+      const CellStyle(backgroundColor: Color(0xFF3498DB)),
     );
+    _data.setRichText(const CellCoordinate(0, 10000), const [
+      TextSpan(
+        text: 'COLUMN 10001 (NTQ)',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFFFFFFF),
+        ),
+      ),
+    ]);
     for (var row = 1; row <= 50; row++) {
       _data.setCell(
         CellCoordinate(row, 10000),
@@ -497,12 +539,17 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     );
     _data.setStyle(
       const CellCoordinate(0, 16383),
-      const CellStyle(
-        fontWeight: FontWeight.bold,
-        backgroundColor: Color(0xFFFF6B6B),
-        textColor: Color(0xFFFFFFFF),
-      ),
+      const CellStyle(backgroundColor: Color(0xFFFF6B6B)),
     );
+    _data.setRichText(const CellCoordinate(0, 16383), const [
+      TextSpan(
+        text: 'LAST COL (XFD)',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFFFFFFF),
+        ),
+      ),
+    ]);
 
     // Corner cell - last row, last column
     _data.setCell(
@@ -511,12 +558,17 @@ class _WorksheetExampleState extends State<WorksheetExample> {
     );
     _data.setStyle(
       const CellCoordinate(1048575, 16383),
-      const CellStyle(
-        fontWeight: FontWeight.bold,
-        backgroundColor: Color(0xFF2ECC71),
-        textColor: Color(0xFFFFFFFF),
-      ),
+      const CellStyle(backgroundColor: Color(0xFF2ECC71)),
     );
+    _data.setRichText(const CellCoordinate(1048575, 16383), const [
+      TextSpan(
+        text: 'XFD1048576',
+        style: TextStyle(
+          fontWeight: FontWeight.bold,
+          color: Color(0xFFFFFFFF),
+        ),
+      ),
+    ]);
   }
 
   @override

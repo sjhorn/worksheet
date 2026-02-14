@@ -107,7 +107,7 @@ void main() {
       });
 
       test('preserves style through generate', () {
-        const style = CellStyle(fontSize: 14.0, fontWeight: FontWeight.bold);
+        const style = CellStyle(backgroundColor: Color(0xFF00FF00));
         final pattern = FillPatternDetector.detect([
           Cell.number(1, style: style),
           Cell.number(2, style: style),
@@ -166,7 +166,7 @@ void main() {
       });
 
       test('preserves style and format on dates', () {
-        const style = CellStyle(fontSize: 12.0);
+        const style = CellStyle(backgroundColor: Color(0xFFFF0000));
         final pattern = FillPatternDetector.detect([
           Cell.date(DateTime(2024, 1, 1), style: style),
           Cell.date(DateTime(2024, 1, 2), style: style),
@@ -212,7 +212,7 @@ void main() {
       });
 
       test('preserves style on text suffix pattern', () {
-        const style = CellStyle(fontSize: 16.0);
+        const style = CellStyle(backgroundColor: Color(0xFF0000FF));
         final pattern = FillPatternDetector.detect([
           Cell.text('A1', style: style),
           Cell.text('A2', style: style),
@@ -254,8 +254,8 @@ void main() {
       });
 
       test('preserves individual cell styles in cycle', () {
-        const style1 = CellStyle(fontSize: 10.0);
-        const style2 = CellStyle(fontSize: 20.0);
+        const style1 = CellStyle(backgroundColor: Color(0xFFAABBCC));
+        const style2 = CellStyle(backgroundColor: Color(0xFFDDEEFF));
         final pattern = FillPatternDetector.detect([
           Cell.text('X', style: style1),
           Cell.text('Y', style: style2),

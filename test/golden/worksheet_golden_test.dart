@@ -44,9 +44,7 @@ void main() {
       data.setStyle(
         CellCoordinate(0, col),
         const CellStyle(
-          fontWeight: FontWeight.bold,
           backgroundColor: Color(0xFF4472C4),
-          textColor: Color(0xFFFFFFFF),
           borders: CellBorders(
             bottom: BorderStyle(
               color: Color(0xFF2E5A94),
@@ -73,9 +71,9 @@ void main() {
       // Total formula display
       final total = (row + 1) * 1000 * 4 + 1000 + row * 200;
       data.setCell(CellCoordinate(row + 1, 5), CellValue.number(total.toDouble()));
-      data.setStyle(
+      data.setRichText(
         CellCoordinate(row + 1, 5),
-        const CellStyle(fontWeight: FontWeight.bold),
+        [TextSpan(text: total.toDouble().toString(), style: const TextStyle(fontWeight: FontWeight.bold))],
       );
     }
 

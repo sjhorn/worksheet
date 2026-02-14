@@ -56,14 +56,11 @@ class CellEditorOverlay extends StatefulWidget {
   /// The font family used by the tile painter.
   final String fontFamily;
 
-  /// The font weight.
-  final FontWeight fontWeight;
-
-  /// The font style (normal or italic).
-  final FontStyle fontStyle;
-
   /// The text color.
   final Color textColor;
+
+  /// The cell background color.
+  final Color? backgroundColor;
 
   /// Horizontal text alignment.
   final TextAlign textAlign;
@@ -121,9 +118,8 @@ class CellEditorOverlay extends StatefulWidget {
     this.zoom = 1.0,
     this.fontSize = 14.0,
     this.fontFamily = CellStyle.defaultFontFamily,
-    this.fontWeight = FontWeight.normal,
-    this.fontStyle = FontStyle.normal,
     this.textColor = const Color(0xFF000000),
+    this.backgroundColor,
     this.textAlign = TextAlign.left,
     this.cellPadding = 4.0,
     this.richText,
@@ -310,17 +306,15 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         : unzoomedWidth;
     final textAreaWidth = effectiveWidth - 2 * widget.cellPadding;
 
-    final textStyle = TextStyle(
+    final measureStyle = TextStyle(
       fontSize: widget.fontSize,
       fontFamily: widget.fontFamily,
-      fontWeight: widget.fontWeight,
-      fontStyle: widget.fontStyle,
       color: widget.textColor,
       package: WorksheetThemeData.resolveFontPackage(widget.fontFamily),
     );
 
     final contentMeasurer = TextPainter(
-      text: TextSpan(text: _textController.text, style: textStyle),
+      text: TextSpan(text: _textController.text, style: measureStyle),
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: textAreaWidth > 0 ? textAreaWidth : 0);
     final contentHeight = contentMeasurer.height;
@@ -497,8 +491,6 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     final textStyle = TextStyle(
       fontSize: widget.fontSize,
       fontFamily: widget.fontFamily,
-      fontWeight: widget.fontWeight,
-      fontStyle: widget.fontStyle,
       color: widget.textColor,
       package: WorksheetThemeData.resolveFontPackage(widget.fontFamily),
     );
@@ -592,34 +584,43 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       }
     }
 
-    return Positioned(
-      left: widget.cellBounds.left + leftPad * zoom,
-      top: widget.cellBounds.top + verticalOffset * zoom,
+    return Positioned.fromRect(
+      rect: widget.cellBounds,
       child: Transform.scale(
         scale: zoom,
         alignment: Alignment.topLeft,
-        child: FocusScope(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              minWidth: textAreaWidth,
-              maxWidth: textAreaWidth,
-            ),
-            child: _selectionGestureBuilder.buildGestureDetector(
-              behavior: HitTestBehavior.translucent,
-              child: EditableText(
-                key: _editableKey,
-                controller: _textController,
-                focusNode: _focusNode,
-                autofocus: true,
-                style: textStyle,
-                maxLines: widget.wrapText ? null : 1,
-                textAlign: widget.textAlign,
-                cursorHeight: cursorHeight,
-                cursorColor: widget.textColor,
-                backgroundCursorColor: const Color(0xFF808080),
-                onChanged: _onTextChanged,
-                rendererIgnoresPointer: true,
-                selectionColor: widget.textColor.withValues(alpha: 0.3),
+        child: SizedBox(
+          width: widget.cellBounds.width / zoom,
+          height: widget.cellBounds.height / zoom,
+          child: ColoredBox(
+            color: widget.backgroundColor ?? const Color(0x00000000),
+            child: Padding(
+              padding: EdgeInsets.only(left: leftPad, top: verticalOffset),
+              child: FocusScope(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minWidth: textAreaWidth,
+                    maxWidth: textAreaWidth,
+                  ),
+                  child: _selectionGestureBuilder.buildGestureDetector(
+                    behavior: HitTestBehavior.translucent,
+                    child: EditableText(
+                      key: _editableKey,
+                      controller: _textController,
+                      focusNode: _focusNode,
+                      autofocus: true,
+                      style: textStyle,
+                      maxLines: widget.wrapText ? null : 1,
+                      textAlign: widget.textAlign,
+                      cursorHeight: cursorHeight,
+                      cursorColor: widget.textColor,
+                      backgroundCursorColor: const Color(0xFF808080),
+                      onChanged: _onTextChanged,
+                      rendererIgnoresPointer: true,
+                      selectionColor: widget.textColor.withValues(alpha: 0.3),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),

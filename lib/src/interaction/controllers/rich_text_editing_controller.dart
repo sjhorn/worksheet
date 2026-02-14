@@ -98,6 +98,27 @@ class RichTextEditingController extends TextEditingController {
   /// Whether the controller has any non-null per-character styles.
   bool get hasRichStyles => _charStyles.any((s) => s != null);
 
+  /// Strips all per-character styles, making text plain.
+  void clearFormatting() {
+    _charStyles = List.filled(text.length, null, growable: true);
+    notifyListeners();
+  }
+
+  /// Strips per-character styles on the current selection only.
+  ///
+  /// If the selection is collapsed, this is a no-op.
+  void clearSelectionFormatting() {
+    final sel = selection;
+    if (!sel.isValid || sel.isCollapsed) return;
+
+    _syncLength();
+
+    for (int i = sel.start; i < sel.end; i++) {
+      _charStyles[i] = null;
+    }
+    notifyListeners();
+  }
+
   /// Toggles bold on the current selection.
   ///
   /// If all characters in the selection are bold, removes bold.

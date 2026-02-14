@@ -350,6 +350,7 @@ class _WorksheetState extends State<Worksheet>
 
   @override
   void invalidateAndRebuild() {
+    _cachedEditorOverlay = null;
     _tileManager.invalidateAll();
     _layoutVersion++;
     if (mounted) setState(() {});
@@ -373,6 +374,7 @@ class _WorksheetState extends State<Worksheet>
     MergeCellsHorizontallyIntent: MergeCellsHorizontallyAction(this),
     MergeCellsVerticallyIntent: MergeCellsVerticallyAction(this),
     UnmergeCellsIntent: UnmergeCellsAction(this),
+    SetCellStyleIntent: SetCellStyleAction(this),
     ToggleBoldIntent: ToggleBoldAction(this),
     ToggleItalicIntent: ToggleItalicAction(this),
     ToggleUnderlineIntent: ToggleUnderlineAction(this),
@@ -727,21 +729,23 @@ class _WorksheetState extends State<Worksheet>
       final text = entry.value.displayValue;
       if (text.isEmpty) continue;
 
-      final cellStyle = CellStyle.defaultStyle.merge(
-        widget.data.getStyle(entry.key),
+      final baseTextStyle = TextStyle(
+        fontSize: theme.fontSize,
+        fontFamily: theme.fontFamily,
+        package: WorksheetThemeData.resolveFontPackage(theme.fontFamily),
       );
-      final fontFamily = cellStyle.fontFamily ?? theme.fontFamily;
+
+      // Use rich text spans if available for accurate measurement
+      final richText = widget.data.getRichText(entry.key);
+      final TextSpan textSpan;
+      if (richText != null && richText.isNotEmpty) {
+        textSpan = TextSpan(style: baseTextStyle, children: richText);
+      } else {
+        textSpan = TextSpan(text: text, style: baseTextStyle);
+      }
+
       final tp = TextPainter(
-        text: TextSpan(
-          text: text,
-          style: TextStyle(
-            fontSize: cellStyle.fontSize ?? theme.fontSize,
-            fontFamily: fontFamily,
-            fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
-            fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
-            package: WorksheetThemeData.resolveFontPackage(fontFamily),
-          ),
-        ),
+        text: textSpan,
         textDirection: TextDirection.ltr,
       )..layout();
       if (tp.width > maxWidth) {
@@ -773,7 +777,6 @@ class _WorksheetState extends State<Worksheet>
       final cellStyle = CellStyle.defaultStyle.merge(
         widget.data.getStyle(entry.key),
       );
-      final fontFamily = cellStyle.fontFamily ?? theme.fontFamily;
       final wraps = cellStyle.wrapText ?? false;
       final double layoutWidth;
       if (wraps) {
@@ -784,17 +787,24 @@ class _WorksheetState extends State<Worksheet>
         // Non-wrapping: measure single-line height only.
         layoutWidth = double.infinity;
       }
+
+      final baseTextStyle = TextStyle(
+        fontSize: theme.fontSize,
+        fontFamily: theme.fontFamily,
+        package: WorksheetThemeData.resolveFontPackage(theme.fontFamily),
+      );
+
+      // Use rich text spans if available for accurate measurement
+      final richText = widget.data.getRichText(entry.key);
+      final TextSpan textSpan;
+      if (richText != null && richText.isNotEmpty) {
+        textSpan = TextSpan(style: baseTextStyle, children: richText);
+      } else {
+        textSpan = TextSpan(text: text, style: baseTextStyle);
+      }
+
       final tp = TextPainter(
-        text: TextSpan(
-          text: text,
-          style: TextStyle(
-            fontSize: cellStyle.fontSize ?? theme.fontSize,
-            fontFamily: fontFamily,
-            fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
-            fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
-            package: WorksheetThemeData.resolveFontPackage(fontFamily),
-          ),
-        ),
+        text: textSpan,
         textDirection: TextDirection.ltr,
       )..layout(maxWidth: layoutWidth);
       if (tp.height > maxHeight) {
@@ -1051,15 +1061,17 @@ class _WorksheetState extends State<Worksheet>
       widget.data.getStyle(cell),
     );
     final isWrap = cellStyle.wrapText == true;
-    final fontFamily = cellStyle.fontFamily ?? theme.fontFamily;
+
+    // Derive text style from rich text spans + theme defaults
+    final richText = widget.data.getRichText(cell);
+    final firstSpanStyle = richText?.firstOrNull?.style;
+    final fontFamily = firstSpanStyle?.fontFamily ?? theme.fontFamily;
 
     // Build TextStyle matching the tile painter's rendering
     final editorTextStyle = TextStyle(
-      fontSize: cellStyle.fontSize ?? theme.fontSize,
+      fontSize: firstSpanStyle?.fontSize ?? theme.fontSize,
       fontFamily: fontFamily,
-      fontWeight: cellStyle.fontWeight ?? FontWeight.normal,
-      fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
-      color: cellStyle.textColor ?? theme.textColor,
+      color: firstSpanStyle?.color ?? theme.textColor,
       package: WorksheetThemeData.resolveFontPackage(fontFamily),
     );
 
@@ -1440,6 +1452,7 @@ class _WorksheetState extends State<Worksheet>
 
   void _onDataChanged(DataChangeEvent event) {
     if (!_initialized) return;
+    _cachedEditorOverlay = null;
     switch (event.type) {
       case DataChangeType.cellValue:
       case DataChangeType.cellStyle:
@@ -2414,7 +2427,10 @@ class _WorksheetState extends State<Worksheet>
                             widget.data.getStyle(cell),
                           );
                           final isWrap = cellStyle.wrapText == true;
-                          final fontFamily = cellStyle.fontFamily ?? theme.fontFamily;
+
+                          // Extract effective style from rich text spans for the editor
+                          final richText = widget.data.getRichText(cell);
+                          final firstSpanStyle = richText?.firstOrNull?.style;
 
                           _cachedEditorCell = cell;
                           _cachedEditorCellBounds = adjustedBounds;
@@ -2429,12 +2445,10 @@ class _WorksheetState extends State<Worksheet>
                             onCancel: _onInternalCancel,
                             onCommitAndNavigate: _onInternalCommitAndNavigate,
                             zoom: currentZoom,
-                            fontSize: cellStyle.fontSize ?? theme.fontSize,
-                            fontFamily: fontFamily,
-                            fontWeight:
-                                cellStyle.fontWeight ?? FontWeight.normal,
-                            fontStyle: cellStyle.fontStyle ?? FontStyle.normal,
-                            textColor: cellStyle.textColor ?? theme.textColor,
+                            fontSize: firstSpanStyle?.fontSize ?? theme.fontSize,
+                            fontFamily: firstSpanStyle?.fontFamily ?? theme.fontFamily,
+                            textColor: firstSpanStyle?.color ?? theme.textColor,
+                            backgroundColor: cellStyle.backgroundColor,
                             textAlign: _toTextAlign(
                               cellStyle.textAlignment ??
                                   (widget.data.getCell(cell) != null
@@ -2443,7 +2457,7 @@ class _WorksheetState extends State<Worksheet>
                                       : null),
                             ),
                             cellPadding: theme.cellPadding,
-                            richText: widget.data.getRichText(cell),
+                            richText: richText,
                             verticalAlignment: cellStyle.verticalAlignment ??
                                 CellVerticalAlignment.middle,
                             wrapText: isWrap,

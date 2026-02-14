@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../core/models/cell_coordinate.dart';
+import '../core/models/cell_style.dart';
 
 /// Moves the selection focus by [rowDelta] rows and [columnDelta] columns.
 ///
@@ -199,4 +200,16 @@ class ToggleUnderlineIntent extends Intent {
 /// Enabled only when a cell is being edited. Used for Ctrl+Shift+S.
 class ToggleStrikethroughIntent extends Intent {
   const ToggleStrikethroughIntent();
+}
+
+/// Applies a [CellStyle] to the selected cells by merging it into each
+/// cell's existing style.
+///
+/// Works during editing — the cell editor overlay updates to reflect the
+/// new style. Only non-null fields in [style] override existing values.
+class SetCellStyleIntent extends Intent {
+  /// The style to merge into each selected cell's existing style.
+  final CellStyle style;
+
+  const SetCellStyleIntent(this.style);
 }

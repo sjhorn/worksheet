@@ -16,10 +16,12 @@ class _WrapTextDemoState extends State<WrapTextDemo> {
 
   static const _wrapStyle = CellStyle(wrapText: true);
   static const _headerStyle = CellStyle(
-    fontWeight: FontWeight.bold,
     backgroundColor: Color(0xFF4472C4),
-    textColor: Color(0xFFFFFFFF),
     textAlignment: CellTextAlignment.center,
+  );
+  static const _headerTextStyle = TextStyle(
+    fontWeight: FontWeight.bold,
+    color: Color(0xFFFFFFFF),
   );
 
   @override
@@ -32,9 +34,19 @@ class _WrapTextDemoState extends State<WrapTextDemo> {
       columnCount: 10,
       cells: {
         // Header
-        (0, 0): Cell.text('Feature', style: _headerStyle),
-        (0, 1): Cell.text('Description', style: _headerStyle),
-        (0, 2): Cell.text('Alignment', style: _headerStyle),
+        (0, 0): Cell.text('Feature',
+            style: _headerStyle,
+            richText: [TextSpan(text: 'Feature', style: _headerTextStyle)]),
+        (0, 1): Cell.text('Description',
+            style: _headerStyle,
+            richText: [
+              TextSpan(text: 'Description', style: _headerTextStyle)
+            ]),
+        (0, 2): Cell.text('Alignment',
+            style: _headerStyle,
+            richText: [
+              TextSpan(text: 'Alignment', style: _headerTextStyle)
+            ]),
 
         // Explicit newlines with wrapText
         (1, 0): Cell.text('Newlines'),
@@ -91,7 +103,12 @@ class _WrapTextDemoState extends State<WrapTextDemo> {
         // Instructions
         (8, 0): Cell.text(
           'Try editing',
-          style: const CellStyle(fontWeight: FontWeight.bold),
+          richText: const [
+            TextSpan(
+              text: 'Try editing',
+              style: TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
         (8, 1): Cell.text(
           'Double-tap a wrapped cell, then press Alt+Enter to insert a newline.',
