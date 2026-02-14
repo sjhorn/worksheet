@@ -1067,11 +1067,13 @@ class _WorksheetState extends State<Worksheet>
     final firstSpanStyle = richText?.firstOrNull?.style;
     final fontFamily = firstSpanStyle?.fontFamily ?? theme.fontFamily;
 
-    // Build TextStyle matching the tile painter's rendering
+    // Build TextStyle matching the tile painter's rendering.
+    // Always use theme.textColor as the base — per-character colors are
+    // carried by rich text spans and must not bleed into the base style.
     final editorTextStyle = TextStyle(
       fontSize: firstSpanStyle?.fontSize ?? theme.fontSize,
       fontFamily: fontFamily,
-      color: firstSpanStyle?.color ?? theme.textColor,
+      color: theme.textColor,
       package: WorksheetThemeData.resolveFontPackage(fontFamily),
     );
 
@@ -2447,7 +2449,7 @@ class _WorksheetState extends State<Worksheet>
                             zoom: currentZoom,
                             fontSize: firstSpanStyle?.fontSize ?? theme.fontSize,
                             fontFamily: firstSpanStyle?.fontFamily ?? theme.fontFamily,
-                            textColor: firstSpanStyle?.color ?? theme.textColor,
+                            textColor: theme.textColor,
                             backgroundColor: cellStyle.backgroundColor,
                             textAlign: _toTextAlign(
                               cellStyle.textAlignment ??

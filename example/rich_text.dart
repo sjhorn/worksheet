@@ -151,6 +151,33 @@ class _RichTextDemoState extends State<RichTextDemo> {
     setState(() {});
   }
 
+  /// Sets the text color on the selection's rich text spans.
+  void _setTextColor(Color color) {
+    if (_editController.isEditing) {
+      _editController.richTextController?.setColor(color);
+      setState(() {});
+      return;
+    }
+    final range = _controller.selectionController.selectedRange;
+    if (range == null) return;
+
+    for (int r = range.startRow; r <= range.endRow; r++) {
+      for (int c = range.startColumn; c <= range.endColumn; c++) {
+        final coord = CellCoordinate(r, c);
+        final spans = _ensureSpans(coord);
+        if (spans.isEmpty) continue;
+        final colored = spans
+            .map((s) => TextSpan(
+                  text: s.text,
+                  style: (s.style ?? const TextStyle()).copyWith(color: color),
+                ))
+            .toList();
+        _data.setRichText(coord, colored);
+      }
+    }
+    setState(() {});
+  }
+
   List<TextSpan> _ensureSpans(CellCoordinate coord) {
     final existing = _data.getRichText(coord);
     if (existing != null && existing.isNotEmpty) return existing;
@@ -223,6 +250,37 @@ class _RichTextDemoState extends State<RichTextDemo> {
         runSpacing: 4,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
+          // --- Text color buttons ---
+          const Text('Text:', style: TextStyle(fontSize: 12)),
+          _ColorButton(
+            color: const Color(0xFFE91E63),
+            tooltip: 'Pink text',
+            onPressed: _hasSelection
+                ? () => _setTextColor(const Color(0xFFE91E63))
+                : null,
+          ),
+          _ColorButton(
+            color: const Color(0xFF2196F3),
+            tooltip: 'Blue text',
+            onPressed: _hasSelection
+                ? () => _setTextColor(const Color(0xFF2196F3))
+                : null,
+          ),
+          _ColorButton(
+            color: const Color(0xFF4CAF50),
+            tooltip: 'Green text',
+            onPressed: _hasSelection
+                ? () => _setTextColor(const Color(0xFF4CAF50))
+                : null,
+          ),
+          _ColorButton(
+            color: const Color(0xFF000000),
+            tooltip: 'Black text (default)',
+            onPressed: _hasSelection
+                ? () => _setTextColor(const Color(0xFF000000))
+                : null,
+          ),
+          const VerticalDivider(width: 16),
           // --- Background color buttons ---
           const Text('BG:', style: TextStyle(fontSize: 12)),
           _ColorButton(

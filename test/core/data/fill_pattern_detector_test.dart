@@ -1,5 +1,4 @@
-import 'dart:ui';
-
+import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/fill_pattern_detector.dart';
 import 'package:worksheet/src/core/models/cell.dart';
@@ -130,6 +129,24 @@ void main() {
         expect(generated?.value, CellValue.number(400));
         expect(generated?.format, CellFormat.currency);
       });
+
+      test('preserves richText through generate', () {
+        const spans = [
+          TextSpan(
+            text: '1',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ];
+        final pattern = FillPatternDetector.detect([
+          Cell.number(1, richText: spans),
+          Cell.number(2, richText: spans),
+          Cell.number(3, richText: spans),
+        ]);
+
+        final generated = pattern.generate(3);
+        expect(generated?.value, CellValue.number(4));
+        expect(generated?.richText, spans);
+      });
     });
 
     group('date sequence pattern', () {
@@ -174,6 +191,24 @@ void main() {
 
         final generated = pattern.generate(2);
         expect(generated?.style, style);
+      });
+
+      test('preserves richText on dates', () {
+        const spans = [
+          TextSpan(
+            text: '2024-01-01',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ];
+        final pattern = FillPatternDetector.detect([
+          Cell(value: CellValue.date(DateTime(2024, 1, 1)), richText: spans),
+          Cell(value: CellValue.date(DateTime(2024, 1, 2)), richText: spans),
+          Cell(value: CellValue.date(DateTime(2024, 1, 3)), richText: spans),
+        ]);
+
+        final generated = pattern.generate(3);
+        expect(generated?.value, CellValue.date(DateTime(2024, 1, 4)));
+        expect(generated?.richText, spans);
       });
     });
 
@@ -222,6 +257,24 @@ void main() {
         final generated = pattern.generate(3);
         expect(generated?.value, CellValue.text('A4'));
         expect(generated?.style, style);
+      });
+
+      test('preserves richText on text suffix pattern', () {
+        const spans = [
+          TextSpan(
+            text: 'A1',
+            style: TextStyle(decoration: TextDecoration.underline),
+          ),
+        ];
+        final pattern = FillPatternDetector.detect([
+          Cell.text('A1', richText: spans),
+          Cell.text('A2', richText: spans),
+          Cell.text('A3', richText: spans),
+        ]);
+
+        final generated = pattern.generate(3);
+        expect(generated?.value, CellValue.text('A4'));
+        expect(generated?.richText, spans);
       });
     });
 

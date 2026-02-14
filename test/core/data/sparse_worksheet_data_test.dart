@@ -854,6 +854,24 @@ void main() {
           }
         }
       });
+
+      test('copies richText from source', () {
+        const spans = [
+          TextSpan(
+            text: 'bold',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ];
+        data[(0, 0)] = Cell.text('bold', richText: spans);
+
+        data.fillRange(
+          CellCoordinate(0, 0),
+          CellRange(1, 0, 2, 0),
+        );
+
+        expect(data.getRichText(CellCoordinate(1, 0)), spans);
+        expect(data.getRichText(CellCoordinate(2, 0)), spans);
+      });
     });
 
     group('smartFill', () {
@@ -1066,6 +1084,50 @@ void main() {
         expect(data.getCell(CellCoordinate(2, 0)), CellValue.number(30));
         expect(data.getStyle(CellCoordinate(2, 0))?.backgroundColor, const Color(0xFFFF0000));
         expect(data.getFormat(CellCoordinate(2, 0)), CellFormat.currency);
+      });
+
+      test('preserves richText through smartFill', () {
+        const spans = [
+          TextSpan(
+            text: '10',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ];
+        data[(0, 0)] = Cell.number(10, richText: spans);
+        data[(1, 0)] = Cell.number(20, richText: spans);
+        data[(2, 0)] = Cell.number(30, richText: spans);
+
+        data.smartFill(
+          CellRange(0, 0, 2, 0),
+          CellCoordinate(4, 0),
+        );
+
+        expect(data.getCell(CellCoordinate(3, 0)), CellValue.number(40));
+        expect(data.getRichText(CellCoordinate(3, 0)), spans);
+        expect(data.getCell(CellCoordinate(4, 0)), CellValue.number(50));
+        expect(data.getRichText(CellCoordinate(4, 0)), spans);
+      });
+
+      test('preserves richText through smartFill right', () {
+        const spans = [
+          TextSpan(
+            text: 'Q1',
+            style: TextStyle(decoration: TextDecoration.underline),
+          ),
+        ];
+        data[(0, 0)] = Cell.text('Q1', richText: spans);
+        data[(0, 1)] = Cell.text('Q2', richText: spans);
+        data[(0, 2)] = Cell.text('Q3', richText: spans);
+
+        data.smartFill(
+          CellRange(0, 0, 0, 2),
+          CellCoordinate(0, 4),
+        );
+
+        expect(data.getCell(CellCoordinate(0, 3)), CellValue.text('Q4'));
+        expect(data.getRichText(CellCoordinate(0, 3)), spans);
+        expect(data.getCell(CellCoordinate(0, 4)), CellValue.text('Q5'));
+        expect(data.getRichText(CellCoordinate(0, 4)), spans);
       });
     });
 

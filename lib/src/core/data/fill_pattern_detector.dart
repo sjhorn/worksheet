@@ -105,9 +105,10 @@ class FillPatternDetector {
     }
 
     final startValue = numbers[0];
-    // Use the first cell's style and format as template
+    // Use the first cell's style, format, and richText as template
     final templateStyle = cells[0]?.style;
     final templateFormat = cells[0]?.format;
+    final templateRichText = cells[0]?.richText;
 
     return FillPattern._(FillPatternType.linearNumeric, (index) {
       final value = startValue + step * index;
@@ -115,6 +116,7 @@ class FillPatternDetector {
         value: CellValue.number(value),
         style: templateStyle,
         format: templateFormat,
+        richText: templateRichText,
       );
     });
   }
@@ -142,6 +144,7 @@ class FillPatternDetector {
     final startDate = dates[0];
     final templateStyle = cells[0]?.style;
     final templateFormat = cells[0]?.format;
+    final templateRichText = cells[0]?.richText;
 
     return FillPattern._(FillPatternType.dateSequence, (index) {
       final date = startDate.add(Duration(days: stepDays * index));
@@ -149,6 +152,7 @@ class FillPatternDetector {
         value: CellValue.date(date),
         style: templateStyle,
         format: templateFormat,
+        richText: templateRichText,
       );
     });
   }
@@ -187,6 +191,7 @@ class FillPatternDetector {
     final startSuffix = suffixNumbers[0];
     final templateStyle = cells[0]?.style;
     final templateFormat = cells[0]?.format;
+    final templateRichText = cells[0]?.richText;
 
     return FillPattern._(FillPatternType.textWithNumericSuffix, (index) {
       final suffix = startSuffix + step * index;
@@ -194,6 +199,7 @@ class FillPatternDetector {
         value: CellValue.text('$prefix$suffix'),
         style: templateStyle,
         format: templateFormat,
+        richText: templateRichText,
       );
     });
   }

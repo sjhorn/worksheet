@@ -659,6 +659,9 @@ class SparseWorksheetData implements WorksheetData {
             if (cell.format != null) {
               batch.setFormat(coord, cell.format);
             }
+            if (cell.richText != null) {
+              batch.setRichText(coord, cell.richText);
+            }
           }
         }
       }
@@ -762,6 +765,7 @@ class SparseWorksheetData implements WorksheetData {
               if (cell.value != null) batch.setCell(coord, cell.value);
               if (cell.style != null) batch.setStyle(coord, cell.style);
               if (cell.format != null) batch.setFormat(coord, cell.format);
+              if (cell.richText != null) batch.setRichText(coord, cell.richText);
             }
           }
         }
@@ -797,6 +801,7 @@ class SparseWorksheetData implements WorksheetData {
                 if (cell.value != null) batch.setCell(coord, cell.value);
                 if (cell.style != null) batch.setStyle(coord, cell.style);
                 if (cell.format != null) batch.setFormat(coord, cell.format);
+                if (cell.richText != null) batch.setRichText(coord, cell.richText);
               }
             }
           } else {
@@ -812,6 +817,7 @@ class SparseWorksheetData implements WorksheetData {
                 if (cell.value != null) batch.setCell(coord, cell.value);
                 if (cell.style != null) batch.setStyle(coord, cell.style);
                 if (cell.format != null) batch.setFormat(coord, cell.format);
+                if (cell.richText != null) batch.setRichText(coord, cell.richText);
               }
             }
           }
@@ -844,6 +850,7 @@ class SparseWorksheetData implements WorksheetData {
                 if (cell.value != null) batch.setCell(coord, cell.value);
                 if (cell.style != null) batch.setStyle(coord, cell.style);
                 if (cell.format != null) batch.setFormat(coord, cell.format);
+                if (cell.richText != null) batch.setRichText(coord, cell.richText);
               }
             }
           } else {
@@ -859,6 +866,7 @@ class SparseWorksheetData implements WorksheetData {
                 if (cell.value != null) batch.setCell(coord, cell.value);
                 if (cell.style != null) batch.setStyle(coord, cell.style);
                 if (cell.format != null) batch.setFormat(coord, cell.format);
+                if (cell.richText != null) batch.setRichText(coord, cell.richText);
               }
             }
           }

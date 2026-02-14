@@ -380,6 +380,57 @@ void main() {
           return const SizedBox();
         }));
       });
+
+      testWidgets(
+        'first span color does not bleed into other spans',
+        (tester) async {
+          // Reproduces: cell with colored first span + uncolored later spans.
+          // The base style (parent) should use the theme default, NOT the
+          // first span's color; otherwise the uncolored spans inherit it.
+          const pink = Color(0xFFE91E63);
+          controller.initFromSpans(const [
+            TextSpan(
+              text: 'Mixed',
+              style: TextStyle(fontWeight: FontWeight.bold, color: pink),
+            ),
+            TextSpan(text: ' '),
+            TextSpan(
+              text: 'formatting',
+              style: TextStyle(fontStyle: FontStyle.italic),
+            ),
+          ]);
+
+          await tester.pumpWidget(Builder(builder: (context) {
+            // Base style uses the theme default (black), not the first span's
+            // color.  This is what CellEditorOverlay should pass.
+            final span = controller.buildTextSpan(
+              context: context,
+              style: const TextStyle(fontSize: 14, color: Color(0xFF000000)),
+              withComposing: false,
+            );
+
+            expect(span.children, isNotNull);
+            expect(span.children!.length, 3);
+
+            final first = span.children![0] as TextSpan;
+            final space = span.children![1] as TextSpan;
+            final third = span.children![2] as TextSpan;
+
+            // First span keeps its explicit pink color
+            expect(first.style!.color, pink);
+            // Space and 'formatting' have no explicit color — they inherit the
+            // parent (base) style color, which must be black (theme default).
+            expect(space.style?.color, isNull,
+                reason: 'uncolored span should not have an explicit color');
+            expect(third.style?.color, isNull,
+                reason: 'uncolored span should not have an explicit color');
+
+            // The parent style must be the theme default, not pink
+            expect(span.style!.color, const Color(0xFF000000));
+            return const SizedBox();
+          }));
+        },
+      );
     });
 
     group('pending style (collapsed selection)', () {
