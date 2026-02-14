@@ -71,7 +71,10 @@ abstract class WorksheetData {
   void clearRange(CellRange range);
 
   /// Pattern fill from range to target cell - either override this or provide a generator
-  void smartFill(
+  ///
+  /// Returns the full filled range (source + target, possibly expanded to
+  /// complete merge tiles), or null when no fill occurred.
+  CellRange? smartFill(
     CellRange range,
     CellCoordinate destination, [
     Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,

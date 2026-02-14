@@ -89,12 +89,13 @@ class _MinimalWorksheetData extends WorksheetData {
   }
 
   @override
-  void smartFill(
+  CellRange? smartFill(
     CellRange range,
     CellCoordinate destination, [
     Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
   ]) {
     // Minimal implementation
+    return null;
   }
 
   final MergedCellRegistry _mergedCells = MergedCellRegistry();

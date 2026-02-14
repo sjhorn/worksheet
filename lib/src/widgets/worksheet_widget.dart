@@ -639,10 +639,11 @@ class _WorksheetState extends State<Worksheet>
       onFillComplete: widget.readOnly
           ? null
           : (sourceRange, destination) {
-              widget.data.smartFill(sourceRange, destination);
-              _controller.selectionController.selectRange(
-                sourceRange.expand(destination),
-              );
+              final filledRange =
+                  widget.data.smartFill(sourceRange, destination);
+              if (filledRange != null) {
+                _controller.selectionController.selectRange(filledRange);
+              }
               _selectionLayer.fillPreviewRange = null;
               _tileManager.invalidateAll();
               _layoutVersion++;

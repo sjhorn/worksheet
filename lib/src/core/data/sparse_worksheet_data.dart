@@ -591,7 +591,7 @@ class SparseWorksheetData implements WorksheetData {
   }
 
   @override
-  void smartFill(
+  CellRange? smartFill(
     CellRange range,
     CellCoordinate destination, [
     Cell? Function(CellCoordinate coord, Cell? sourceCell)? valueGenerator,
@@ -629,7 +629,49 @@ class SparseWorksheetData implements WorksheetData {
         endCol,
       );
     } else {
-      return; // destination is inside the source range, nothing to do
+      return null; // destination is inside the source range, nothing to do
+    }
+
+    // Expand target to complete merge tiles if source has merges
+    final hasSourceMerges = _mergedCells.regions.any((region) {
+      final r = region.range;
+      return r.startRow >= range.startRow &&
+          r.endRow <= range.endRow &&
+          r.startColumn >= range.startColumn &&
+          r.endColumn <= range.endColumn;
+    });
+    if (hasSourceMerges) {
+      if (vertical) {
+        final sourceHeight = range.rowCount;
+        final remainder = targetRange.rowCount % sourceHeight;
+        if (remainder > 0) {
+          final expansion = sourceHeight - remainder;
+          if (fillDown && targetRange.endRow + expansion < rowCount) {
+            targetRange = targetRange.copyWith(
+              endRow: targetRange.endRow + expansion,
+            );
+          } else if (fillUp && targetRange.startRow - expansion >= 0) {
+            targetRange = targetRange.copyWith(
+              startRow: targetRange.startRow - expansion,
+            );
+          }
+        }
+      } else {
+        final sourceWidth = range.columnCount;
+        final remainder = targetRange.columnCount % sourceWidth;
+        if (remainder > 0) {
+          final expansion = sourceWidth - remainder;
+          if (fillRight && targetRange.endColumn + expansion < columnCount) {
+            targetRange = targetRange.copyWith(
+              endColumn: targetRange.endColumn + expansion,
+            );
+          } else if (fillLeft && targetRange.startColumn - expansion >= 0) {
+            targetRange = targetRange.copyWith(
+              startColumn: targetRange.startColumn - expansion,
+            );
+          }
+        }
+      }
     }
 
     batchUpdate((batch) {
@@ -754,6 +796,8 @@ class SparseWorksheetData implements WorksheetData {
       targetRange: targetRange,
       vertical: vertical,
     );
+
+    return range.union(targetRange);
   }
 }
 

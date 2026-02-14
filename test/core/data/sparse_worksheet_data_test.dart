@@ -1413,6 +1413,209 @@ void main() {
           CellRange(0, 2, 1, 2),
         );
       });
+
+      test('fill down expands for incomplete tile', () {
+        // Source: rows 0-1 with a 2-row merge in cols 0-1
+        data[(0, 0)] = Cell.number(1);
+        data.mergeCells(CellRange(0, 0, 1, 0));
+
+        // Drag to row 4 → target is rows 2-4 (3 rows, not divisible by 2)
+        final result = data.smartFill(
+          CellRange(0, 0, 1, 0),
+          CellCoordinate(4, 0),
+        );
+
+        // Should expand to row 5 (4 target rows = 2 complete tiles)
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(2, 0))!.range,
+          CellRange(2, 0, 3, 0),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(4, 0))!.range,
+          CellRange(4, 0, 5, 0),
+        );
+        expect(result, CellRange(0, 0, 5, 0));
+      });
+
+      test('fill right expands for incomplete tile', () {
+        // Source: cols 0-1 with a 1×2 merge in row 0
+        data[(0, 0)] = Cell.number(1);
+        data.mergeCells(CellRange(0, 0, 0, 1));
+
+        // Drag to col 4 → target is cols 2-4 (3 cols, not divisible by 2)
+        final result = data.smartFill(
+          CellRange(0, 0, 0, 1),
+          CellCoordinate(0, 4),
+        );
+
+        // Should expand to col 5 (4 target cols = 2 complete tiles)
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 2))!.range,
+          CellRange(0, 2, 0, 3),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 4))!.range,
+          CellRange(0, 4, 0, 5),
+        );
+        expect(result, CellRange(0, 0, 0, 5));
+      });
+
+      test('fill up expands startRow', () {
+        // Source: rows 8-9 with a 2-row merge
+        data[(8, 0)] = Cell.number(1);
+        data.mergeCells(CellRange(8, 0, 9, 0));
+
+        // Fill up to row 6 → target is rows 6-7 (2 rows = exact fit)
+        // Now try with 3-row gap: fill up to row 5 → target rows 5-7
+        final result = data.smartFill(
+          CellRange(8, 0, 9, 0),
+          CellCoordinate(5, 0),
+        );
+
+        // Should expand startRow to 4 (4 target rows = 2 complete tiles)
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(4, 0))!.range,
+          CellRange(4, 0, 5, 0),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(6, 0))!.range,
+          CellRange(6, 0, 7, 0),
+        );
+        expect(result, CellRange(4, 0, 9, 0));
+      });
+
+      test('fill left expands startColumn', () {
+        // Source: cols 8-9 with a 1×2 merge
+        data[(0, 8)] = Cell.number(1);
+        data.mergeCells(CellRange(0, 8, 0, 9));
+
+        // Fill left to col 5 → target cols 5-7 (3 cols, not divisible by 2)
+        final result = data.smartFill(
+          CellRange(0, 8, 0, 9),
+          CellCoordinate(0, 5),
+        );
+
+        // Should expand startColumn to 4 (4 target cols = 2 complete tiles)
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 4))!.range,
+          CellRange(0, 4, 0, 5),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(0, 6))!.range,
+          CellRange(0, 6, 0, 7),
+        );
+        expect(result, CellRange(0, 4, 0, 9));
+      });
+
+      test('no expansion when evenly divisible', () {
+        // Source: rows 0-1 with a 2-row merge
+        data[(0, 0)] = Cell.number(1);
+        data.mergeCells(CellRange(0, 0, 1, 0));
+
+        // Drag to row 5 → target is rows 2-5 (4 rows, divisible by 2)
+        final result = data.smartFill(
+          CellRange(0, 0, 1, 0),
+          CellCoordinate(5, 0),
+        );
+
+        // Exactly 2 tiles, no expansion needed
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(2, 0))!.range,
+          CellRange(2, 0, 3, 0),
+        );
+        expect(
+          data.mergedCells.getRegion(CellCoordinate(4, 0))!.range,
+          CellRange(4, 0, 5, 0),
+        );
+        expect(result, CellRange(0, 0, 5, 0));
+      });
+
+      test('no expansion when no merges', () {
+        // Source: rows 0-1 with plain values, no merges
+        data[(0, 0)] = Cell.number(1);
+        data[(1, 0)] = Cell.number(2);
+
+        // Drag to row 4 → target is rows 2-4 (3 rows)
+        final result = data.smartFill(
+          CellRange(0, 0, 1, 0),
+          CellCoordinate(4, 0),
+        );
+
+        // No expansion — return is source union original target
+        expect(result, CellRange(0, 0, 4, 0));
+      });
+
+      test('no expansion when exceeds worksheet bounds', () {
+        // Small worksheet
+        final smallData =
+            SparseWorksheetData(rowCount: 5, columnCount: 5);
+
+        // Source: rows 0-1 with a 2-row merge
+        smallData[(0, 0)] = Cell.number(1);
+        smallData.mergeCells(CellRange(0, 0, 1, 0));
+
+        // Drag to row 4 → target rows 2-4, expansion would need row 5
+        // but rowCount is 5 so max row is 4
+        final result = smallData.smartFill(
+          CellRange(0, 0, 1, 0),
+          CellCoordinate(4, 0),
+        );
+
+        // Only 1 complete tile (rows 2-3), row 4 is unfilled merge
+        expect(
+          smallData.mergedCells.getRegion(CellCoordinate(2, 0))!.range,
+          CellRange(2, 0, 3, 0),
+        );
+        // No merge at row 4 since expansion was blocked
+        expect(smallData.mergedCells.getRegion(CellCoordinate(4, 0)), isNull);
+        expect(result, CellRange(0, 0, 4, 0));
+
+        smallData.dispose();
+      });
+
+      test('returns null when destination inside source', () {
+        data[(0, 0)] = Cell.number(1);
+        data.mergeCells(CellRange(0, 0, 1, 0));
+
+        final result = data.smartFill(
+          CellRange(0, 0, 3, 0),
+          CellCoordinate(2, 0),
+        );
+
+        expect(result, isNull);
+      });
+
+      test('values also fill expanded area', () {
+        // Source: rows 0-1 with merge and a pattern
+        data[(0, 0)] = Cell.number(10);
+        data[(1, 0)] = Cell.number(20);
+        data.mergeCells(CellRange(0, 1, 1, 1)); // merge in col 1
+
+        // Drag to row 4 → target rows 2-4, expanded to row 5
+        data.smartFill(
+          CellRange(0, 0, 1, 1),
+          CellCoordinate(4, 0),
+        );
+
+        // Values in col 0 should fill the expanded area too
+        expect(data.getCell(CellCoordinate(4, 0)), isNotNull);
+        expect(data.getCell(CellCoordinate(5, 0)), isNotNull);
+      });
+
+      test('return value includes expanded area', () {
+        // Source: rows 0-1 with 2-row merge
+        data[(0, 0)] = Cell.number(1);
+        data.mergeCells(CellRange(0, 0, 1, 0));
+
+        // Drag to row 4 → target rows 2-4, should expand to row 5
+        final result = data.smartFill(
+          CellRange(0, 0, 1, 0),
+          CellCoordinate(4, 0),
+        );
+
+        // Result should cover source (0-1) union expanded target (2-5)
+        expect(result, CellRange(0, 0, 5, 0));
+      });
     });
   });
 }
