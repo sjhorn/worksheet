@@ -75,7 +75,6 @@ class _MinimalWorksheetData extends WorksheetData {
   Future<void> batchUpdateAsync(
     Future<void> Function(WorksheetDataBatch batch) updates,
   ) {
-    // TODO: implement batchUpdateAsync
     throw UnimplementedError();
   }
 
