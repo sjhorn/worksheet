@@ -162,7 +162,7 @@ void main() {
     });
 
     group('hitTest - corner', () {
-      test('returns none for corner area', () {
+      test('returns cornerCell for corner area', () {
         // x < headerWidth, y < headerHeight
         final result = hitTester.hitTest(
           position: const Offset(25, 15),
@@ -170,7 +170,20 @@ void main() {
           zoom: 1.0,
         );
 
-        expect(result.type, HitTestType.none);
+        expect(result.type, HitTestType.cornerCell);
+        expect(result.isCornerCell, isTrue);
+      });
+
+      test('returns cornerCell with zoom', () {
+        // At zoom 2.0, headers are scaled: (50*2, 30*2) = (100, 60)
+        // Tap at (50, 30) is within scaled headers
+        final result = hitTester.hitTest(
+          position: const Offset(50, 30),
+          scrollOffset: Offset.zero,
+          zoom: 2.0,
+        );
+
+        expect(result.type, HitTestType.cornerCell);
       });
     });
 

@@ -687,6 +687,12 @@ class _WorksheetState extends State<Worksheet>
           : (from, rowDelta, colDelta) {
               _jumpToDataEdge(from, rowDelta, colDelta);
             },
+      onSelectAll: () {
+        if (widget.editController?.isEditing == true) return;
+        _controller.selectionController.selectRange(
+          CellRange(0, 0, maxRow - 1, maxColumn - 1),
+        );
+      },
     );
   }
 

@@ -198,10 +198,42 @@ void main() {
       });
 
       test('tap outside worksheet area does nothing', () {
-        // Tap in header corner (should not select)
-        handler.onTapDown(position: const Offset(25.0, 15.0), scrollOffset: Offset.zero, zoom: 1.0);
-        handler.onTapUp(position: const Offset(25.0, 15.0), scrollOffset: Offset.zero, zoom: 1.0);
+        // Tap at negative coordinates (should not select)
+        handler.onTapDown(position: const Offset(-10.0, -10.0), scrollOffset: Offset.zero, zoom: 1.0);
+        handler.onTapUp(position: const Offset(-10.0, -10.0), scrollOffset: Offset.zero, zoom: 1.0);
 
+        expect(selectionController.hasSelection, isFalse);
+      });
+    });
+
+    group('corner cell tap', () {
+      test('tap on corner cell calls onSelectAll', () {
+        var selectAllCalled = false;
+        final handlerWithSelectAll = WorksheetGestureHandler(
+          hitTester: hitTester,
+          selectionController: selectionController,
+          onSelectAll: () => selectAllCalled = true,
+        );
+
+        // Tap in corner area: x < headerWidth (50), y < headerHeight (30)
+        handlerWithSelectAll.onTapDown(
+          position: const Offset(25.0, 15.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        expect(selectAllCalled, isTrue);
+      });
+
+      test('tap on corner cell without callback does not throw', () {
+        // Default handler has no onSelectAll callback
+        handler.onTapDown(
+          position: const Offset(25.0, 15.0),
+          scrollOffset: Offset.zero,
+          zoom: 1.0,
+        );
+
+        // Should not throw or change selection
         expect(selectionController.hasSelection, isFalse);
       });
     });

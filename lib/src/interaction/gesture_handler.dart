@@ -59,6 +59,9 @@ typedef OnAutoFitRow = void Function(int row);
 typedef OnJumpToEdge = void Function(
     CellCoordinate from, int rowDelta, int colDelta);
 
+/// Callback for selecting all cells (corner cell tap).
+typedef OnSelectAll = void Function();
+
 /// Handles gesture events for worksheet interaction.
 ///
 /// Coordinates between hit testing and selection/resize operations.
@@ -115,6 +118,9 @@ class WorksheetGestureHandler {
   /// Callback for jumping to a data edge (Ctrl+Arrow behavior).
   final OnJumpToEdge? onJumpToEdge;
 
+  /// Callback for selecting all cells (corner cell tap).
+  final OnSelectAll? onSelectAll;
+
   // Internal state
   WorksheetHitTestResult? _dragStartHit;
   Offset? _dragStartPosition;
@@ -150,6 +156,7 @@ class WorksheetGestureHandler {
     this.onAutoFitColumn,
     this.onAutoFitRow,
     this.onJumpToEdge,
+    this.onSelectAll,
   });
 
   /// Whether a resize operation is in progress.
@@ -201,7 +208,9 @@ class WorksheetGestureHandler {
       return;
     }
 
-    if (hit.isCell) {
+    if (hit.isCornerCell) {
+      onSelectAll?.call();
+    } else if (hit.isCell) {
       if (isShiftPressed && selectionController.hasSelection) {
         selectionController.extendSelection(hit.cell!);
       } else {

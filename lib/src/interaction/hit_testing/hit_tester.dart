@@ -54,9 +54,9 @@ class WorksheetHitTester {
     final inRowHeader = position.dx < scaledHeaderWidth;
     final inColumnHeader = position.dy < scaledHeaderHeight;
 
-    // Corner area - neither header nor cell
+    // Corner area - intersection of row and column headers
     if (inRowHeader && inColumnHeader) {
-      return const WorksheetHitTestResult.none();
+      return const WorksheetHitTestResult.cornerCell();
     }
 
     // Convert position to worksheet coordinates

@@ -14,6 +14,7 @@ void main() {
         HitTestType.columnResizeHandle,
         HitTestType.fillHandle,
         HitTestType.selectionBorder,
+        HitTestType.cornerCell,
       ]));
     });
   });
@@ -148,6 +149,33 @@ void main() {
       });
     });
 
+    group('cornerCell', () {
+      test('creates corner cell result', () {
+        const result = WorksheetHitTestResult.cornerCell();
+
+        expect(result.type, HitTestType.cornerCell);
+        expect(result.cell, isNull);
+        expect(result.headerIndex, isNull);
+        expect(result.isCornerCell, isTrue);
+        expect(result.isHeader, isTrue);
+        expect(result.isCell, isFalse);
+        expect(result.isNone, isFalse);
+      });
+
+      test('toString contains cornerCell', () {
+        const result = WorksheetHitTestResult.cornerCell();
+        expect(result.toString(), 'WorksheetHitTestResult.cornerCell');
+      });
+
+      test('equality works for corner cell', () {
+        const a = WorksheetHitTestResult.cornerCell();
+        const b = WorksheetHitTestResult.cornerCell();
+
+        expect(a, b);
+        expect(a.hashCode, b.hashCode);
+      });
+    });
+
     group('convenience getters', () {
       test('isHeader returns true for row header', () {
         const result = WorksheetHitTestResult.rowHeader(0);
@@ -156,6 +184,11 @@ void main() {
 
       test('isHeader returns true for column header', () {
         const result = WorksheetHitTestResult.columnHeader(0);
+        expect(result.isHeader, isTrue);
+      });
+
+      test('isHeader returns true for corner cell', () {
+        const result = WorksheetHitTestResult.cornerCell();
         expect(result.isHeader, isTrue);
       });
 

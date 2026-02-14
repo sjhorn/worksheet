@@ -28,6 +28,9 @@ enum HitTestType {
 
   /// A selection handle (touch drag circle) was hit.
   selectionHandle,
+
+  /// The corner cell (intersection of row and column headers) was hit.
+  cornerCell,
 }
 
 /// Result of a hit test on the worksheet.
@@ -46,6 +49,12 @@ class WorksheetHitTestResult {
   /// Creates a result indicating nothing was hit.
   const WorksheetHitTestResult.none()
       : type = HitTestType.none,
+        cell = null,
+        headerIndex = null;
+
+  /// Creates a result indicating the corner cell was hit.
+  const WorksheetHitTestResult.cornerCell()
+      : type = HitTestType.cornerCell,
         cell = null,
         headerIndex = null;
 
@@ -109,8 +118,11 @@ class WorksheetHitTestResult {
   /// Whether a column header was hit.
   bool get isColumnHeader => type == HitTestType.columnHeader;
 
+  /// Whether the corner cell was hit.
+  bool get isCornerCell => type == HitTestType.cornerCell;
+
   /// Whether any header was hit.
-  bool get isHeader => isRowHeader || isColumnHeader;
+  bool get isHeader => isRowHeader || isColumnHeader || isCornerCell;
 
   /// Whether a resize handle was hit.
   bool get isResizeHandle =>
@@ -159,6 +171,8 @@ class WorksheetHitTestResult {
         return 'WorksheetHitTestResult.selectionBorder($cell)';
       case HitTestType.selectionHandle:
         return 'WorksheetHitTestResult.selectionHandle($cell)';
+      case HitTestType.cornerCell:
+        return 'WorksheetHitTestResult.cornerCell';
     }
   }
 }
