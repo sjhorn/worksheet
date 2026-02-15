@@ -1007,6 +1007,85 @@ void main() {
         expect(tc.selection.start, 0);
         expect(tc.selection.end, 'Hello'.length);
       });
+
+      testWidgets('doubleTap with tapPosition places cursor at tap location',
+          (tester) async {
+        const cellBounds = Rect.fromLTWH(100, 50, 200, 30);
+        const fontSize = 14.0;
+        const cellPadding = 4.0;
+        const text = 'Hello World';
+
+        // Measure where character index 5 (the space) starts using the same
+        // TextStyle the overlay uses.
+        final textStyle = TextStyle(fontSize: fontSize);
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: textStyle),
+          textDirection: TextDirection.ltr,
+          maxLines: 1,
+        )..layout();
+
+        // Get the x offset for the middle of character 5.
+        final charBox = painter.getBoxesForSelection(
+          const TextSelection(baseOffset: 5, extentOffset: 6),
+        );
+        // Use the left edge of the character box + a small nudge.
+        final charX = charBox.first.left + 1.0;
+        painter.dispose();
+
+        // Tap position in the overlay's coordinate space:
+        // cellBounds.topLeft + Offset(leftPad + charX, verticalOffset + charY) * zoom
+        // At zoom=1.0, vertical middle alignment:
+        // verticalOffset = (30 - textHeight) / 2
+        // We don't need exact verticalOffset for the test — charY just needs
+        // to be within the text line bounds.
+        final tapPosition = Offset(
+          cellBounds.left + cellPadding + charX,
+          cellBounds.top + cellBounds.height / 2, // vertically centered
+        );
+
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text(text),
+          trigger: EditTrigger.doubleTap,
+          tapPosition: tapPosition,
+        );
+
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          cellBounds: cellBounds,
+        ));
+        await tester.pump();
+
+        final textField =
+            tester.widget<EditableText>(find.byType(EditableText));
+        final tc = textField.controller;
+
+        // Cursor should be at or near character 5, not at end (11).
+        expect(tc.selection.isCollapsed, isTrue);
+        expect(tc.selection.baseOffset, 5,
+            reason: 'cursor should be at the tapped character position');
+      });
+
+      testWidgets('doubleTap without tapPosition falls back to cursor at end',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+          trigger: EditTrigger.doubleTap,
+          // No tapPosition provided
+        );
+
+        await tester.pumpWidget(buildTestWidget(controller: editController));
+        await tester.pump();
+
+        final textField =
+            tester.widget<EditableText>(find.byType(EditableText));
+        final tc = textField.controller;
+
+        expect(tc.selection.isCollapsed, isTrue);
+        expect(tc.selection.baseOffset, 'Hello'.length,
+            reason: 'without tapPosition, cursor should fall back to end');
+      });
     });
 
     group('contentAreaWidth', () {

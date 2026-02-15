@@ -344,6 +344,91 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     }
   }
 
+  /// Hit-tests [tapPosition] against the cell text to find the character
+  /// offset at the tap location. Returns null if the position can't be
+  /// resolved (tapPosition is null, text is empty, etc.).
+  int? _hitTestTapPosition() {
+    final tapPos = widget.editController.tapPosition;
+    if (tapPos == null) return null;
+
+    final text = _textController.text;
+    if (text.isEmpty) return null;
+
+    final zoom = widget.zoom;
+    final cellBounds = widget.cellBounds;
+
+    // Convert screen tap position to unzoomed cell-local coordinates.
+    final localInCell = (tapPos - cellBounds.topLeft) / zoom;
+
+    // Compute layout values matching build().
+    final unzoomedWidth = cellBounds.width / zoom;
+    final unzoomedHeight = cellBounds.height / zoom;
+    final effectiveWidth = unzoomedWidth < CellEditorOverlay.minWidth
+        ? CellEditorOverlay.minWidth
+        : unzoomedWidth;
+    final leftPad = widget.cellPadding;
+
+    double textAreaWidth;
+    if (widget.expandedBounds != null && !widget.wrapText) {
+      final expandedUnzoomedWidth = widget.expandedBounds!.width / zoom;
+      final expandedEffective = expandedUnzoomedWidth < CellEditorOverlay.minWidth
+          ? CellEditorOverlay.minWidth
+          : expandedUnzoomedWidth;
+      textAreaWidth = expandedEffective - 2 * widget.cellPadding;
+    } else {
+      textAreaWidth = effectiveWidth - 2 * widget.cellPadding;
+    }
+
+    final textStyle = TextStyle(
+      fontSize: widget.fontSize,
+      fontFamily: widget.fontFamily,
+      color: widget.textColor,
+      package: WorksheetThemeData.resolveFontPackage(widget.fontFamily),
+    );
+
+    // Build the InlineSpan matching what EditableText renders.
+    final InlineSpan span;
+    if (widget.richText != null && widget.richText!.isNotEmpty) {
+      span = TextSpan(style: textStyle, children: widget.richText);
+    } else {
+      span = TextSpan(text: text, style: textStyle);
+    }
+
+    final painter = TextPainter(
+      text: span,
+      textDirection: TextDirection.ltr,
+      textAlign: widget.textAlign,
+      maxLines: widget.wrapText ? null : 1,
+    )..layout(maxWidth: textAreaWidth > 0 ? textAreaWidth : 0);
+
+    // Compute vertical offset matching build().
+    final double verticalOffset;
+    if (widget.wrapText) {
+      verticalOffset = _initialWrapVerticalOffset ?? widget.cellPadding;
+    } else {
+      final textHeight = painter.height;
+      switch (widget.verticalAlignment) {
+        case CellVerticalAlignment.top:
+          verticalOffset = widget.cellPadding;
+        case CellVerticalAlignment.middle:
+          verticalOffset = ((unzoomedHeight - textHeight) / 2)
+              .clamp(0.0, double.infinity);
+        case CellVerticalAlignment.bottom:
+          verticalOffset = (unzoomedHeight - widget.cellPadding - textHeight)
+              .clamp(0.0, double.infinity);
+      }
+    }
+
+    final textLocal = Offset(
+      localInCell.dx - leftPad,
+      localInCell.dy - verticalOffset,
+    );
+
+    final pos = painter.getPositionForOffset(textLocal);
+    painter.dispose();
+    return pos.offset;
+  }
+
   void _onFocusChanged() {
     if (_focusNode.hasFocus) {
       if (!_initialFocusApplied) {
@@ -351,8 +436,13 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         _initialFocusApplied = true;
         if (_textController.text.isNotEmpty) {
           final trigger = widget.editController.trigger;
-          if (trigger == EditTrigger.typing ||
-              trigger == EditTrigger.doubleTap) {
+          if (trigger == EditTrigger.doubleTap) {
+            // Place cursor at the tapped character position.
+            final offset = _hitTestTapPosition();
+            _textController.selection = TextSelection.collapsed(
+              offset: offset ?? _textController.text.length,
+            );
+          } else if (trigger == EditTrigger.typing) {
             _textController.selection = TextSelection.collapsed(
               offset: _textController.text.length,
             );

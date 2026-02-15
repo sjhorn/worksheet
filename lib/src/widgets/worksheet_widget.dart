@@ -978,6 +978,7 @@ class _WorksheetState extends State<Worksheet>
     required CellCoordinate cell,
     required EditTrigger trigger,
     String? initialText,
+    Offset? tapPosition,
   }) {
     final ec = widget.editController;
     if (ec == null) return;
@@ -988,6 +989,7 @@ class _WorksheetState extends State<Worksheet>
       currentValue: currentValue,
       trigger: trigger,
       initialText: initialText,
+      tapPosition: tapPosition,
     );
 
     // Tell the tile painter to skip rendering text for this cell
@@ -2214,6 +2216,10 @@ class _WorksheetState extends State<Worksheet>
                                       _startIntegratedEdit(
                                         cell: cell,
                                         trigger: EditTrigger.doubleTap,
+                                        tapPosition: details.localPosition - Offset(
+                                          theme.showHeaders ? theme.rowHeaderWidth * _controller.zoom : 0.0,
+                                          theme.showHeaders ? theme.columnHeaderHeight * _controller.zoom : 0.0,
+                                        ),
                                       );
                                     }
                                   }
@@ -2274,6 +2280,10 @@ class _WorksheetState extends State<Worksheet>
                                 _startIntegratedEdit(
                                   cell: cell,
                                   trigger: EditTrigger.doubleTap,
+                                  tapPosition: details.localPosition - Offset(
+                                    theme.showHeaders ? theme.rowHeaderWidth * _controller.zoom : 0.0,
+                                    theme.showHeaders ? theme.columnHeaderHeight * _controller.zoom : 0.0,
+                                  ),
                                 );
                               }
                             },

@@ -96,6 +96,7 @@ class EditController extends ChangeNotifier {
   CellValue? _originalValue;
   String _currentText = '';
   EditTrigger? _trigger;
+  Offset? _tapPosition;
 
   /// The current edit state.
   EditState get state => _state;
@@ -111,6 +112,12 @@ class EditController extends ChangeNotifier {
 
   /// How the current edit was triggered.
   EditTrigger? get trigger => _trigger;
+
+  /// The screen position of the tap that initiated editing.
+  ///
+  /// Only set for [EditTrigger.doubleTap]. Used by the overlay to place
+  /// the cursor at the tapped character position.
+  Offset? get tapPosition => _tapPosition;
 
   /// Whether editing is currently in progress.
   bool get isEditing => _state == EditState.editing;
@@ -128,6 +135,7 @@ class EditController extends ChangeNotifier {
     CellValue? currentValue,
     EditTrigger trigger = EditTrigger.programmatic,
     String? initialText,
+    Offset? tapPosition,
   }) {
     if (_state != EditState.idle) {
       return false;
@@ -137,6 +145,7 @@ class EditController extends ChangeNotifier {
     _editingCell = cell;
     _originalValue = currentValue;
     _trigger = trigger;
+    _tapPosition = tapPosition;
 
     // Set initial text
     if (initialText != null) {
@@ -217,6 +226,7 @@ class EditController extends ChangeNotifier {
     _originalValue = null;
     _currentText = '';
     _trigger = null;
+    _tapPosition = null;
 
     notifyListeners();
     return newValue;
@@ -233,6 +243,7 @@ class EditController extends ChangeNotifier {
     _originalValue = null;
     _currentText = '';
     _trigger = null;
+    _tapPosition = null;
 
     notifyListeners();
   }
