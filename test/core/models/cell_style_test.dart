@@ -200,6 +200,7 @@ void main() {
       expect(style.verticalAlignment, isNull);
       expect(style.borders, isNull);
       expect(style.wrapText, isNull);
+      // ignore: deprecated_member_use_from_same_package
       expect(style.numberFormat, isNull);
     });
 
@@ -210,6 +211,7 @@ void main() {
         verticalAlignment: CellVerticalAlignment.top,
         borders: CellBorders.none,
         wrapText: true,
+        // ignore: deprecated_member_use_from_same_package
         numberFormat: '#,##0.00',
       );
 
@@ -218,6 +220,7 @@ void main() {
       expect(style.verticalAlignment, CellVerticalAlignment.top);
       expect(style.borders, CellBorders.none);
       expect(style.wrapText, isTrue);
+      // ignore: deprecated_member_use_from_same_package
       expect(style.numberFormat, '#,##0.00');
     });
 
@@ -297,6 +300,7 @@ void main() {
           verticalAlignment: CellVerticalAlignment.bottom,
           borders: CellBorders.none,
           wrapText: true,
+          // ignore: deprecated_member_use_from_same_package
           numberFormat: '0%',
         );
 
@@ -305,6 +309,7 @@ void main() {
         expect(copy.verticalAlignment, CellVerticalAlignment.bottom);
         expect(copy.borders, CellBorders.none);
         expect(copy.wrapText, isTrue);
+        // ignore: deprecated_member_use_from_same_package
         expect(copy.numberFormat, '0%');
       });
     });
