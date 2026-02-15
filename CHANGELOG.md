@@ -5,7 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-02-15
+## [3.0.1] - 2026-02-15
+
+### Added
+- Font family (Google Fonts) and font size dropdowns in `example/rich_text/`
+- `example/rich_text/` is now a standalone Flutter project (was `example/rich_text.dart`)
+- COOKBOOK.md: "Font Family with Google Fonts" section documenting `setFontFamily` usage with resolved font names
+
+### Fixed
+- Restore editor focus and selection after toolbar actions
+- Position cursor at double-tap location instead of end of text
+- Recompute wrap vertical offset when toggling wrapText or verticalAlignment
+- Expand tile invalidation to full merge extent for border repaints
+- Clear all borders (including anchor) when merging cells
+- Border conflict resolution now uses merge region edges instead of anchor coordinate, fixing incorrect neighbor lookups for merged cells
+- `SetCellStyleAction` skips borders on non-anchor merged cells, preventing duplicate borders in the data model
+
+## [3.0.0] - 2026-02-14
 
 ### Breaking Changes
 - **`CellStyle` no longer contains text appearance fields** — removed `fontWeight`, `fontStyle`, `fontSize`, `fontFamily`, `textColor`, `underline`, `strikethrough`. Text appearance is now exclusively on rich text `TextSpan` styles. `CellStyle` retains cell-level concerns: `backgroundColor`, `textAlignment`, `verticalAlignment`, `borders`, `wrapText`.
@@ -17,15 +33,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ClearCellsAction` unmerges cells when clearing formats
 - Merged cell regions preserved during drag-to-move operations
 - Fill operations expand target range to complete merge tile patterns
-- Text color toolbar in `example/rich_text/`
-- Font family (Google Fonts) and font size dropdowns in `example/rich_text/`
+- Text color toolbar in `example/rich_text.dart`
 
 ### Fixed
 - Fill range and smart fill now propagate rich text spans alongside value, style, and format
 - `FillPatternDetector` preserves rich text from template cells in linearNumeric, dateSequence, and textWithNumericSuffix patterns
 - Cell editor base text color uses theme default instead of first span's color, preventing color bleed into uncolored spans
-- Border conflict resolution now uses merge region edges instead of anchor coordinate, fixing incorrect neighbor lookups for merged cells
-- `SetCellStyleAction` skips borders on non-anchor merged cells, preventing duplicate borders in the data model
 
 ### Changed
 - Migrated from `flutter_lints` to `lints` package
