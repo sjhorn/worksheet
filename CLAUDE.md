@@ -3,7 +3,7 @@
 ## Project Overview
 High-performance Flutter worksheet widget (Excel-like) supporting 10%-400% zoom with GPU-optimized tile-based rendering. Borrows ideas from ../sheet2/lib/steps/worksheet_widget5.dart and its related files. 
 
-Aim to build a working example in ./example of each part as we go. Its ok to use separate named.dart files as we test with the final product coming together in the main.dart
+Aim to build a working example in ./example of each part as we go. Simple examples are single .dart files run via `flutter run -t <file>.dart` from the example/ directory. Examples that need extra dependencies (e.g., `google_fonts`) are standalone Flutter projects in their own subdirectory (e.g., `example/rich_text/`).
 
 ## Core Technologies
 - `TwoDimensionalScrollable` - 2D scroll management

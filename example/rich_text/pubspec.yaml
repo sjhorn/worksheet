@@ -1,0 +1,15 @@
+name: worksheet_example
+publish_to: none
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  worksheet:
+    path: ../../
+  google_fonts: ^6.2.1
+
+flutter:
+  uses-material-design: true

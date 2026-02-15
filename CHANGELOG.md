@@ -17,7 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ClearCellsAction` unmerges cells when clearing formats
 - Merged cell regions preserved during drag-to-move operations
 - Fill operations expand target range to complete merge tile patterns
-- Text color toolbar in `example/rich_text.dart`
+- Text color toolbar in `example/rich_text/`
+- Font family (Google Fonts) and font size dropdowns in `example/rich_text/`
 
 ### Fixed
 - Fill range and smart fill now propagate rich text spans alongside value, style, and format

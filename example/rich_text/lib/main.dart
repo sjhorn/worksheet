@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:worksheet/worksheet.dart';
 
 void main() => runApp(const MaterialApp(home: RichTextDemo()));
@@ -9,6 +10,21 @@ class RichTextDemo extends StatefulWidget {
   @override
   State<RichTextDemo> createState() => _RichTextDemoState();
 }
+
+const _fontFamilies = [
+  'Roboto',
+  'Lato',
+  'Open Sans',
+  'Montserrat',
+  'Playfair Display',
+  'Merriweather',
+  'Fira Code',
+  'Dancing Script',
+  'Pacifico',
+  'Oswald',
+];
+
+const _fontSizes = [8.0, 9.0, 10.0, 11.0, 12.0, 14.0, 16.0, 18.0, 20.0, 24.0, 28.0, 36.0];
 
 class _RichTextDemoState extends State<RichTextDemo> {
   late final SparseWorksheetData _data;
@@ -83,6 +99,16 @@ class _RichTextDemoState extends State<RichTextDemo> {
           TextSpan(
               text: 'Cell strikethrough',
               style: TextStyle(decoration: TextDecoration.lineThrough)),
+        ]),
+        (7, 0): Cell.text('Fira Code font', richText: [
+          TextSpan(
+              text: 'Fira Code font',
+              style: GoogleFonts.firaCode()),
+        ]),
+        (7, 1): Cell.text('Dancing Script', richText: [
+          TextSpan(
+              text: 'Dancing Script',
+              style: GoogleFonts.dancingScript()),
         ]),
         (11, 0): Cell.text('Double-tap to edit. Use toolbar or Ctrl+B/I/U.'),
       },
@@ -210,6 +236,84 @@ class _RichTextDemoState extends State<RichTextDemo> {
     setState(() {});
   }
 
+  /// Resolves the Google Fonts TextStyle for [family] matching the given
+  /// [weight] and [fontStyle], returning the registered fontFamily name
+  /// (e.g. 'Lato_regular', 'Lato_700') and fontFamilyFallback.
+  TextStyle _resolveGoogleFont(String family,
+      {FontWeight? weight, FontStyle? fontStyle}) {
+    return GoogleFonts.getFont(
+      family,
+      fontWeight: weight ?? FontWeight.normal,
+      fontStyle: fontStyle ?? FontStyle.normal,
+    );
+  }
+
+  void _setFontFamily(String family) {
+    if (_editController.isEditing) {
+      final resolved = _resolveGoogleFont(family);
+      _editController.richTextController?.setFontFamily(resolved.fontFamily!);
+      _editController.requestEditorFocus();
+      setState(() {});
+      return;
+    }
+    final range = _controller.selectionController.selectedRange;
+    if (range == null) return;
+
+    for (int r = range.startRow; r <= range.endRow; r++) {
+      for (int c = range.startColumn; c <= range.endColumn; c++) {
+        final coord = CellCoordinate(r, c);
+        final spans = _ensureSpans(coord);
+        if (spans.isEmpty) continue;
+        final updated = spans
+            .map((s) {
+              final resolved = _resolveGoogleFont(
+                family,
+                weight: s.style?.fontWeight,
+                fontStyle: s.style?.fontStyle,
+              );
+              return TextSpan(
+                text: s.text,
+                style: (s.style ?? const TextStyle()).copyWith(
+                  fontFamily: resolved.fontFamily,
+                  fontFamilyFallback: resolved.fontFamilyFallback,
+                ),
+              );
+            })
+            .toList();
+        _data.setRichText(coord, updated);
+      }
+    }
+    setState(() {});
+  }
+
+  void _setFontSize(double size) {
+    if (_editController.isEditing) {
+      _editController.richTextController?.setFontSize(size);
+      _editController.requestEditorFocus();
+      setState(() {});
+      return;
+    }
+    final range = _controller.selectionController.selectedRange;
+    if (range == null) return;
+
+    for (int r = range.startRow; r <= range.endRow; r++) {
+      for (int c = range.startColumn; c <= range.endColumn; c++) {
+        final coord = CellCoordinate(r, c);
+        final spans = _ensureSpans(coord);
+        if (spans.isEmpty) continue;
+        final updated = spans
+            .map((s) => TextSpan(
+                  text: s.text,
+                  style: (s.style ?? const TextStyle())
+                      .copyWith(fontSize: size),
+                ))
+            .toList();
+        _data.setRichText(coord, updated);
+      }
+    }
+    setState(() {});
+  }
+
   List<TextSpan> _ensureSpans(CellCoordinate coord) {
     final existing = _data.getRichText(coord);
     if (existing != null && existing.isNotEmpty) return existing;
@@ -285,6 +389,52 @@ class _RichTextDemoState extends State<RichTextDemo> {
         runSpacing: 4,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
+          // --- Font family dropdown ---
+          SizedBox(
+            width: 150,
+            child: DropdownButton<String>(
+              isExpanded: true,
+              hint: const Text('Font', style: TextStyle(fontSize: 12)),
+              style: const TextStyle(fontSize: 13, color: Colors.black),
+              underline: const SizedBox.shrink(),
+              onChanged: _hasSelection
+                  ? (family) {
+                      if (family == null) return;
+                      _setFontFamily(family);
+                    }
+                  : null,
+              items: _fontFamilies
+                  .map((f) => DropdownMenuItem(
+                        value: f,
+                        child: Text(f, style: GoogleFonts.getFont(f, fontSize: 13)),
+                      ))
+                  .toList(),
+            ),
+          ),
+          const SizedBox(width: 4),
+          // --- Font size dropdown ---
+          SizedBox(
+            width: 60,
+            child: DropdownButton<double>(
+              isExpanded: true,
+              hint: const Text('Size', style: TextStyle(fontSize: 12)),
+              style: const TextStyle(fontSize: 13, color: Colors.black),
+              underline: const SizedBox.shrink(),
+              onChanged: _hasSelection
+                  ? (size) {
+                      if (size == null) return;
+                      _setFontSize(size);
+                    }
+                  : null,
+              items: _fontSizes
+                  .map((s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(s.toInt().toString()),
+                      ))
+                  .toList(),
+            ),
+          ),
+          const VerticalDivider(width: 16),
           // --- Text color buttons ---
           const Text('Text:', style: TextStyle(fontSize: 12)),
           _ColorButton(

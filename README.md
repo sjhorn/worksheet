@@ -416,17 +416,23 @@ The `example/` directory contains several demos you can run individually:
 | `simple.dart` | Minimal setup — smallest working worksheet |
 | `merge.dart` | Cell merging with toolbar controls |
 | `border.dart` | Border styles (thick, dashed, double, outer) and merge-aware borders |
-| `rich_text.dart` | Rich text spans with bold, italic, color |
+| `rich_text/` | Rich text spans with bold, italic, color, Google Fonts, font size |
 | `formats.dart` | Number and date formatting |
 | `wrap_text.dart` | Text wrapping and vertical alignment |
 | `darklight.dart` | Light and dark theme switching |
 | `mobile.dart` | Mobile-optimized layout |
+
+Most examples are single-file targets run from the `example/` directory. Standalone examples that need their own dependencies (like `rich_text/` which uses `google_fonts`) are separate Flutter projects:
 
 ```bash
 cd example
 flutter run                    # runs main.dart
 flutter run -t merge.dart      # runs a specific example
 flutter run -t border.dart
+
+# Standalone example projects
+cd example/rich_text
+flutter run                    # runs the rich text demo
 ```
 
 ---

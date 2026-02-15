@@ -753,7 +753,61 @@ Alternatively, use Flutter's Actions system from within the widget tree:
 Actions.invoke(context, const ToggleBoldIntent());
 ```
 
-See `example/rich_text.dart` for a complete working example.
+### Font Family with Google Fonts
+
+`RichTextEditingController.setFontFamily(String)` and `setFontSize(double)` apply font changes to the selected text while editing. When using Google Fonts, you must pass the **resolved font family name** — not the display name — because Google Fonts registers each variant under a modified name (e.g., `'Lato_regular'`, `'Lato_700'`).
+
+```dart
+import 'package:google_fonts/google_fonts.dart';
+
+// Get the resolved TextStyle for the desired family + variant
+final resolved = GoogleFonts.getFont('Lato',
+  fontWeight: FontWeight.normal,
+  fontStyle: FontStyle.normal,
+);
+
+// While editing — pass the resolved fontFamily
+editController.richTextController?.setFontFamily(resolved.fontFamily!);
+
+// When not editing — apply to spans on the data layer
+final spans = data.getRichText(coord) ?? [];
+final updated = spans.map((s) {
+  // Match each span's weight/style to get the correct variant
+  final resolved = GoogleFonts.getFont('Lato',
+    fontWeight: s.style?.fontWeight ?? FontWeight.normal,
+    fontStyle: s.style?.fontStyle ?? FontStyle.normal,
+  );
+  return TextSpan(
+    text: s.text,
+    style: (s.style ?? const TextStyle()).copyWith(
+      fontFamily: resolved.fontFamily,
+      fontFamilyFallback: resolved.fontFamilyFallback,
+    ),
+  );
+}).toList();
+data.setRichText(coord, updated);
+```
+
+> **Why not just use the raw name?** `GoogleFonts.getFont('Lato')` registers the font
+> file with Flutter under `'Lato_regular'`. If you set `fontFamily: 'Lato'`, Flutter
+> can't find a registered font by that name and falls back to the default. Always use
+> the `fontFamily` from the `TextStyle` returned by `GoogleFonts.getFont()`.
+
+Font size is simpler — it's just a number, no name resolution needed:
+
+```dart
+// While editing
+editController.richTextController?.setFontSize(18.0);
+
+// When not editing — apply to spans
+final updated = spans.map((s) => TextSpan(
+  text: s.text,
+  style: (s.style ?? const TextStyle()).copyWith(fontSize: 18.0),
+)).toList();
+data.setRichText(coord, updated);
+```
+
+See `example/rich_text/` for a complete working example (standalone Flutter project with `google_fonts` dependency).
 
 ---
 
