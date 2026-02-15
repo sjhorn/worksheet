@@ -230,11 +230,9 @@ class _BorderDemoState extends State<BorderDemo> {
     if (range == null || range.cellCount < 2) return;
     _data.mergeCells(range);
 
-    // Clear borders on non-anchor cells to avoid rendering artifacts
-    final anchor = range.topLeft;
+    // Clear all borders on merge to match Excel behavior
     _data.batchUpdate((batch) {
       for (final coord in range.cells) {
-        if (coord == anchor) continue;
         final style = _data.getStyle(coord);
         if (style != null &&
             style.borders != null &&

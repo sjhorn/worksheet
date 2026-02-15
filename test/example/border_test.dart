@@ -48,15 +48,13 @@ void applyOuterBorder(SparseWorksheetData data, CellRange range) {
 }
 
 /// Reproduces the merge logic from example/border.dart — merges cells and
-/// clears borders on non-anchor cells to avoid rendering artifacts.
+/// clears all borders to match Excel behavior.
 void mergeAndClearBorders(SparseWorksheetData data, CellRange range) {
   data.mergeCells(range);
 
-  // Clear borders on non-anchor cells
-  final anchor = range.topLeft;
+  // Clear borders on all cells (including anchor) to match Excel
   data.batchUpdate((batch) {
     for (final coord in range.cells) {
-      if (coord == anchor) continue;
       final style = data.getStyle(coord);
       if (style != null && style.borders != null && !style.borders!.isNone) {
         batch.setStyle(coord, CellStyle(
@@ -139,8 +137,8 @@ void main() {
     });
   });
 
-  group('merge clears borders on non-anchor cells', () {
-    test('merging cells with existing borders clears non-anchor borders', () {
+  group('merge clears all borders', () {
+    test('merging cells with existing borders clears all borders', () {
       // Apply borders to a 3x3 region first
       const range = CellRange(0, 0, 2, 2);
       for (final coord in range.cells) {
@@ -157,23 +155,16 @@ void main() {
         reason: 'borders should exist before merge',
       );
 
-      // Now merge — non-anchor cells should have borders cleared
+      // Now merge — all cells (including anchor) should have borders cleared
       mergeAndClearBorders(data, range);
 
-      // Anchor keeps its borders
-      final anchorBorders =
-          data.getStyle(const CellCoordinate(0, 0))?.borders;
-      expect(anchorBorders?.isNone, isFalse,
-          reason: 'anchor should keep borders');
-
-      // Non-anchor cells should have no borders
+      // All cells should have no borders (matching Excel behavior)
       for (final coord in range.cells) {
-        if (coord == range.topLeft) continue;
         final style = data.getStyle(coord);
         final hasBorders =
             style != null && style.borders != null && !style.borders!.isNone;
         expect(hasBorders, isFalse,
-            reason: 'non-anchor $coord should have no borders');
+            reason: '$coord should have no borders after merge');
       }
     });
 
