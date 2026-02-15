@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.0.0] - 2026-02-14
+## [3.0.0] - 2026-02-15
 
 ### Breaking Changes
 - **`CellStyle` no longer contains text appearance fields** — removed `fontWeight`, `fontStyle`, `fontSize`, `fontFamily`, `textColor`, `underline`, `strikethrough`. Text appearance is now exclusively on rich text `TextSpan` styles. `CellStyle` retains cell-level concerns: `backgroundColor`, `textAlignment`, `verticalAlignment`, `borders`, `wrapText`.
@@ -24,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fill range and smart fill now propagate rich text spans alongside value, style, and format
 - `FillPatternDetector` preserves rich text from template cells in linearNumeric, dateSequence, and textWithNumericSuffix patterns
 - Cell editor base text color uses theme default instead of first span's color, preventing color bleed into uncolored spans
+- Border conflict resolution now uses merge region edges instead of anchor coordinate, fixing incorrect neighbor lookups for merged cells
+- `SetCellStyleAction` skips borders on non-anchor merged cells, preventing duplicate borders in the data model
 
 ### Changed
 - Migrated from `flutter_lints` to `lints` package
