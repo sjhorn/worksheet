@@ -610,6 +610,8 @@ void addTableOutline(SparseWorksheetData data, CellRange range) {
 
 When two adjacent cells both define a border on a shared edge, the thicker/higher-priority border wins. Priority order: thicker width > `double` > `solid` > `dashed` > `dotted`. If all attributes are equal, the right/bottom cell's border takes precedence.
 
+See `example/border.dart` for a complete working example with toolbar buttons.
+
 ---
 
 ## Rich Text Spans

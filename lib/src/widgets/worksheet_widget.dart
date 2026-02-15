@@ -1462,18 +1462,23 @@ class _WorksheetState extends State<Worksheet>
       case DataChangeType.cellStyle:
       case DataChangeType.cellFormat:
         if (event.cell != null) {
-          _tileManager.invalidateRange(
-            CellRange(
-              event.cell!.row,
-              event.cell!.column,
-              event.cell!.row,
-              event.cell!.column,
-            ),
-          );
+          // Expand to full merge extent so all tiles covering the merged
+          // cell's visual area are invalidated (not just the anchor's tile).
+          final region = widget.data.mergedCells.getRegion(event.cell!);
+          final range = region?.range ??
+              CellRange(
+                event.cell!.row,
+                event.cell!.column,
+                event.cell!.row,
+                event.cell!.column,
+              );
+          _tileManager.invalidateRange(range);
         }
       case DataChangeType.range:
         if (event.range != null) {
-          _tileManager.invalidateRange(event.range!);
+          _tileManager.invalidateRange(
+            _expandRangeForMerges(event.range!),
+          );
         }
       case DataChangeType.merge:
       case DataChangeType.unmerge:
@@ -1489,6 +1494,15 @@ class _WorksheetState extends State<Worksheet>
     }
     _layoutVersion++;
     if (mounted) setState(() {});
+  }
+
+  /// Expands a range to include full merge regions that overlap with it.
+  CellRange _expandRangeForMerges(CellRange range) {
+    var expanded = range;
+    for (final region in widget.data.mergedCells.regionsInRange(range)) {
+      expanded = expanded.union(region.range);
+    }
+    return expanded;
   }
 
   @override

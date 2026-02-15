@@ -406,19 +406,28 @@ controller.scrollTo(x: 500, y: 1000, animate: true);
 
 ---
 
-## Running the Example
+## Examples
+
+The `example/` directory contains several demos you can run individually:
+
+| File | Description |
+|------|-------------|
+| `main.dart` | Full-featured demo with 50,000 rows, editing, resizing, zoom |
+| `simple.dart` | Minimal setup — smallest working worksheet |
+| `merge.dart` | Cell merging with toolbar controls |
+| `border.dart` | Border styles (thick, dashed, double, outer) and merge-aware borders |
+| `rich_text.dart` | Rich text spans with bold, italic, color |
+| `formats.dart` | Number and date formatting |
+| `wrap_text.dart` | Text wrapping and vertical alignment |
+| `darklight.dart` | Light and dark theme switching |
+| `mobile.dart` | Mobile-optimized layout |
 
 ```bash
 cd example
-flutter run
+flutter run                    # runs main.dart
+flutter run -t merge.dart      # runs a specific example
+flutter run -t border.dart
 ```
-
-The example app demonstrates:
-- 50,000 rows of sample sales data
-- Cell editing with double-tap
-- Column/row resizing
-- Zoom slider (10%-400%)
-- Keyboard navigation
 
 ---
 
