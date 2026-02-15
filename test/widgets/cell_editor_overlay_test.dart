@@ -1132,5 +1132,529 @@ void main() {
         expect(constrainedBox.constraints.maxWidth, 192.0);
       });
     });
+
+    group('toolbar focus', () {
+      testWidgets('tapping external button while editing keeps editor focused',
+          (tester) async {
+        bool toolbarTapped = false;
+        // Simulates the worksheet's keyboard focus node that competes
+        // for focus with the editor.
+        final worksheetFocusNode = FocusNode(debugLabel: 'worksheet');
+
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  // Toolbar button outside the overlay — wrapped in
+                  // FocusScope(canRequestFocus: false) to prevent
+                  // stealing focus from the editor.
+                  FocusScope(
+                    canRequestFocus: false,
+                    child: IconButton(
+                      icon: const Icon(Icons.format_bold),
+                      onPressed: () => toolbarTapped = true,
+                    ),
+                  ),
+                  Expanded(
+                    child: Focus(
+                      focusNode: worksheetFocusNode,
+                      child: Stack(
+                        children: [
+                          CellEditorOverlay(
+                            editController: editController,
+                            cellBounds: const Rect.fromLTWH(0, 0, 200, 30),
+                            onCommit: (_, _, {CellFormat? detectedFormat,
+                                List<TextSpan>? richText}) {},
+                            onCancel: () {},
+                            restoreFocusTo: worksheetFocusNode,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        // Verify editor is focused
+        final editableText =
+            tester.widget<EditableText>(find.byType(EditableText));
+        expect(editableText.focusNode.hasFocus, isTrue,
+            reason: 'editor should be focused initially');
+
+        // Tap the toolbar button
+        await tester.tap(find.byIcon(Icons.format_bold));
+        await tester.pumpAndSettle();
+
+        // The toolbar action should have fired
+        expect(toolbarTapped, isTrue);
+
+        // Editor should still be editing and focused
+        expect(editController.isEditing, isTrue,
+            reason: 'editor should still be editing after toolbar tap');
+        expect(editableText.focusNode.hasFocus, isTrue,
+            reason: 'editor should retain focus after toolbar tap');
+      });
+
+      testWidgets(
+          'calling toggleBold while editing keeps editor focused',
+          (tester) async {
+        final worksheetFocusNode = FocusNode(debugLabel: 'worksheet');
+
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  FocusScope(
+                    canRequestFocus: false,
+                    child: IconButton(
+                      icon: const Icon(Icons.format_bold),
+                      onPressed: () => editController.toggleBold(),
+                    ),
+                  ),
+                  Expanded(
+                    child: Focus(
+                      focusNode: worksheetFocusNode,
+                      child: Stack(
+                        children: [
+                          CellEditorOverlay(
+                            editController: editController,
+                            cellBounds: const Rect.fromLTWH(0, 0, 200, 30),
+                            onCommit: (_, _, {CellFormat? detectedFormat,
+                                List<TextSpan>? richText}) {},
+                            onCancel: () {},
+                            restoreFocusTo: worksheetFocusNode,
+                            richText: const [TextSpan(text: 'Hello')],
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        final editableText =
+            tester.widget<EditableText>(find.byType(EditableText));
+        expect(editableText.focusNode.hasFocus, isTrue,
+            reason: 'editor should be focused initially');
+
+        // Tap the toolbar button which calls toggleBold
+        await tester.tap(find.byIcon(Icons.format_bold));
+        await tester.pumpAndSettle();
+
+        // Editor should still be editing and focused
+        expect(editController.isEditing, isTrue,
+            reason: 'editor should still be editing after toggleBold');
+        expect(editableText.focusNode.hasFocus, isTrue,
+            reason: 'editor should retain focus after toggleBold');
+      });
+
+      testWidgets(
+          'editor retains focus when overlay rebuilds due to prop change',
+          (tester) async {
+        // Simulates what happens when a toolbar button changes cell style
+        // (BG color, alignment, wrap text) while editing — the overlay
+        // rebuilds with different props but should keep focus.
+        final worksheetFocusNode = FocusNode(debugLabel: 'worksheet');
+        bool wrapText = false;
+
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setOuterState) {
+              return MaterialApp(
+                home: Scaffold(
+                  body: Column(
+                    children: [
+                      FocusScope(
+                        canRequestFocus: false,
+                        child: IconButton(
+                          icon: const Icon(Icons.wrap_text),
+                          onPressed: () {
+                            setOuterState(() {
+                              wrapText = !wrapText;
+                            });
+                          },
+                        ),
+                      ),
+                      Expanded(
+                        child: Focus(
+                          focusNode: worksheetFocusNode,
+                          child: Stack(
+                            children: [
+                              CellEditorOverlay(
+                                editController: editController,
+                                cellBounds:
+                                    const Rect.fromLTWH(0, 0, 200, 30),
+                                onCommit: (_, _, {CellFormat? detectedFormat,
+                                    List<TextSpan>? richText}) {},
+                                onCancel: () {},
+                                restoreFocusTo: worksheetFocusNode,
+                                wrapText: wrapText,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        final editableText =
+            tester.widget<EditableText>(find.byType(EditableText));
+        expect(editableText.focusNode.hasFocus, isTrue,
+            reason: 'editor should be focused initially');
+        expect(editableText.maxLines, 1, reason: 'single-line initially');
+
+        // Tap wrap text — rebuilds overlay with wrapText: true
+        await tester.tap(find.byIcon(Icons.wrap_text));
+        await tester.pumpAndSettle();
+
+        // Re-find EditableText since it may have been rebuilt
+        final editableText2 =
+            tester.widget<EditableText>(find.byType(EditableText));
+
+        expect(editController.isEditing, isTrue,
+            reason: 'editor should still be editing after wrap toggle');
+        expect(editableText2.maxLines, isNull,
+            reason: 'wrap text should now be multi-line');
+        expect(editableText2.focusNode.hasFocus, isTrue,
+            reason: 'editor should retain focus after overlay rebuild');
+      });
+
+      testWidgets('registers editorFocusNode on EditController',
+          (tester) async {
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        expect(editController.editorFocusNode, isNull,
+            reason: 'no focus node before overlay is built');
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Stack(
+                children: [
+                  CellEditorOverlay(
+                    editController: editController,
+                    cellBounds: const Rect.fromLTWH(0, 0, 200, 30),
+                    onCommit: (_, _, {CellFormat? detectedFormat,
+                        List<TextSpan>? richText}) {},
+                    onCancel: () {},
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(editController.editorFocusNode, isNotNull,
+            reason: 'overlay should register its focus node');
+        expect(editController.editorFocusNode!.hasFocus, isTrue,
+            reason: 'editor should have focus');
+      });
+
+      testWidgets('requestEditorFocus restores focus and selection',
+          (tester) async {
+        final stealerFocus = FocusNode(debugLabel: 'stealer');
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  Focus(
+                    focusNode: stealerFocus,
+                    child: const SizedBox(width: 50, height: 50),
+                  ),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        CellEditorOverlay(
+                          editController: editController,
+                          cellBounds: const Rect.fromLTWH(0, 0, 200, 30),
+                          onCommit: (_, _, {CellFormat? detectedFormat,
+                              List<TextSpan>? richText}) {},
+                          onCancel: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final editableText =
+            tester.widget<EditableText>(find.byType(EditableText));
+        expect(editableText.focusNode.hasFocus, isTrue);
+
+        // Place cursor at offset 2 (between "He" and "llo")
+        editController.richTextController!.selection =
+            const TextSelection.collapsed(offset: 2);
+        await tester.pump();
+
+        // Steal focus away from editor (simulates toolbar click)
+        stealerFocus.requestFocus();
+        await tester.pump();
+        expect(editableText.focusNode.hasFocus, isFalse,
+            reason: 'focus should be stolen');
+
+        // Request editor focus restoration
+        editController.requestEditorFocus();
+        await tester.pumpAndSettle();
+
+        expect(editableText.focusNode.hasFocus, isTrue,
+            reason: 'requestEditorFocus should restore focus');
+        expect(editController.richTextController!.selection,
+            const TextSelection.collapsed(offset: 2),
+            reason: 'selection should be preserved, not reset to select-all');
+      });
+
+      testWidgets(
+          'toggleBold at end of text preserves cursor instead of selecting all',
+          (tester) async {
+        final stealerFocus = FocusNode(debugLabel: 'toolbar');
+
+        // Double-tap trigger → cursor placed at end
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+          trigger: EditTrigger.doubleTap,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  Focus(
+                    focusNode: stealerFocus,
+                    child: const SizedBox(width: 50, height: 50),
+                  ),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        CellEditorOverlay(
+                          editController: editController,
+                          cellBounds: const Rect.fromLTWH(0, 0, 200, 30),
+                          onCommit: (_, _, {CellFormat? detectedFormat,
+                              List<TextSpan>? richText}) {},
+                          onCancel: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final controller = editController.richTextController!;
+
+        // Verify initial state: cursor at end (doubleTap trigger)
+        expect(controller.selection,
+            const TextSelection.collapsed(offset: 5),
+            reason: 'doubleTap trigger should place cursor at end');
+
+        // Simulate toolbar Bold click: focus stolen → toggleBold → restore
+        stealerFocus.requestFocus();
+        await tester.pump();
+        expect(editController.editorFocusNode!.hasFocus, isFalse);
+
+        editController.toggleBold();
+        editController.requestEditorFocus();
+        await tester.pumpAndSettle();
+
+        // Focus should be restored
+        expect(editController.editorFocusNode!.hasFocus, isTrue,
+            reason: 'editor should regain focus');
+
+        // Selection should be collapsed at end, NOT selecting all text
+        expect(controller.selection.isCollapsed, isTrue,
+            reason: 'selection should be collapsed, not select-all');
+        expect(controller.selection,
+            const TextSelection.collapsed(offset: 5),
+            reason: 'cursor should remain at end of text');
+      });
+
+      testWidgets(
+          'restoration guard reverses platform select-all after focus regain',
+          (tester) async {
+        // This simulates the web platform behaviour: after focus is restored,
+        // the text input connection re-opens and the platform sends a
+        // select-all that overrides our restored selection.
+        final stealerFocus = FocusNode(debugLabel: 'toolbar');
+
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+          trigger: EditTrigger.doubleTap,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  Focus(
+                    focusNode: stealerFocus,
+                    child: const SizedBox(width: 50, height: 50),
+                  ),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        CellEditorOverlay(
+                          editController: editController,
+                          cellBounds: const Rect.fromLTWH(0, 0, 200, 30),
+                          onCommit: (_, _, {CellFormat? detectedFormat,
+                              List<TextSpan>? richText}) {},
+                          onCancel: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final controller = editController.richTextController!;
+        expect(controller.selection,
+            const TextSelection.collapsed(offset: 5));
+
+        // Steal focus
+        stealerFocus.requestFocus();
+        await tester.pump();
+
+        // Restore focus (arms the guard)
+        editController.requestEditorFocus();
+        await tester.pumpAndSettle();
+        expect(controller.selection,
+            const TextSelection.collapsed(offset: 5),
+            reason: 'selection restored after focus regain');
+
+        // Simulate platform select-all (what the browser does on web)
+        controller.selection = const TextSelection(
+          baseOffset: 0,
+          extentOffset: 5,
+        );
+
+        // The guard should have caught and reversed it
+        expect(controller.selection,
+            const TextSelection.collapsed(offset: 5),
+            reason: 'guard should reverse platform select-all');
+      });
+
+      testWidgets(
+          'toggleBold with F2 trigger preserves mid-text cursor position',
+          (tester) async {
+        final stealerFocus = FocusNode(debugLabel: 'toolbar');
+
+        // F2 trigger → initially selects all
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hello'),
+          trigger: EditTrigger.f2Key,
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Column(
+                children: [
+                  Focus(
+                    focusNode: stealerFocus,
+                    child: const SizedBox(width: 50, height: 50),
+                  ),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        CellEditorOverlay(
+                          editController: editController,
+                          cellBounds: const Rect.fromLTWH(0, 0, 200, 30),
+                          onCommit: (_, _, {CellFormat? detectedFormat,
+                              List<TextSpan>? richText}) {},
+                          onCancel: () {},
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        final controller = editController.richTextController!;
+
+        // F2 initially selects all text
+        expect(controller.selection,
+            const TextSelection(baseOffset: 0, extentOffset: 5),
+            reason: 'F2 should initially select all');
+
+        // User moves cursor to offset 3 (between "Hel" and "lo")
+        controller.selection = const TextSelection.collapsed(offset: 3);
+        await tester.pump();
+
+        // Simulate toolbar Bold click: steal focus → toggle → restore
+        stealerFocus.requestFocus();
+        await tester.pump();
+
+        editController.toggleBold();
+        editController.requestEditorFocus();
+        await tester.pumpAndSettle();
+
+        expect(editController.editorFocusNode!.hasFocus, isTrue);
+        expect(controller.selection,
+            const TextSelection.collapsed(offset: 3),
+            reason: 'cursor at offset 3 should be preserved after Bold');
+      });
+    });
   });
 }

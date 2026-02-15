@@ -193,7 +193,7 @@ final data = SparseWorksheetData(rowCount: 100, columnCount: 10, cells: {
 data.mergeCells(CellRange(0, 0, 0, 3));
 ```
 
-Inline editing supports Ctrl+B/I/U for formatting and Alt+Enter for newlines in wrap-enabled cells.
+Inline editing supports Ctrl+B/I/U for formatting and Alt+Enter for newlines in wrap-enabled cells. When building an external toolbar, call `editController.requestEditorFocus()` after each action to keep focus in the editor (see [Cookbook: Formatting Toolbar](COOKBOOK.md#formatting-toolbar-with-editcontroller)).
 
 ## Style Your Data
 

@@ -111,6 +111,36 @@ class _RichTextDemoState extends State<RichTextDemo> {
         _data.setStyle(coord, current?.merge(style) ?? style);
       }
     }
+    _editController.requestEditorFocus();
+  }
+
+  /// Toggles wrap text on/off for all cells in the selection.
+  void _toggleWrapText() {
+    final range = _controller.selectionController.selectedRange;
+    if (range == null) return;
+
+    // Check if all selected cells already have wrapText
+    bool allWrap = true;
+    for (int r = range.startRow; allWrap && r <= range.endRow; r++) {
+      for (int c = range.startColumn; allWrap && c <= range.endColumn; c++) {
+        final style = _data.getStyle(CellCoordinate(r, c));
+        if (style?.wrapText != true) allWrap = false;
+      }
+    }
+
+    final newWrap = !allWrap;
+    for (int r = range.startRow; r <= range.endRow; r++) {
+      for (int c = range.startColumn; c <= range.endColumn; c++) {
+        final coord = CellCoordinate(r, c);
+        final current = _data.getStyle(coord);
+        _data.setStyle(
+          coord,
+          (current ?? const CellStyle()).copyWith(wrapText: newWrap),
+        );
+      }
+    }
+    _editController.requestEditorFocus();
+    setState(() {});
   }
 
   /// Toggles a rich text style property on all selected cells' spans.
@@ -148,6 +178,7 @@ class _RichTextDemoState extends State<RichTextDemo> {
         _data.setRichText(coord, toggled);
       }
     }
+    _editController.requestEditorFocus();
     setState(() {});
   }
 
@@ -155,6 +186,7 @@ class _RichTextDemoState extends State<RichTextDemo> {
   void _setTextColor(Color color) {
     if (_editController.isEditing) {
       _editController.richTextController?.setColor(color);
+      _editController.requestEditorFocus();
       setState(() {});
       return;
     }
@@ -197,6 +229,7 @@ class _RichTextDemoState extends State<RichTextDemo> {
 
     if (_editController.isEditing) {
       _editController.richTextController?.clearSelectionFormatting();
+      _editController.requestEditorFocus();
     } else {
       _data.batchUpdate((batch) {
         batch.clearStyles(range);
@@ -243,7 +276,9 @@ class _RichTextDemoState extends State<RichTextDemo> {
   }
 
   Widget _buildToolbar(bool isEditing) {
-    return Padding(
+    return FocusScope(
+      canRequestFocus: false,
+      child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: Wrap(
         spacing: 4,
@@ -341,6 +376,35 @@ class _RichTextDemoState extends State<RichTextDemo> {
                     const CellStyle(textAlignment: CellTextAlignment.right))
                 : null,
           ),
+          _ToolbarIconButton(
+            icon: Icons.vertical_align_top,
+            tooltip: 'Align top',
+            onPressed: _hasSelection
+                ? () => _setStyle(const CellStyle(
+                    verticalAlignment: CellVerticalAlignment.top))
+                : null,
+          ),
+          _ToolbarIconButton(
+            icon: Icons.vertical_align_center,
+            tooltip: 'Align middle',
+            onPressed: _hasSelection
+                ? () => _setStyle(const CellStyle(
+                    verticalAlignment: CellVerticalAlignment.middle))
+                : null,
+          ),
+          _ToolbarIconButton(
+            icon: Icons.vertical_align_bottom,
+            tooltip: 'Align bottom',
+            onPressed: _hasSelection
+                ? () => _setStyle(const CellStyle(
+                    verticalAlignment: CellVerticalAlignment.bottom))
+                : null,
+          ),
+          _ToolbarIconButton(
+            icon: Icons.wrap_text,
+            tooltip: 'Toggle wrap text',
+            onPressed: _hasSelection ? _toggleWrapText : null,
+          ),
           const VerticalDivider(width: 16),
           // --- Bold / Italic / Underline / Strikethrough ---
           _ToolbarIconButton(
@@ -350,6 +414,7 @@ class _RichTextDemoState extends State<RichTextDemo> {
                 ? () {
                     if (isEditing) {
                       _editController.toggleBold();
+                      _editController.requestEditorFocus();
                     } else {
                       _toggleSpanStyle(
                         test: (s) => s?.fontWeight == FontWeight.bold,
@@ -369,6 +434,7 @@ class _RichTextDemoState extends State<RichTextDemo> {
                 ? () {
                     if (isEditing) {
                       _editController.toggleItalic();
+                      _editController.requestEditorFocus();
                     } else {
                       _toggleSpanStyle(
                         test: (s) => s?.fontStyle == FontStyle.italic,
@@ -388,6 +454,7 @@ class _RichTextDemoState extends State<RichTextDemo> {
                 ? () {
                     if (isEditing) {
                       _editController.toggleUnderline();
+                      _editController.requestEditorFocus();
                     } else {
                       _toggleSpanStyle(
                         test: (s) =>
@@ -408,6 +475,7 @@ class _RichTextDemoState extends State<RichTextDemo> {
                 ? () {
                     if (isEditing) {
                       _editController.toggleStrikethrough();
+                      _editController.requestEditorFocus();
                     } else {
                       _toggleSpanStyle(
                         test: (s) =>
@@ -439,6 +507,7 @@ class _RichTextDemoState extends State<RichTextDemo> {
             ),
         ],
       ),
+    ),
     );
   }
 }

@@ -154,6 +154,20 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   /// doesn't jump as the user adds/removes lines.
   double? _initialWrapVerticalOffset;
 
+  /// True after the initial focus-gain selection has been applied.
+  /// Subsequent focus gains (e.g. after toolbar steals focus) restore
+  /// [_selectionBeforeFocusLoss] instead of reapplying the trigger logic.
+  bool _initialFocusApplied = false;
+
+  /// Saved selection from before focus was stolen by an external widget
+  /// (e.g. toolbar button). Restored on the next focus gain.
+  TextSelection? _selectionBeforeFocusLoss;
+
+  /// When non-null, a controller listener guards against the platform
+  /// overriding the restored selection with select-all (which happens on
+  /// web when the text input connection is re-established after focus gain).
+  TextSelection? _pendingSelectionRestore;
+
   @override
   void initState() {
     super.initState();
@@ -190,6 +204,10 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
     // and Actions can invoke formatting and query selection style.
     widget.editController.richTextController = _textController;
 
+    // Expose the focus node so EditController.requestEditorFocus() can
+    // restore focus after toolbar actions steal it.
+    widget.editController.editorFocusNode = _focusNode;
+
     // Listen for changes from edit controller
     widget.editController.addListener(_onEditControllerChanged);
 
@@ -215,12 +233,29 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   }
 
   @override
+  void didUpdateWidget(CellEditorOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // When the overlay is rebuilt with new props (e.g. toolbar changed
+    // wrapText, alignment, background color), the browser may have moved
+    // focus to the toolbar button. Schedule focus restoration.
+    if (widget.editController.isEditing && !_focusNode.hasFocus) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && widget.editController.isEditing && !_focusNode.hasFocus) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
+  }
+
+  @override
   void dispose() {
     widget.editController.richTextExtractor = null;
     widget.editController.richTextController = null;
+    widget.editController.editorFocusNode = null;
     widget.editController.removeListener(_onEditControllerChanged);
     _focusNode.removeListener(_onFocusChanged);
     _textController.removeListener(_onSelectionGuard);
+    _textController.removeListener(_onRestorationGuard);
     _textController.dispose();
     _focusNode.dispose();
     super.dispose();
@@ -246,6 +281,38 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
       // Selection is already fine — stop guarding.
       _guardSelectAll = false;
       _textController.removeListener(_onSelectionGuard);
+    }
+  }
+
+  /// One-shot guard for focus restoration: catches platform select-all that
+  /// arrives after the text input connection is re-established on web, and
+  /// replaces it with [_pendingSelectionRestore].
+  void _onRestorationGuard() {
+    final target = _pendingSelectionRestore;
+    if (target == null) {
+      _textController.removeListener(_onRestorationGuard);
+      return;
+    }
+    final sel = _textController.selection;
+    final text = _textController.text;
+    if (text.isEmpty) {
+      _pendingSelectionRestore = null;
+      _textController.removeListener(_onRestorationGuard);
+      return;
+    }
+
+    if (!sel.isCollapsed &&
+        sel.baseOffset == 0 &&
+        sel.extentOffset == text.length &&
+        sel != target) {
+      // Platform applied select-all — restore saved selection.
+      _pendingSelectionRestore = null;
+      _textController.removeListener(_onRestorationGuard);
+      _textController.selection = target;
+    } else {
+      // Selection wasn't overridden — done.
+      _pendingSelectionRestore = null;
+      _textController.removeListener(_onRestorationGuard);
     }
   }
 
@@ -278,20 +345,39 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
   }
 
   void _onFocusChanged() {
-    if (_focusNode.hasFocus && _textController.text.isNotEmpty) {
-      final trigger = widget.editController.trigger;
-      if (trigger == EditTrigger.typing || trigger == EditTrigger.doubleTap) {
-        // Typing or double-tap: cursor at end
-        _textController.selection = TextSelection.collapsed(
-          offset: _textController.text.length,
-        );
-      } else {
-        // F2, programmatic: select all text
-        _textController.selection = TextSelection(
-          baseOffset: 0,
-          extentOffset: _textController.text.length,
-        );
+    if (_focusNode.hasFocus) {
+      if (!_initialFocusApplied) {
+        // First focus gain — apply trigger-based selection.
+        _initialFocusApplied = true;
+        if (_textController.text.isNotEmpty) {
+          final trigger = widget.editController.trigger;
+          if (trigger == EditTrigger.typing ||
+              trigger == EditTrigger.doubleTap) {
+            _textController.selection = TextSelection.collapsed(
+              offset: _textController.text.length,
+            );
+          } else {
+            _textController.selection = TextSelection(
+              baseOffset: 0,
+              extentOffset: _textController.text.length,
+            );
+          }
+        }
+      } else if (_selectionBeforeFocusLoss != null) {
+        // Focus restored after toolbar steal — put the cursor back.
+        final saved = _selectionBeforeFocusLoss!;
+        _selectionBeforeFocusLoss = null;
+        _textController.selection = saved;
+        // On web the platform re-establishes the text input connection on
+        // focus gain, which may fire a select-all that overrides our
+        // restoration. Arm a one-shot guard to catch and reverse it.
+        _textController.removeListener(_onRestorationGuard);
+        _pendingSelectionRestore = saved;
+        _textController.addListener(_onRestorationGuard);
       }
+    } else if (widget.editController.isEditing) {
+      // Focus lost while still editing — save selection for restoration.
+      _selectionBeforeFocusLoss = _textController.selection;
     }
   }
 

@@ -86,6 +86,11 @@ class EditController extends ChangeNotifier {
   /// operations (bold, italic, etc.) and query the current selection style.
   RichTextEditingController? richTextController;
 
+  /// The editor's focus node, registered by [CellEditorOverlay] during editing
+  /// and cleared on dispose. Used by [requestEditorFocus] to restore focus
+  /// after toolbar actions steal it.
+  FocusNode? editorFocusNode;
+
   EditState _state = EditState.idle;
   CellCoordinate? _editingCell;
   CellValue? _originalValue;
@@ -283,4 +288,20 @@ class EditController extends ChangeNotifier {
   /// Whether all characters in the editing selection have strikethrough.
   bool get isSelectionStrikethrough =>
       richTextController?.isSelectionStrikethrough ?? false;
+
+  /// Requests focus on the editor overlay.
+  ///
+  /// Call this after toolbar actions that may steal focus from the editor
+  /// (e.g. clicking an [IconButton] while editing). Schedules focus
+  /// restoration via a post-frame callback so it runs after the current
+  /// build phase completes.
+  void requestEditorFocus() {
+    final node = editorFocusNode;
+    if (node == null || !isEditing) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isEditing && !node.hasFocus && node.canRequestFocus) {
+        node.requestFocus();
+      }
+    });
+  }
 }

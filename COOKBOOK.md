@@ -698,22 +698,34 @@ Widget buildFormattingToolbar(EditController editController) {
           IconButton(
             icon: const Icon(Icons.format_bold),
             isSelected: editController.isSelectionBold,
-            onPressed: editing ? () => editController.toggleBold() : null,
+            onPressed: editing ? () {
+              editController.toggleBold();
+              editController.requestEditorFocus();
+            } : null,
           ),
           IconButton(
             icon: const Icon(Icons.format_italic),
             isSelected: editController.isSelectionItalic,
-            onPressed: editing ? () => editController.toggleItalic() : null,
+            onPressed: editing ? () {
+              editController.toggleItalic();
+              editController.requestEditorFocus();
+            } : null,
           ),
           IconButton(
             icon: const Icon(Icons.format_underline),
             isSelected: editController.isSelectionUnderline,
-            onPressed: editing ? () => editController.toggleUnderline() : null,
+            onPressed: editing ? () {
+              editController.toggleUnderline();
+              editController.requestEditorFocus();
+            } : null,
           ),
           IconButton(
             icon: const Icon(Icons.format_strikethrough),
             isSelected: editController.isSelectionStrikethrough,
-            onPressed: editing ? () => editController.toggleStrikethrough() : null,
+            onPressed: editing ? () {
+              editController.toggleStrikethrough();
+              editController.requestEditorFocus();
+            } : null,
           ),
         ],
       );
@@ -721,6 +733,16 @@ Widget buildFormattingToolbar(EditController editController) {
   );
 }
 ```
+
+> **Important:** Call `editController.requestEditorFocus()` after every toolbar
+> action that runs while editing. Clicking a toolbar button moves focus away
+> from the editor (especially on web, where the browser's native focus follows
+> the click). `requestEditorFocus()` schedules a post-frame callback that
+> restores focus to the editor and preserves the text selection.
+>
+> This applies to any button that modifies data while editing — formatting
+> toggles, background color, alignment, wrap text, etc. Without it the editor
+> loses focus and the user must tap back into the cell.
 
 Alternatively, use Flutter's Actions system from within the widget tree:
 
