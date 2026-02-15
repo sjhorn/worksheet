@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/models/cell_coordinate.dart';
 import 'package:worksheet/src/core/models/cell_format.dart';
+import 'package:worksheet/src/core/models/cell_style.dart';
 import 'package:worksheet/src/core/models/cell_value.dart';
 import 'package:worksheet/src/interaction/controllers/edit_controller.dart';
 import 'package:worksheet/src/widgets/cell_editor_overlay.dart';
@@ -28,6 +29,7 @@ void main() {
     FocusNode? parentFocusNode,
     void Function(CellCoordinate, CellValue?, int, int, {CellFormat? detectedFormat, List<TextSpan>? richText})? onCommitAndNavigate,
     bool wrapText = false,
+    CellVerticalAlignment verticalAlignment = CellVerticalAlignment.middle,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -47,6 +49,7 @@ void main() {
               onCancel: onCancel ?? () {},
               onCommitAndNavigate: onCommitAndNavigate,
               wrapText: wrapText,
+              verticalAlignment: verticalAlignment,
             ),
           ],
         ),
@@ -808,6 +811,150 @@ void main() {
         // Height is unconstrained — EditableText can grow for multi-line text
         expect(constrainedBox.constraints.maxHeight, double.infinity);
         expect(constrainedBox.constraints.minHeight, 0.0);
+      });
+
+      testWidgets(
+          'vertical alignment preserved when toggling wrapText on',
+          (tester) async {
+        const cellBounds = Rect.fromLTWH(100, 50, 120, 60);
+
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hi'),
+        );
+
+        // Start with wrapText off and middle alignment.
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          cellBounds: cellBounds,
+          wrapText: false,
+          verticalAlignment: CellVerticalAlignment.middle,
+        ));
+
+        // Read the non-wrap middle-aligned Padding top.
+        final paddingBefore = tester.widget<Padding>(
+          find.ancestor(
+            of: find.byType(FocusScope),
+            matching: find.byType(Padding),
+          ),
+        );
+        final topBefore = paddingBefore.padding.resolve(TextDirection.ltr).top;
+        // Middle alignment should offset more than cellPadding (4.0).
+        expect(topBefore, greaterThan(4.0));
+
+        // Toggle wrapText on — rebuild the widget with new props.
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          cellBounds: cellBounds,
+          wrapText: true,
+          verticalAlignment: CellVerticalAlignment.middle,
+        ));
+
+        final paddingAfter = tester.widget<Padding>(
+          find.ancestor(
+            of: find.byType(FocusScope),
+            matching: find.byType(Padding),
+          ),
+        );
+        final topAfter = paddingAfter.padding.resolve(TextDirection.ltr).top;
+        // Should use the recomputed middle offset, NOT fall back to cellPadding.
+        expect(topAfter, greaterThan(4.0),
+            reason: 'wrap-text middle alignment should not fall back to cellPadding');
+      });
+
+      testWidgets(
+          'vertical alignment updates when changed during wrap editing',
+          (tester) async {
+        const cellBounds = Rect.fromLTWH(100, 50, 120, 60);
+
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hi'),
+        );
+
+        // Start with wrapText on and middle alignment.
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          cellBounds: cellBounds,
+          wrapText: true,
+          verticalAlignment: CellVerticalAlignment.middle,
+        ));
+
+        final paddingMiddle = tester.widget<Padding>(
+          find.ancestor(
+            of: find.byType(FocusScope),
+            matching: find.byType(Padding),
+          ),
+        );
+        final topMiddle = paddingMiddle.padding.resolve(TextDirection.ltr).top;
+
+        // Change to bottom alignment.
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          cellBounds: cellBounds,
+          wrapText: true,
+          verticalAlignment: CellVerticalAlignment.bottom,
+        ));
+
+        final paddingBottom = tester.widget<Padding>(
+          find.ancestor(
+            of: find.byType(FocusScope),
+            matching: find.byType(Padding),
+          ),
+        );
+        final topBottom = paddingBottom.padding.resolve(TextDirection.ltr).top;
+
+        // Bottom alignment should produce a larger offset than middle.
+        expect(topBottom, greaterThan(topMiddle),
+            reason: 'bottom alignment should offset more than middle');
+      });
+
+      testWidgets(
+          'toggling wrapText off resets to dynamic vertical offset',
+          (tester) async {
+        const cellBounds = Rect.fromLTWH(100, 50, 120, 60);
+
+        editController.startEdit(
+          cell: const CellCoordinate(0, 0),
+          currentValue: const CellValue.text('Hi'),
+        );
+
+        // Start with wrapText on and middle alignment.
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          cellBounds: cellBounds,
+          wrapText: true,
+          verticalAlignment: CellVerticalAlignment.middle,
+        ));
+
+        final paddingWrap = tester.widget<Padding>(
+          find.ancestor(
+            of: find.byType(FocusScope),
+            matching: find.byType(Padding),
+          ),
+        );
+        final topWrap = paddingWrap.padding.resolve(TextDirection.ltr).top;
+        expect(topWrap, greaterThan(4.0));
+
+        // Toggle wrapText off.
+        await tester.pumpWidget(buildTestWidget(
+          controller: editController,
+          cellBounds: cellBounds,
+          wrapText: false,
+          verticalAlignment: CellVerticalAlignment.middle,
+        ));
+
+        final paddingNoWrap = tester.widget<Padding>(
+          find.ancestor(
+            of: find.byType(FocusScope),
+            matching: find.byType(Padding),
+          ),
+        );
+        final topNoWrap = paddingNoWrap.padding.resolve(TextDirection.ltr).top;
+        // Non-wrap middle alignment uses (cellHeight - textHeight) / 2,
+        // which should still be greater than cellPadding for a 60px tall cell.
+        expect(topNoWrap, greaterThan(4.0),
+            reason: 'non-wrap middle alignment should use dynamic offset');
       });
     });
 

@@ -245,6 +245,17 @@ class _CellEditorOverlayState extends State<CellEditorOverlay> {
         }
       });
     }
+
+    // Recompute wrap vertical offset when wrapText or verticalAlignment changes.
+    if (widget.wrapText != oldWidget.wrapText ||
+        widget.verticalAlignment != oldWidget.verticalAlignment) {
+      if (widget.wrapText &&
+          widget.verticalAlignment != CellVerticalAlignment.top) {
+        _initialWrapVerticalOffset = _computeInitialWrapVerticalOffset();
+      } else {
+        _initialWrapVerticalOffset = null;
+      }
+    }
   }
 
   @override
