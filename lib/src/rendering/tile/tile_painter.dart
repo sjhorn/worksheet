@@ -280,11 +280,17 @@ class TilePainter implements TileRenderer {
           cellBounds.height,
         );
 
+        // Use merge region edges for conflict resolution neighbors.
+        final topEdgeRow = region?.range.startRow ?? renderCoord.row;
+        final bottomEdgeRow = region?.range.endRow ?? renderCoord.row;
+        final leftEdgeCol = region?.range.startColumn ?? renderCoord.column;
+        final rightEdgeCol = region?.range.endColumn ?? renderCoord.column;
+
         // Top border
         if (!borders.top.isNone) {
-          final resolved = row > 0
+          final resolved = topEdgeRow > 0
               ? BorderResolver.resolve(
-                  data.getStyle(CellCoordinate(row - 1, col))?.borders?.bottom ?? BorderStyle.none,
+                  data.getStyle(CellCoordinate(topEdgeRow - 1, renderCoord.column))?.borders?.bottom ?? BorderStyle.none,
                   borders.top,
                 )
               : borders.top;
@@ -306,10 +312,10 @@ class TilePainter implements TileRenderer {
 
         // Bottom border
         if (!borders.bottom.isNone) {
-          final resolved = row < maxRow
+          final resolved = bottomEdgeRow < maxRow
               ? BorderResolver.resolve(
                   borders.bottom,
-                  data.getStyle(CellCoordinate(row + 1, col))?.borders?.top ?? BorderStyle.none,
+                  data.getStyle(CellCoordinate(bottomEdgeRow + 1, renderCoord.column))?.borders?.top ?? BorderStyle.none,
                 )
               : borders.bottom;
           if (!resolved.isNone) {
@@ -330,9 +336,9 @@ class TilePainter implements TileRenderer {
 
         // Left border
         if (!borders.left.isNone) {
-          final resolved = col > 0
+          final resolved = leftEdgeCol > 0
               ? BorderResolver.resolve(
-                  data.getStyle(CellCoordinate(row, col - 1))?.borders?.right ?? BorderStyle.none,
+                  data.getStyle(CellCoordinate(renderCoord.row, leftEdgeCol - 1))?.borders?.right ?? BorderStyle.none,
                   borders.left,
                 )
               : borders.left;
@@ -354,10 +360,10 @@ class TilePainter implements TileRenderer {
 
         // Right border
         if (!borders.right.isNone) {
-          final resolved = col < maxCol
+          final resolved = rightEdgeCol < maxCol
               ? BorderResolver.resolve(
                   borders.right,
-                  data.getStyle(CellCoordinate(row, col + 1))?.borders?.left ?? BorderStyle.none,
+                  data.getStyle(CellCoordinate(renderCoord.row, rightEdgeCol + 1))?.borders?.left ?? BorderStyle.none,
                 )
               : borders.right;
           if (!resolved.isNone) {

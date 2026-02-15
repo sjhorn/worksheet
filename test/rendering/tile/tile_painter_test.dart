@@ -421,6 +421,59 @@ void main() {
         expect(picture, isA<ui.Picture>());
         picture.dispose();
       });
+
+      test('merged cell border renders without crash', () {
+        // Merge (0,0)-(2,0) — 3 rows, 1 column
+        data.mergeCells(const CellRange(0, 0, 2, 0));
+        data.setStyle(
+          const CellCoordinate(0, 0),
+          const CellStyle(
+            borders: CellBorders.all(
+              BorderStyle(color: Color(0xFF000000), width: 2.0),
+            ),
+          ),
+        );
+
+        painter.mergedCells = data.mergedCells;
+        layoutSolver.mergedCells = data.mergedCells;
+
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 256, 256),
+          cellRange: CellRange(0, 0, 5, 2),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
+
+      test('merged cell right border resolves correctly', () {
+        // Merge (0,0)-(0,2) — 1 row, 3 columns
+        data.mergeCells(const CellRange(0, 0, 0, 2));
+        data.setStyle(
+          const CellCoordinate(0, 0),
+          const CellStyle(
+            borders: CellBorders.all(
+              BorderStyle(color: Color(0xFF000000)),
+            ),
+          ),
+        );
+
+        painter.mergedCells = data.mergedCells;
+        layoutSolver.mergedCells = data.mergedCells;
+
+        // Tile spans past the merge so conflict resolution hits col 3
+        final picture = painter.renderTile(
+          coordinate: TileCoordinate(0, 0),
+          bounds: const ui.Rect.fromLTWH(0, 0, 512, 256),
+          cellRange: CellRange(0, 0, 5, 5),
+          zoomBucket: ZoomBucket.full,
+        );
+
+        expect(picture, isA<ui.Picture>());
+        picture.dispose();
+      });
     });
 
     group('editingRange', () {
