@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide BorderStyle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:worksheet/src/core/data/sparse_worksheet_data.dart';
 import 'package:worksheet/src/core/data/worksheet_data.dart';
@@ -1152,6 +1152,80 @@ void main() {
     });
 
     test('applies to multi-cell range', () {
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = SetCellStyleAction(ctx);
+      action.invoke(const SetCellStyleIntent(
+        CellStyle(backgroundColor: Color(0xFFAABBCC)),
+      ));
+
+      for (int r = 0; r <= 1; r++) {
+        for (int c = 0; c <= 1; c++) {
+          final style = data.getStyle(CellCoordinate(r, c));
+          expect(style?.backgroundColor, const Color(0xFFAABBCC));
+        }
+      }
+    });
+
+    test('skips borders on non-anchor merged cells', () {
+      data.mergeCells(const CellRange(0, 0, 1, 1));
+      selectionController.selectRange(const CellRange(0, 0, 1, 1));
+
+      final action = SetCellStyleAction(ctx);
+      action.invoke(const SetCellStyleIntent(
+        CellStyle(
+          backgroundColor: Color(0xFFAABBCC),
+          borders: CellBorders.all(
+            BorderStyle(color: Color(0xFF000000)),
+          ),
+        ),
+      ));
+
+      // Anchor gets both borders and backgroundColor
+      final anchorStyle = data.getStyle(const CellCoordinate(0, 0));
+      expect(anchorStyle?.backgroundColor, const Color(0xFFAABBCC));
+      expect(anchorStyle?.borders, isNotNull);
+      expect(anchorStyle!.borders!.isNone, isFalse);
+
+      // Non-anchor cells get backgroundColor but NOT borders
+      for (final coord in [
+        const CellCoordinate(0, 1),
+        const CellCoordinate(1, 0),
+        const CellCoordinate(1, 1),
+      ]) {
+        final style = data.getStyle(coord);
+        expect(style?.backgroundColor, const Color(0xFFAABBCC),
+            reason: '$coord should have backgroundColor');
+        expect(style?.borders, isNull,
+            reason: '$coord should not have borders');
+      }
+    });
+
+    test('unmerged cells in same selection get borders normally', () {
+      data.mergeCells(const CellRange(0, 0, 0, 1));
+      selectionController.selectRange(const CellRange(0, 0, 0, 2));
+
+      final action = SetCellStyleAction(ctx);
+      action.invoke(const SetCellStyleIntent(
+        CellStyle(
+          borders: CellBorders.all(
+            BorderStyle(color: Color(0xFF000000)),
+          ),
+        ),
+      ));
+
+      // Anchor (0,0) gets borders
+      expect(data.getStyle(const CellCoordinate(0, 0))?.borders?.isNone,
+          isFalse);
+      // Non-anchor (0,1) does NOT get borders
+      expect(data.getStyle(const CellCoordinate(0, 1))?.borders, isNull);
+      // Unmerged (0,2) gets borders normally
+      expect(data.getStyle(const CellCoordinate(0, 2))?.borders?.isNone,
+          isFalse);
+    });
+
+    test('non-border style applies to all cells including non-anchor', () {
+      data.mergeCells(const CellRange(0, 0, 1, 1));
       selectionController.selectRange(const CellRange(0, 0, 1, 1));
 
       final action = SetCellStyleAction(ctx);

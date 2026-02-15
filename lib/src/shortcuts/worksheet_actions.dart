@@ -636,13 +636,36 @@ class SetCellStyleAction extends Action<SetCellStyleIntent> {
     final range = _context.selectionController.selectedRange;
     if (range == null) return null;
 
+    // Pre-compute a border-stripped copy so non-anchor merge cells
+    // don't get borders stored in the data model.
+    final hasBorders = intent.style.borders != null;
+    final noBordersStyle = hasBorders
+        ? CellStyle(
+            backgroundColor: intent.style.backgroundColor,
+            textAlignment: intent.style.textAlignment,
+            verticalAlignment: intent.style.verticalAlignment,
+            wrapText: intent.style.wrapText,
+          )
+        : null;
+
     for (int row = range.startRow; row <= range.endRow; row++) {
       for (int col = range.startColumn; col <= range.endColumn; col++) {
         final coord = CellCoordinate(row, col);
+
+        // For merged cells, only the anchor gets borders.
+        var styleToApply = intent.style;
+        if (hasBorders) {
+          final region =
+              _context.worksheetData.mergedCells.getRegion(coord);
+          if (region != null && !region.isAnchor(coord)) {
+            styleToApply = noBordersStyle!;
+          }
+        }
+
         final current = _context.worksheetData.getStyle(coord);
         final merged = current != null
-            ? current.merge(intent.style)
-            : intent.style;
+            ? current.merge(styleToApply)
+            : styleToApply;
         _context.worksheetData.setStyle(coord, merged);
       }
     }
