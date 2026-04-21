@@ -1599,13 +1599,17 @@ class _WorksheetState extends State<Worksheet>
     if (ec == null) return;
 
     final currentValue = (widget.rawData ?? widget.data).getCell(cell);
-    ec.startEdit(
+    final started = ec.startEdit(
       cell: cell,
       currentValue: currentValue,
       trigger: trigger,
       initialText: initialText,
       tapPosition: tapPosition,
     );
+
+    if (!started) {
+      return;
+    }
 
     // Tell the tile painter to skip rendering text for this cell
     // (the overlay TextField renders it instead) and re-render the tile.
