@@ -179,8 +179,7 @@ class TilePainter implements TileRenderer {
     final expandedStartCol = (startCol - maxSpillColumns).clamp(0, maxCol);
     final expandedEndCol = (endCol + maxSpillColumns).clamp(0, maxCol);
 
-    // Track which merged anchors we've already rendered in this tile,
-    // so we don't render them multiple times.
+    // Track merged anchors we've already drawn text for in this tile (once).
     final renderedAnchors = <CellCoordinate>{};
 
     for (var row = startRow; row <= endRow; row++) {
@@ -193,10 +192,8 @@ class TilePainter implements TileRenderer {
         final region = mergedCells?.getRegion(coord);
         final renderCoord = region?.anchor ?? coord;
 
-        // Skip if we've already rendered this merge anchor in this tile.
-        if (region != null) {
-          if (renderedAnchors.contains(renderCoord)) continue;
-          renderedAnchors.add(renderCoord);
+        if (isExpansionZone && data.getCell(renderCoord) == null) {
+          if (region == null) continue;
         }
 
         // In the expansion zone, only process cells with values (for spillover).
@@ -229,6 +226,35 @@ class TilePainter implements TileRenderer {
           final style = data.getStyle(renderCoord);
           _renderCellBackground(canvas, clippedBounds, style);
         }
+      }
+    }
+
+    // Two passes: first render backgrounds, then content. Backgrounds must
+    // be rendered before content to avoid text being covered by merged cells.
+    for (var row = startRow; row <= endRow; row++) {
+      for (var col = expandedStartCol; col <= expandedEndCol; col++) {
+        final coord = CellCoordinate(row, col);
+        final isExpansionZone = col < startCol || col > endCol;
+
+        final region = mergedCells?.getRegion(coord);
+        final renderCoord = region?.anchor ?? coord;
+
+        if (isExpansionZone && data.getCell(renderCoord) == null) {
+          if (region == null) continue;
+        }
+
+        if (region != null) {
+          if (renderedAnchors.contains(renderCoord)) continue;
+          renderedAnchors.add(renderCoord);
+        }
+
+        final cellBounds = layoutSolver.getCellBounds(renderCoord);
+        final localBounds = ui.Rect.fromLTWH(
+          cellBounds.left - tileBounds.left,
+          cellBounds.top - tileBounds.top,
+          cellBounds.width,
+          cellBounds.height,
+        );
 
         // Render cell content (skip the cell being edited — the overlay
         // TextField renders its text instead).
