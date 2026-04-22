@@ -2369,6 +2369,9 @@ class _WorksheetState extends State<Worksheet>
       _dataSubscription?.cancel();
       // Remove listener before re-init (which adds it again)
       widget.editController?.removeListener(_onEditTextChanged);
+      // save mergedCells in re-init
+			_layoutSolver.mergedCells = widget.data.mergedCells;
+			_controller.selectionController.mergedCells = widget.data.mergedCells;
       final theme = WorksheetTheme.of(context);
       final devicePixelRatio = MediaQuery.of(context).devicePixelRatio;
       _tileManager.dispose();
