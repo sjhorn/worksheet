@@ -106,6 +106,12 @@ class Worksheet extends StatefulWidget {
   /// Whether the worksheet is read-only (no selection or editing).
   final bool readOnly;
 
+	/// Enables drag-and-drop move of selected cells (selection border / long-press).
+	///
+	/// When `false`, cell move gestures are disabled while selection/editing stay available.
+	final bool enableMove;
+
+
   /// Date format parser for type detection during editing and clipboard paste.
   ///
   /// Controls how text input is detected as dates. Uses [AnyDate] from the
@@ -235,6 +241,7 @@ class Worksheet extends StatefulWidget {
     this.customRowHeights,
     this.customColumnWidths,
     this.readOnly = false,
+    this.enableMove = true,
     this.dateParser,
     this.formatLocale,
     this.clipboardSerializer,
@@ -986,18 +993,18 @@ class _WorksheetState extends State<Worksheet>
               _selectionLayer.fillPreviewRange = null;
               setState(() {});
             },
-      onMovePreviewUpdate: widget.readOnly
+      onMovePreviewUpdate: (widget.readOnly || !widget.enableMove)
           ? null
           : (previewRange) {
               _selectionLayer.movePreviewRange = previewRange;
               setState(() {});
             },
-      onMoveComplete: widget.readOnly
+      onMoveComplete: (widget.readOnly || !widget.enableMove)
           ? null
           : (sourceRange, destination) {
               _performMove(sourceRange, destination);
             },
-      onMoveCancel: widget.readOnly
+      onMoveCancel: (widget.readOnly || !widget.enableMove)
           ? null
           : () {
               _selectionLayer.movePreviewRange = null;
@@ -2559,8 +2566,9 @@ class _WorksheetState extends State<Worksheet>
                               SystemMouseCursors.resizeColumn,
                             HitTestType.fillHandle =>
                               SystemMouseCursors.precise,
-                            HitTestType.selectionBorder =>
-                              SystemMouseCursors.grab,
+                             HitTestType.selectionBorder => widget.enableMove
+                                 ? SystemMouseCursors.grab
+                                 : SystemMouseCursors.basic,
                             HitTestType.cell => SystemMouseCursors.cell,
                             HitTestType.rowHeader => SystemMouseCursors.click,
                             HitTestType.columnHeader =>
