@@ -327,7 +327,9 @@ class WorksheetGestureHandler {
     } else if (hit.isFillHandle) {
       _fillHandler.start(selectionController.selectedRange, position);
     } else if (hit.isSelectionBorder) {
-      _moveHandler.start(hit, selectionController.selectedRange);
+      if (_moveHandler.isEnabled) {
+        _moveHandler.start(hit, selectionController.selectedRange);
+      }
     } else if (hit.isResizeHandle) {
       _isResizing = true;
     } else if (hit.isCell) {
@@ -535,6 +537,7 @@ class WorksheetGestureHandler {
     final cell = hit.cell;
     if (cell == null || !selection.contains(cell)) return;
 
+		if (!_moveHandler.isEnabled) return;
     _moveHandler.longPressStart(cell, selection);
     _selectionBeforeDrag = selection;
     _dragStartPosition = position;

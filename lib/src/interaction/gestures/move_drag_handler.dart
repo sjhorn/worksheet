@@ -49,6 +49,12 @@ class MoveDragHandler {
   /// Whether a move drag is in progress.
   bool get isMoving => _isMoving;
 
+	/// Whether move operations are enabled by callbacks wiring.
+	bool get isEnabled =>
+			onMovePreviewUpdate != null ||
+			onMoveComplete != null ||
+			onMoveCancel != null;
+
   /// Starts a move drag from a selection border hit.
   ///
   /// [hit] is the hit test result on the selection border.

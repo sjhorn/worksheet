@@ -500,25 +500,26 @@ abstract class WorksheetActionContext {
 
 ### Worksheet Widget Properties
 
-| Property | Type | Default | Description |
-|----------|------|---------|-------------|
+| Property | Type | Default  | Description |
+|----------|------|----------|-------------|
 | `data` | `WorksheetData` | required | Data source for the worksheet |
-| `rawData` | `WorksheetData?` | null | Raw data source for editing. When set, the cell editor reads values from `rawData` instead of `data`, so formula wrappers can evaluate formulas for display while editing still shows the original formula text. Only affects cell editing — rendering, styling, clipboard, and formatting use `data`. |
-| `controller` | `WorksheetController?` | null | Controller for selection, zoom, scroll |
+| `rawData` | `WorksheetData?` | null     | Raw data source for editing. When set, the cell editor reads values from `rawData` instead of `data`, so formula wrappers can evaluate formulas for display while editing still shows the original formula text. Only affects cell editing — rendering, styling, clipboard, and formatting use `data`. |
+| `controller` | `WorksheetController?` | null     | Controller for selection, zoom, scroll |
 | `rowCount` | `int` | required | Total number of rows |
 | `columnCount` | `int` | required | Total number of columns |
-| `readOnly` | `bool` | `false` | Disables selection and editing |
-| `mobileMode` | `bool?` | `null` | Touch interaction mode. `null` = auto-detect (mobile on iOS/Android, desktop on macOS/Windows/Linux). `true` = force mobile. `false` = force desktop. See [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md). |
-| `onEditCell` | `OnEditCellCallback?` | null | Called on double-tap / F2 |
-| `onCellTap` | `OnCellTapCallback?` | null | Called when a cell is tapped |
-| `onResizeRow` | `OnResizeRowCallback?` | null | Called during row resize |
-| `onResizeColumn` | `OnResizeColumnCallback?` | null | Called during column resize |
-| `shortcuts` | `Map<ShortcutActivator, Intent>?` | null | Override/add shortcut bindings |
-| `actions` | `Map<Type, Action<Intent>>?` | null | Override action implementations |
-| `dateParser` | `AnyDate?` | null | Custom date format detection |
-| `formatLocale` | `FormatLocale?` | null | Locale for number/date formatting |
-| `customRowHeights` | `Map<int, double>?` | null | Custom heights for specific rows |
-| `customColumnWidths` | `Map<int, double>?` | null | Custom widths for specific columns |
+| `readOnly` | `bool` | `false`  | Disables selection and editing |
+| `enableMove` | `bool` | `true`     | Disables cell move gestures |
+| `mobileMode` | `bool?` | `null`   | Touch interaction mode. `null` = auto-detect (mobile on iOS/Android, desktop on macOS/Windows/Linux). `true` = force mobile. `false` = force desktop. See [MOBILE_INTERACTION.md](MOBILE_INTERACTION.md). |
+| `onEditCell` | `OnEditCellCallback?` | null     | Called on double-tap / F2 |
+| `onCellTap` | `OnCellTapCallback?` | null     | Called when a cell is tapped |
+| `onResizeRow` | `OnResizeRowCallback?` | null     | Called during row resize |
+| `onResizeColumn` | `OnResizeColumnCallback?` | null     | Called during column resize |
+| `shortcuts` | `Map<ShortcutActivator, Intent>?` | null     | Override/add shortcut bindings |
+| `actions` | `Map<Type, Action<Intent>>?` | null     | Override action implementations |
+| `dateParser` | `AnyDate?` | null     | Custom date format detection |
+| `formatLocale` | `FormatLocale?` | null     | Locale for number/date formatting |
+| `customRowHeights` | `Map<int, double>?` | null     | Custom heights for specific rows |
+| `customColumnWidths` | `Map<int, double>?` | null     | Custom widths for specific columns |
 
 ### Usage Example
 
