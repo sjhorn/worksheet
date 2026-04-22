@@ -1599,13 +1599,19 @@ class _WorksheetState extends State<Worksheet>
     if (ec == null) return;
 
     final currentValue = (widget.rawData ?? widget.data).getCell(cell);
-    ec.startEdit(
+    final started = ec.startEdit(
       cell: cell,
       currentValue: currentValue,
       trigger: trigger,
       initialText: initialText,
       tapPosition: tapPosition,
     );
+    // [medstat] Если [EditController.startEdit] вернул false (например, запрет
+    // редактирования этой ячейки), не скрывать текст в тайле — иначе ячейка
+    // визуально пустая до следующего редактирования (worksheet 3.9.2).
+    if (!started) {
+      return;
+    }
 
     // Tell the tile painter to skip rendering text for this cell
     // (the overlay TextField renders it instead) and re-render the tile.
@@ -2155,6 +2161,138 @@ class _WorksheetState extends State<Worksheet>
     return Rect.fromLTRB(left, top, size.width, size.height);
   }
 
+  /// In [Worksheet.readOnly] mode, keyboard selection and focus: no data edits
+  /// and without [GestureHandler.onDragStart] (fill, move, resize, drag selection).
+  void _readOnlyPointerDown(PointerDownEvent event, WorksheetThemeData theme) {
+    _lastPointerKind = event.kind;
+    if (_isMobileMode && event.kind == PointerDeviceKind.touch) {
+      _activePointers[event.pointer] = event.localPosition;
+      if (_activePointers.length == 2) {
+        final points = _activePointers.values.toList();
+        final focal = Offset(
+          (points[0].dx + points[1].dx) / 2,
+          (points[0].dy + points[1].dy) / 2,
+        );
+        _pinchStartDistance = (points[0] - points[1]).distance;
+        _scaleHandler?.onScaleStart(
+          scale: 1.0,
+          focalPoint: focal,
+          scrollOffset: Offset(
+            _controller.scrollX,
+            _controller.scrollY,
+          ),
+        );
+        return;
+      }
+    }
+    if (event.buttons != kPrimaryButton) return;
+    if (_doubleTapHandledPointerDown) {
+      _doubleTapHandledPointerDown = false;
+      return;
+    }
+    if (_isInScrollbarArea(event.localPosition, theme)) {
+      _pointerInScrollbarArea = true;
+      return;
+    }
+    _pointerInScrollbarArea = false;
+
+    // As in normal mode: tapping a cell on touch is handled via
+    // [GestureDetector.onTapUp], otherwise two-finger scrolling doesn't work.
+    if (_isMobileMode && event.kind == PointerDeviceKind.touch) {
+      return;
+    }
+
+    _gestureHandler.onTapDown(
+      position: event.localPosition,
+      scrollOffset: Offset(
+        _controller.scrollX,
+        _controller.scrollY,
+      ),
+      zoom: _controller.zoom,
+      isShiftPressed: HardwareKeyboard.instance.isShiftPressed,
+      selectionHandleSize: _isMobileMode ? 12.0 : 0,
+      resizeHandleTolerance: _isMobileMode ? 12.0 : 4.0,
+      selectionBorderTolerance: _isMobileMode ? 12.0 : 4.0,
+    );
+    _keyboardFocusNode.requestFocus();
+    widget.onCellTap?.call(
+      _controller.focusCell ?? const CellCoordinate(0, 0),
+    );
+  }
+
+  void _readOnlyPointerMove(PointerMoveEvent event) {
+    if (_isMobileMode &&
+        event.kind == PointerDeviceKind.touch &&
+        _activePointers.containsKey(event.pointer)) {
+      _activePointers[event.pointer] = event.localPosition;
+      if (_activePointers.length >= 2 && _scaleHandler?.isScaling == true) {
+        final points = _activePointers.values.toList();
+        final focal = Offset(
+          (points[0].dx + points[1].dx) / 2,
+          (points[0].dy + points[1].dy) / 2,
+        );
+        final distance = (points[0] - points[1]).distance;
+        final scale = _pinchStartDistance > 0
+            ? distance / _pinchStartDistance
+            : 1.0;
+        _scaleHandler!.onScaleUpdate(
+          scale: scale,
+          focalPoint: focal,
+        );
+        final adj = _scaleHandler!.scrollAdjustment;
+        if (adj != Offset.zero) {
+          final hc = _controller.horizontalScrollController;
+          final vc = _controller.verticalScrollController;
+          if (hc.hasClients) {
+            hc.jumpTo(
+              (hc.offset + adj.dx).clamp(
+                0.0,
+                hc.position.maxScrollExtent,
+              ),
+            );
+          }
+          if (vc.hasClients) {
+            vc.jumpTo(
+              (vc.offset + adj.dy).clamp(
+                0.0,
+                vc.position.maxScrollExtent,
+              ),
+            );
+          }
+        }
+        setState(() {});
+      }
+    }
+  }
+
+  void _readOnlyPointerUp(PointerUpEvent event) {
+    if (_isMobileMode) {
+      _activePointers.remove(event.pointer);
+      if (_scaleHandler?.isScaling == true && _activePointers.length < 2) {
+        _scaleHandler!.onScaleEnd();
+      }
+    }
+    _pointerInScrollbarArea = false;
+  }
+
+  void _readOnlyMobileTapUp(TapUpDetails details) {
+    _keyboardFocusNode.requestFocus();
+    final hit = _hitTester.hitTest(
+      position: details.localPosition,
+      scrollOffset: Offset(
+        _controller.scrollX,
+        _controller.scrollY,
+      ),
+      zoom: _controller.zoom,
+      selectionRange: _controller.selectionController.selectedRange,
+      selectionHandleSize: 12.0,
+    );
+    if (hit.isCell) {
+      _controller.selectionController.selectCell(hit.cell!);
+      widget.onCellTap?.call(hit.cell!);
+    }
+  }
+
   void _onAutoScrollTick() {
     final position = _lastPointerPosition;
     if (position == null ||
@@ -2575,7 +2713,7 @@ class _WorksheetState extends State<Worksheet>
                         },
                   child: Listener(
                     onPointerDown: widget.readOnly
-                        ? null
+                        ? (event) => _readOnlyPointerDown(event, theme)
                         : (event) {
                             _lastPointerKind = event.kind;
                             // Track pointers for pinch-to-zoom
@@ -2821,7 +2959,7 @@ class _WorksheetState extends State<Worksheet>
                             }
                           },
                     onPointerMove: widget.readOnly
-                        ? null
+                        ? _readOnlyPointerMove
                         : (event) {
                             // Track pointer positions for pinch-to-zoom
                             if (_isMobileMode &&
@@ -2930,7 +3068,7 @@ class _WorksheetState extends State<Worksheet>
                             }
                           },
                     onPointerUp: widget.readOnly
-                        ? null
+                        ? _readOnlyPointerUp
                         : (event) {
                             // End formula drag-to-reference
                             if (_formulaDragging) {
@@ -3005,8 +3143,10 @@ class _WorksheetState extends State<Worksheet>
                     child: GestureDetector(
                       // Mobile mode: tap on cell selects it (since
                       // onPointerDown skips cells for touch to allow scroll).
-                      onTapUp: (!_isMobileMode || widget.readOnly)
+                      onTapUp: !_isMobileMode
                           ? null
+                          : widget.readOnly
+                          ? _readOnlyMobileTapUp
                           : (TapUpDetails details) {
                               final ec = widget.editController;
                               if (ec != null && ec.isEditing) {
